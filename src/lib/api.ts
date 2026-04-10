@@ -29,6 +29,9 @@ export const api = {
   latestPrices: (tickers: string[]) =>
     get<{ prices: LatestPrice[] }>(`/prices/latest?tickers=${tickers.join(",")}`)
       .then((r) => r.prices),
+  priceOn: (ticker: string, date: string) =>
+    get<{ price: number | null }>(`/prices/on?ticker=${encodeURIComponent(ticker)}&date=${date}`)
+      .then((r) => r.price),
 };
 
 export type { Dealing, DirectorDetail, LatestPrice, Portfolio, Rating };

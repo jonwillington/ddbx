@@ -77,6 +77,24 @@ app.get("/api/directors/:id", async (c) => {
   return c.json(d);
 });
 
+// Returns the most recent price for a ticker at or before a given date.
+// Used by the frontend to look up benchmark entry prices for a dealing.
+app.get("/api/prices/on", async (c) => {
+  const ticker = c.req.query("ticker");
+  const date = c.req.query("date");
+  if (!ticker || !date) return c.json({ price: null });
+  try {
+    const row = await c.env.DB.prepare(
+      `SELECT close_pence FROM prices WHERE ticker = ?1 AND date <= ?2 ORDER BY date DESC LIMIT 1`,
+    )
+      .bind(ticker, date)
+      .first<{ close_pence: number }>();
+    return c.json({ price: row?.close_pence ?? null });
+  } catch {
+    return c.json({ price: null });
+  }
+});
+
 // Returns the most recent cached price for each requested ticker, fetching
 // from Yahoo Finance (7-day window) for any with no cached price in the last 7 days.
 app.get("/api/prices/latest", async (c) => {

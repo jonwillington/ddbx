@@ -6,13 +6,37 @@ import type { RatingChecklist } from "../../worker/db/types";
 import { RatingBadge } from "@/components/rating-badge";
 import { EvidenceTable } from "@/components/evidence-table";
 
-const CHECKLIST_LABELS: { key: keyof RatingChecklist; label: string }[] = [
-  { key: "open_market_buy", label: "Open-market buy" },
-  { key: "senior_insider", label: "Senior insider" },
-  { key: "meaningful_conviction", label: "Meaningful conviction" },
-  { key: "no_alternative_explanation", label: "No alternative explanation" },
-  { key: "supporting_context_found", label: "Supporting context found" },
-  { key: "no_major_counter_signal", label: "No major counter-signal" },
+const CHECKLIST_LABELS: { key: keyof RatingChecklist; label: string; tooltip: string }[] = [
+  {
+    key: "open_market_buy",
+    label: "Open-market buy",
+    tooltip: "Purchased on the open market — not via an options exercise, LTIP vesting, or employee share scheme. A stronger signal of deliberate investment.",
+  },
+  {
+    key: "senior_insider",
+    label: "Senior insider",
+    tooltip: "The buyer is a CEO, CFO, Chairman, or board-level director with genuine operational insight into the business.",
+  },
+  {
+    key: "meaningful_conviction",
+    label: "Meaningful conviction",
+    tooltip: "The purchase size is large relative to the director's likely compensation, suggesting real personal conviction rather than a token gesture.",
+  },
+  {
+    key: "no_alternative_explanation",
+    label: "No scheme or plan",
+    tooltip: "The purchase doesn't appear to result from a pre-arranged trading plan, SAYE scheme, or required ownership policy — suggesting it's an active investment decision.",
+  },
+  {
+    key: "supporting_context_found",
+    label: "Supporting context found",
+    tooltip: "External news, filings, or analyst commentary support a bullish view the director may be acting on.",
+  },
+  {
+    key: "no_major_counter_signal",
+    label: "No major counter-signal",
+    tooltip: "No recent red flags — profit warnings, accounting irregularities, or heavy insider selling — that would undercut the signal.",
+  },
 ];
 
 function RatingChecklistView({ checklist }: { checklist: RatingChecklist }) {
@@ -24,18 +48,31 @@ function RatingChecklistView({ checklist }: { checklist: RatingChecklist }) {
         <span className="text-xs text-muted">{passed} of {CHECKLIST_LABELS.length} criteria met</span>
       </div>
       <ul className="divide-y divide-black/10 dark:divide-white/10 border-y border-black/10 dark:border-white/10">
-        {CHECKLIST_LABELS.map(({ key, label }) => {
+        {CHECKLIST_LABELS.map(({ key, label, tooltip }) => {
           const ok = checklist[key];
           return (
             <li key={key} className="flex items-center gap-3 py-2.5">
               <span
                 aria-label={ok ? "passed" : "failed"}
                 className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold shrink-0
-                  ${ok ? "bg-green-500/15 text-green-500" : "bg-red-500/15 text-red-500"}`}
+                  ${ok
+                    ? "bg-[#3a5c30]/15 text-[#3a5c30] dark:text-[#7ab870]"
+                    : "bg-[#7a3030]/15 text-[#7a3030] dark:text-[#c47070]"
+                  }`}
               >
                 {ok ? "✓" : "✗"}
               </span>
-              <span className={`text-sm ${ok ? "text-foreground" : "text-foreground/60"}`}>{label}</span>
+              <span className={`text-sm ${ok ? "text-foreground" : "text-foreground/60"} relative group/tip inline-flex items-center gap-1.5 cursor-default`}>
+                {label}
+                <span className="text-[11px] text-muted/50 group-hover/tip:text-muted transition-colors">ⓘ</span>
+                <span className="pointer-events-none absolute left-0 top-full mt-1.5 z-50
+                  opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150
+                  w-64 rounded-lg bg-[#1e1a16] dark:bg-[#eae4dc]
+                  text-[#e8e2da] dark:text-[#1e1a16]
+                  text-xs px-3 py-2.5 leading-relaxed shadow-2xl">
+                  {tooltip}
+                </span>
+              </span>
             </li>
           );
         })}
@@ -57,43 +94,79 @@ function PositionCard({
   current,
   shares,
   originalValue,
+  ftseEntry,
+  ftseCurrent,
 }: {
   entry: number;
   current: number;
   shares: number;
   originalValue: number;
+  ftseEntry?: number;
+  ftseCurrent?: number;
 }) {
-  const delta = ((current - entry) / entry) * 100;
-  const sign = delta >= 0 ? "+" : "";
-  const up = delta >= 0;
+  const stockPct = (current - entry) / entry;
+  const up = stockPct >= 0;
   const currentValue = (shares * current) / 100;
   const gainLoss = currentValue - originalValue;
   const gainSign = gainLoss >= 0 ? "+" : "";
 
+  const ftsePct = ftseEntry != null && ftseCurrent != null
+    ? (ftseCurrent - ftseEntry) / ftseEntry
+    : null;
+  const alphaPct = ftsePct != null ? stockPct - ftsePct : null;
+  const ahead = alphaPct != null && alphaPct >= 0;
+
+  const fmt = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}%`;
+  const fmtPp = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}pp`;
+
+  const upText = "text-[#3a5c30] dark:text-[#7ab870]";
+  const downText = "text-[#7a3030] dark:text-[#c47070]";
+  const upBg = "bg-[#3a5c30]/[0.09]";
+  const downBg = "bg-[#7a3030]/[0.09]";
+
   return (
-    <div className={`rounded-md px-4 py-3 flex flex-wrap gap-x-8 gap-y-1
-      ${up ? "bg-green-500/8 border border-green-500/20" : "bg-red-500/8 border border-red-500/20"}`}>
-      <div>
-        <div className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Entry</div>
-        <div className="text-sm font-medium">{entry.toFixed(0)}p</div>
-        <div className="text-xs text-muted">{fmtGbp(originalValue)} · {shares.toLocaleString()} shares</div>
+    <div className={`grid gap-3 ${ftsePct != null ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+      {/* Entry */}
+      <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.05] px-4 py-4">
+        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Entry</div>
+        <div className="text-2xl font-bold tabular-nums">{entry.toFixed(0)}p</div>
+        <div className="text-xs text-muted mt-1">{fmtGbp(originalValue)}</div>
       </div>
-      <div>
-        <div className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Now</div>
-        <div className={`text-sm font-semibold ${up ? "text-green-400" : "text-red-400"}`}>
+
+      {/* Now */}
+      <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.05] px-4 py-4">
+        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Now</div>
+        <div className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}>
           {current.toFixed(0)}p
         </div>
-        <div className="text-xs text-muted">{fmtGbp(currentValue)}</div>
+        <div className="text-xs text-muted mt-1">{fmtGbp(currentValue)}</div>
       </div>
-      <div>
-        <div className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Return</div>
-        <div className={`text-sm font-semibold ${up ? "text-green-400" : "text-red-400"}`}>
-          {sign}{delta.toFixed(1)}%
+
+      {/* Stock return */}
+      <div className={`rounded-xl px-4 py-4 ${up ? upBg : downBg}`}>
+        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Return</div>
+        <div className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}>
+          {fmt(stockPct)}
         </div>
-        <div className={`text-xs font-medium ${up ? "text-green-400/70" : "text-red-400/70"}`}>
+        <div className={`text-xs font-medium mt-1 ${up ? upText : downText} opacity-70`}>
           {gainSign}{fmtGbp(gainLoss)}
         </div>
       </div>
+
+      {/* FTSE benchmark (only when data is available) */}
+      {ftsePct != null && (
+        <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.05] px-4 py-4">
+          <div className="text-[10px] text-muted uppercase tracking-wider mb-2">vs FTSE</div>
+          <div className="text-2xl font-bold tabular-nums text-muted">
+            {fmt(ftsePct)}
+          </div>
+          {alphaPct != null && (
+            <div className={`text-xs font-semibold mt-1 ${ahead ? upText : downText}`}>
+              {fmtPp(alphaPct)} alpha
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -101,10 +174,14 @@ function PositionCard({
 export function DealingDetailPanel({
   dealing,
   currentPricePence,
+  ftseEntryPence,
+  ftseCurrentPence,
   onClose,
 }: {
   dealing: Dealing | null;
   currentPricePence?: number;
+  ftseEntryPence?: number;
+  ftseCurrentPence?: number;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -197,6 +274,8 @@ export function DealingDetailPanel({
                 current={currentPricePence}
                 shares={dealing.shares}
                 originalValue={dealing.value_gbp}
+                ftseEntry={ftseEntryPence}
+                ftseCurrent={ftseCurrentPence}
               />
             )}
 

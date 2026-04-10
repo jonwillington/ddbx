@@ -85,6 +85,7 @@ export default function DashboardPage() {
   const { id: routeId } = useParams<{ id: string }>();
   const [dealings, setDealings] = useState<Dealing[] | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
+  const [ftseEntries, setFtseEntries] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<Filter>("all");
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
   const [openSkipped, setOpenSkipped] = useState<Set<string>>(new Set());
@@ -107,13 +108,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!dealings || dealings.length === 0) return;
-    const tickers = [...new Set(dealings.map((d) => d.ticker))];
+    const tickers = [...new Set(dealings.map((d) => d.ticker)), "^FTAS"];
     api.latestPrices(tickers).then((list) => {
       const map: Record<string, number> = {};
       for (const p of list) map[p.ticker] = p.price_pence;
       setPrices(map);
     }).catch(() => {});
   }, [dealings]);
+
+  // Lazy-load FTSE entry price per trade date when a dealing is opened.
+  useEffect(() => {
+    if (!selected) return;
+    const tradeDate = selected.trade_date.slice(0, 10);
+    if (ftseEntries[tradeDate] != null) return;
+    api.priceOn("^FTAS", tradeDate).then((price) => {
+      if (price != null) setFtseEntries((prev) => ({ ...prev, [tradeDate]: price }));
+    }).catch(() => {});
+  }, [selected?.id]);
 
   const grouped = useMemo((): MonthBucket[] => {
     if (!dealings) return [];
@@ -330,6 +341,8 @@ export default function DashboardPage() {
       <DealingDetailPanel
         dealing={selected}
         currentPricePence={selected ? prices[selected.ticker] : undefined}
+        ftseEntryPence={selected ? ftseEntries[selected.trade_date.slice(0, 10)] : undefined}
+        ftseCurrentPence={prices["^FTAS"]}
         onClose={() => selectDealing(null)}
       />
     </DefaultLayout>

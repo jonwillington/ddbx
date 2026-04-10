@@ -82,7 +82,7 @@ export function DealingRow({
     <button
       className={`w-full flex items-center gap-4 px-6 py-3 text-left transition-colors
         ${muted ? "opacity-60" : ""}
-        ${selected ? "ring-2 ring-[#7a6552]" : "hover:bg-black/10 dark:hover:bg-white/5"}
+        ${selected ? "bg-[#7a6552]/[0.07] dark:bg-[#7a6552]/[0.13]" : "hover:bg-black/10 dark:hover:bg-white/5"}
         ${rowClassName ?? ""}`}
       onClick={() => onSelect(dealing)}
     >
