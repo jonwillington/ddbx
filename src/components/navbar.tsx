@@ -10,8 +10,8 @@ export const Navbar = () => {
     <nav className="sticky top-0 z-40 w-full border-b border-separator bg-[#f5f0e8]/90 dark:bg-background/70 backdrop-blur-lg">
       <header className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-4 px-6">
         <div className="flex items-center gap-6">
-          <Link className="font-bold" to="/">
-            {siteConfig.name}
+          <Link to="/" className="shrink-0">
+            <img src="/logo.svg" alt={siteConfig.name} className="h-7 dark:invert" />
           </Link>
           <ul className="flex gap-4">
             {siteConfig.navItems.map((item) => {

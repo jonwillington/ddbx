@@ -13,6 +13,7 @@ export default function DefaultLayout({
       </main>
       <footer className="w-full border-t border-divider bg-content1/40">
         <div className="container mx-auto max-w-7xl px-6 py-5 text-[10px] leading-4 text-foreground/40">
+          <img src="/logo.svg" alt="ddbx" className="h-5 mb-4 opacity-30 dark:invert" />
           <p>
             Disclaimer: The information, ratings, signals, commentary, and any
             related content provided on this website are for general
