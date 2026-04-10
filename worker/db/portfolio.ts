@@ -186,8 +186,8 @@ export async function getPortfolio(
 
   // ---- 5. Picks portfolio curve (daily) -----------------------------------
   // Equal-weighted: every pick is £100 entered at its trade_date close.
-  // Picks not yet entered as of `cursor` contribute their full £100 stake
-  // (held as cash), so the chart starts at picks_count × £100 on day 1.
+  // Only picks that have been entered contribute to the curve — no "cash"
+  // held for future picks. The curve starts on the first pick's trade date.
   const picksCount = dealRows.results.length;
   const startingValue = picksCount * STAKE;
 
@@ -195,30 +195,43 @@ export async function getPortfolio(
   const picksCurve: PortfolioPoint[] = [];
   for (const date of dates) {
     let sum = 0;
+    let entered = 0;
     for (const deal of dealRows.results) {
-      if (deal.trade_date > date) {
-        // Not yet entered — held as cash.
-        sum += STAKE;
-        continue;
-      }
+      if (deal.trade_date > date) continue; // not yet entered
+      entered++;
       const prices = priceMap.get(deal.ticker) ?? [];
       const current = priceOn(prices, date);
       sum += current != null ? STAKE * (current / deal.price_pence) : STAKE;
     }
+    if (entered === 0) continue; // no picks yet — skip this date
     picksCurve.push({ date, value_gbp: Math.round(sum * 100) / 100 });
   }
 
-  // ---- 6. FTSE benchmark curve, rebased to startingValue -----------------
+  // ---- 6. FTSE benchmark curve (entry-matched) ---------------------------
+  // For each pick, we "buy" £100 of the FTSE All-Share on the same trade
+  // date at the FTSE close that day. This gives a time-matched counterfactual:
+  // same capital, same entry timing, only variable is stock selection.
   const ftsePrices = priceMap.get(BENCHMARK) ?? [];
-  const ftseStartLevel = priceOn(ftsePrices, windowStart);
+
+  // Pre-compute each pick's FTSE entry level.
+  const ftseEntries: { trade_date: string; entry_level: number }[] = [];
+  for (const deal of dealRows.results) {
+    const level = priceOn(ftsePrices, deal.trade_date);
+    if (level != null) ftseEntries.push({ trade_date: deal.trade_date, entry_level: level });
+  }
+
   const ftseCurve: PortfolioPoint[] = [];
-  if (ftseStartLevel != null) {
-    for (const date of dates) {
-      const level = priceOn(ftsePrices, date);
-      if (level == null) continue;
-      const value = startingValue * (level / ftseStartLevel);
-      ftseCurve.push({ date, value_gbp: Math.round(value * 100) / 100 });
+  for (const date of dates) {
+    let sum = 0;
+    let entered = 0;
+    for (const fe of ftseEntries) {
+      if (fe.trade_date > date) continue;
+      entered++;
+      const current = priceOn(ftsePrices, date);
+      sum += current != null ? STAKE * (current / fe.entry_level) : STAKE;
     }
+    if (entered === 0) continue;
+    ftseCurve.push({ date, value_gbp: Math.round(sum * 100) / 100 });
   }
 
   // ---- 7. Per-pick details (as of windowEnd) ------------------------------
