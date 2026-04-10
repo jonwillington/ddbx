@@ -219,7 +219,7 @@ async function runDailySummary(env: Env, date: string, session: Session) {
     `SELECT d.ticker, d.value_gbp, a.rating
        FROM dealings d
        LEFT JOIN analyses a ON a.dealing_id = d.id
-      WHERE d.disclosed_date = ?1`,
+      WHERE d.trade_date = ?1`,
   )
     .bind(date)
     .all<{ ticker: string; value_gbp: number; rating: string | null }>();

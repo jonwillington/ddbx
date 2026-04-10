@@ -21,10 +21,27 @@ export interface ListItem {
   disclosedDate: string; // ISO, best-effort from the list row
 }
 
-// Nightly entry point: today's director-dealings category page only.
+// Nightly entry point: today's director-dealings category page, all pages.
 export async function scrapeDealings(env: Env): Promise<Dealing[]> {
-  const list = await fetchList(LIST_URL);
-  return processListItems(env, list);
+  const firstHtml = await fetchText(LIST_URL);
+  const list = parseListHtml(firstHtml);
+  const totalPages = maxPageNumber(firstHtml);
+  for (let page = 2; page <= totalPages; page++) {
+    try {
+      const html = await fetchText(`${LIST_URL}?page=${page}`);
+      list.push(...parseListHtml(html));
+    } catch {
+      // Non-fatal — process what we have.
+    }
+  }
+  // Dedupe by URL in case of pagination overlap.
+  const seen = new Set<string>();
+  const deduped = list.filter((x) => {
+    if (seen.has(x.announcementUrl)) return false;
+    seen.add(x.announcementUrl);
+    return true;
+  });
+  return processListItems(env, deduped);
 }
 
 // Walks one list item (from either the daily or historical scrape) through
