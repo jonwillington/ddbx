@@ -11,7 +11,7 @@ export const Navbar = () => {
       <header className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-4 px-6">
         <div className="flex items-center gap-6">
           <Link to="/" className="shrink-0">
-            <img src="/logo.svg" alt={siteConfig.name} className="h-7 dark:invert" />
+            <img src="/logo.svg" alt={siteConfig.name} className="h-7 max-w-[56px] dark:invert" />
           </Link>
           <ul className="flex gap-4">
             {siteConfig.navItems.map((item) => {
