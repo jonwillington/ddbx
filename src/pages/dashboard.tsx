@@ -191,29 +191,29 @@ export default function DashboardPage() {
     const caption = topTickers.join(", ") + (deals.length > 4 ? " ···" : "");
 
     return (
-      <div className="bg-[#f5f0e8] dark:bg-black/20">
+      <div className="bg-[#ede8df] dark:bg-black/25">
         {/* Cluster trigger row */}
         <button
-          className="w-full px-6 py-3 flex items-center gap-4 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          className="w-full px-6 py-2 flex items-center gap-4 text-left hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors"
           onClick={() => toggleSkipped(clusterKey)}
         >
           <div className="flex flex-col w-24 shrink-0 pr-4 justify-center">
-            <div className="text-[11px] text-[#b8a898] uppercase tracking-wide leading-none mb-0.5">{weekday}</div>
-            <div className="text-xl font-semibold leading-tight text-[#9a8878]">{ordinal(day)}</div>
+            <div className="text-[10px] text-[#c8bab0] uppercase tracking-wide leading-none mb-0.5">{weekday}</div>
+            <div className="text-base font-medium leading-tight text-[#b0a090]">{ordinal(day)}</div>
           </div>
           <div className="w-20 shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-base font-semibold text-[#9a8878] flex items-center gap-1.5">
+            <div className="text-sm font-medium text-[#a09080] flex items-center gap-1">
               {deals.length} skipped
-              <span className={`text-sm transition-transform duration-200 inline-block ${isOpen ? "rotate-180" : ""}`}>▾</span>
+              <span className={`text-xs transition-transform duration-200 inline-block ${isOpen ? "rotate-180" : ""}`}>▾</span>
             </div>
-            <div className="text-xs text-[#b8a898] mt-0.5 font-mono">{caption}</div>
+            <div className="text-[11px] text-[#c0b0a0] mt-0.5 tracking-wide">{caption}</div>
           </div>
         </button>
 
         {/* Expanded rows */}
         {isOpen && (
-          <div className="divide-y divide-[#ccc4b8] dark:divide-separator">
+          <div className="divide-y divide-[#d8d0c6]/60 dark:divide-separator">
             {visible.map((d) => (
               <DealingRow
                 key={d.id}
@@ -324,6 +324,7 @@ export default function DashboardPage() {
                                 currentPricePence={prices[seg.deal.ticker]}
                                 selected={selected?.id === seg.deal.id}
                                 onSelect={selectDealing}
+                                rowClassName="border-l-[3px] border-[#7a6552]/30 pl-[21px]"
                               />
                             ) : (
                               <div key={seg.clusterKey}>
