@@ -87,7 +87,6 @@ export default function DashboardPage() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<Filter>("all");
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
-  const [openDays, setOpenDays] = useState<Set<string>>(new Set());
   const [openSkipped, setOpenSkipped] = useState<Set<string>>(new Set());
   const [skippedVisible, setSkippedVisible] = useState<Record<string, number>>({});
   const [err, setErr] = useState<string | null>(null);
@@ -147,15 +146,6 @@ export default function DashboardPage() {
 
   const toggleMonth = (key: string) => {
     setOpenMonths((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const toggleDay = (key: string) => {
-    setOpenDays((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -308,50 +298,23 @@ export default function DashboardPage() {
 
                     {monthOpen && (
                       <div className="divide-y divide-[#e8e0d5] dark:divide-separator">
-                        {days.map((day, j) => {
-                          const dayOpen = (i === 0 && j === 0) || openDays.has(day.key);
-                          const segments = dayOpen ? buildSegments(day.all, day.key, filter) : [];
+                        {days.map((day) => {
+                          const segments = buildSegments(day.all, day.key, filter);
 
-                          return (
-                            <div key={day.key}>
-                              {/* Day header — matches dealing row layout */}
-                              <button
-                                className="w-full flex items-center gap-4 px-6 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                                onClick={() => toggleDay(day.key)}
-                              >
-                                <div className="flex flex-col w-24 shrink-0 pr-4 justify-center">
-                                  <div className="text-[11px] text-[#b8a898] uppercase tracking-wide leading-none mb-0.5">{day.weekday}</div>
-                                  <div className="text-xl font-semibold leading-tight text-[#9a8878]">{day.day}</div>
-                                </div>
-                                <div className="w-20 shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-base font-semibold text-[#9a8878] flex items-center gap-1.5">
-                                    {day.analysedCount + day.skippedCount} deal{day.analysedCount + day.skippedCount !== 1 ? "s" : ""} recorded
-                                    <span className={`text-sm transition-transform duration-200 inline-block ${dayOpen ? "rotate-180" : ""}`}>▾</span>
-                                  </div>
-                                </div>
-                              </button>
-
-                              {dayOpen && (
-                                <div className="divide-y divide-[#e8e0d5] dark:divide-separator">
-                                  {segments.map((seg) =>
-                                    seg.type === "analysed" ? (
-                                      <DealingRow
-                                        key={seg.deal.id}
-                                        dealing={seg.deal}
-                                        currentPricePence={prices[seg.deal.ticker]}
-                                        selected={selected?.id === seg.deal.id}
-                                        onSelect={selectDealing}
-                                      />
-                                    ) : (
-                                      <div key={seg.clusterKey}>
-                                        {renderSkippedCluster(seg.deals, seg.clusterKey)}
-                                      </div>
-                                    )
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                          return segments.map((seg) =>
+                            seg.type === "analysed" ? (
+                              <DealingRow
+                                key={seg.deal.id}
+                                dealing={seg.deal}
+                                currentPricePence={prices[seg.deal.ticker]}
+                                selected={selected?.id === seg.deal.id}
+                                onSelect={selectDealing}
+                              />
+                            ) : (
+                              <div key={seg.clusterKey}>
+                                {renderSkippedCluster(seg.deals, seg.clusterKey)}
+                              </div>
+                            )
                           );
                         })}
                       </div>
