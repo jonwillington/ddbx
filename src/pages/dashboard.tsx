@@ -18,7 +18,8 @@ const FILTERS: { label: string; value: Filter }[] = [
 ];
 
 interface DayBucket {
-  label: string;         // e.g. "Wednesday 8th"
+  weekday: string;       // e.g. "THU"
+  day: string;           // e.g. "4th"
   key: string;           // ISO date e.g. "2026-04-08"
   all: Dealing[];
   analysedCount: number;
@@ -132,9 +133,9 @@ export default function DashboardPage() {
       const dayKey = d.trade_date.slice(0, 10);
       let day = bucket.days.find((db) => db.key === dayKey);
       if (!day) {
-        const weekday = date.toLocaleString("en-GB", { weekday: "long" });
-        const dayLabel = `${weekday} ${ordinal(date.getDate())}`;
-        day = { label: dayLabel, key: dayKey, all: [], analysedCount: 0, skippedCount: 0 };
+        const weekday = date.toLocaleString("en-GB", { weekday: "short" }).toUpperCase();
+        const dayStr = ordinal(date.getDate());
+        day = { weekday, day: dayStr, key: dayKey, all: [], analysedCount: 0, skippedCount: 0 };
         bucket.days.push(day);
       }
       day.all.push(d);
@@ -313,23 +314,22 @@ export default function DashboardPage() {
 
                           return (
                             <div key={day.key}>
-                              {/* Day header */}
+                              {/* Day header — matches dealing row layout */}
                               <button
-                                className="w-full flex items-center justify-between px-6 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                className="w-full flex items-center gap-4 px-6 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                                 onClick={() => toggleDay(day.key)}
                               >
-                                <div className="flex items-center gap-3">
-                                  <div className="text-base font-semibold">{day.label}</div>
-                                  <div className="text-xs text-muted">
-                                    {day.analysedCount} analysed · {day.skippedCount} skipped
+                                <div className="flex flex-col w-24 shrink-0 pr-4 justify-center">
+                                  <div className="text-[11px] text-[#b8a898] uppercase tracking-wide leading-none mb-0.5">{day.weekday}</div>
+                                  <div className="text-xl font-semibold leading-tight text-[#9a8878]">{day.day}</div>
+                                </div>
+                                <div className="w-20 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-base font-semibold text-[#9a8878] flex items-center gap-1.5">
+                                    {day.analysedCount + day.skippedCount} deal{day.analysedCount + day.skippedCount !== 1 ? "s" : ""} recorded
+                                    <span className={`text-sm transition-transform duration-200 inline-block ${dayOpen ? "rotate-180" : ""}`}>▾</span>
                                   </div>
                                 </div>
-                                <svg
-                                  className={`w-4 h-4 text-muted shrink-0 transition-transform duration-200 ${dayOpen ? "rotate-180" : ""}`}
-                                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                </svg>
                               </button>
 
                               {dayOpen && (
