@@ -1,0 +1,51 @@
+import clsx from "clsx";
+import { Link, useLocation } from "react-router-dom";
+
+import { siteConfig } from "@/config/site";
+import { ThemeSwitch } from "@/components/theme-switch";
+
+export const Navbar = () => {
+  const location = useLocation();
+  return (
+    <nav className="sticky top-0 z-40 w-full border-b border-separator bg-[#f5f0e8]/90 dark:bg-background/70 backdrop-blur-lg">
+      <header className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-4 px-6">
+        <div className="flex items-center gap-6">
+          <Link className="font-bold" to="/">
+            {siteConfig.name}
+          </Link>
+          <ul className="flex gap-4">
+            {siteConfig.navItems.map((item) => {
+              const active = location.pathname === item.href;
+              return (
+                <li key={item.href}>
+                  <Link
+                    className={clsx(
+                      "text-sm transition-colors",
+                      active
+                        ? "text-[#7a6552] font-medium"
+                        : "text-foreground hover:text-[#7a6552]",
+                    )}
+                    to={item.href}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <div className="flex items-center gap-3">
+          <a
+            className="text-xs text-muted hover:text-[#7a6552]"
+            href={siteConfig.links.source}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            source
+          </a>
+          <ThemeSwitch />
+        </div>
+      </header>
+    </nav>
+  );
+};

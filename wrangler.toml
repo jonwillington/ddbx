@@ -1,0 +1,23 @@
+name = "director-dealings"
+main = "worker/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Fill in these IDs after running:
+#   wrangler d1 create director-dealings
+# and copy the values from the wrangler output.
+[[d1_databases]]
+binding = "DB"
+database_name = "director-dealings"
+database_id = "5e53b75b-8f0d-4cc7-b1ae-3b816e3d63c3"
+
+# Every 15 min cron for the scrape/triage/analyse pipeline.
+# Twice-daily summary tweets: 12:30 UTC (morning session) + 17:30 UTC (close).
+[triggers]
+crons = ["*/15 * * * *", "30 12 * * 1-5", "30 17 * * 1-5"]
+
+# Set secrets with:
+#   wrangler secret put ANTHROPIC_API_KEY
+# (do NOT put the key here)
+[vars]
+APP_ENV = "dev"
