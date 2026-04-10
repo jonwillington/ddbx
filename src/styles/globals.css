@@ -5,10 +5,42 @@
 
 @theme {
   --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  /* bg-content1 shim — light mode: surface white; dark mode: warm dark surface via var() cascade */
+  --color-content1: var(--content1, var(--surface));
 }
 
 body {
   font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─── Warm dark-brown theme ──────────────────────────────────────────────────
+   Overrides HeroUI's cold gray-blue dark defaults (~hue 286) with a palette
+   that matches the warm beige light mode (~hue 55-78).
+   Unlayered rules beat @layer base, so these win over heroui/variables.css.
+   ─────────────────────────────────────────────────────────────────────────── */
+.dark {
+  /* bg-content1 shim value */
+  --content1:           oklch(18%   0.024 55);
+
+  --background:         oklch(13.5% 0.022 55);  /* near-black warm brown   */
+  --foreground:         oklch(92%   0.012 78);  /* warm off-white          */
+
+  --surface:            oklch(17.5% 0.024 55);  /* cards / panels          */
+  --surface-foreground: oklch(92%   0.012 78);
+  --surface-secondary:  oklch(21%   0.022 55);
+  --surface-tertiary:   oklch(24%   0.020 55);
+
+  --overlay:            oklch(18%   0.024 55);  /* modals / popovers       */
+  --overlay-foreground: oklch(92%   0.012 78);
+
+  --muted:              oklch(60%   0.020 65);  /* secondary text          */
+  --scrollbar:          oklch(35%   0.020 55);
+
+  --default:            oklch(24%   0.022 55);
+  --default-foreground: oklch(92%   0.012 78);
+
+  --border:             oklch(27%   0.022 55);  /* outlines                */
+  --separator:          oklch(24%   0.022 55);  /* dividers                */
 }
 
 @keyframes skeleton-pulse {

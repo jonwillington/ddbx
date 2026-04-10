@@ -11,7 +11,7 @@ export default function DefaultLayout({
       <main className="container mx-auto max-w-7xl px-6 flex-grow pt-16">
         {children}
       </main>
-      <footer className="w-full border-t border-divider bg-content1/40">
+      <footer className="w-full border-t border-separator bg-surface/60">
         <div className="container mx-auto max-w-7xl px-6 py-5 text-[10px] leading-4 text-foreground/40">
           <div className="flex items-center justify-between mb-4">
             <img src="/logo.svg" alt="ddbx" className="h-5 max-w-[56px] opacity-30 dark:invert" />

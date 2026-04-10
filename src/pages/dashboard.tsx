@@ -191,7 +191,7 @@ export default function DashboardPage() {
     const caption = topTickers.join(", ") + (deals.length > 4 ? " ···" : "");
 
     return (
-      <div className="bg-[#ede8df] dark:bg-black/25">
+      <div className="bg-[#ede8df] dark:bg-white/[0.03]">
         {/* Cluster trigger row */}
         <button
           className="w-full px-6 py-2 flex items-center gap-4 text-left hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors"
@@ -254,7 +254,7 @@ export default function DashboardPage() {
 
         <div className="space-y-3">
           {/* Rating filter chips */}
-          <div className="-mx-6 bg-[#faf7f2] dark:bg-content1 px-6 py-4 rounded-2xl flex gap-2 flex-wrap">
+          <div className="-mx-6 bg-[#faf7f2] dark:bg-surface px-6 py-4 rounded-2xl flex gap-2 flex-wrap border border-transparent dark:border-separator/50">
             {FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -277,12 +277,12 @@ export default function DashboardPage() {
           ) : grouped.length === 0 ? (
             <div className="text-sm text-muted">No dealings match this filter.</div>
           ) : (
-            <div className="space-y-3 animate-content-in">
+            <div className="space-y-6 animate-content-in">
               {grouped.map(({ label, year, key, days, analysedCount, skippedCount }, i) => {
                 const monthOpen = i === 0 || openMonths.has(key);
 
                 return (
-                  <div key={key} className="-mx-6 bg-[#faf7f2] dark:bg-content1 rounded-2xl overflow-hidden">
+                  <div key={key} className="-mx-6 bg-[#faf7f2] dark:bg-surface rounded-2xl overflow-hidden">
                     {/* Month header */}
                     {i === 0 ? (
                       <div className="px-6 pt-5 pb-3">
@@ -357,7 +357,7 @@ export default function DashboardPage() {
 function DashboardSkeleton() {
   return (
     <div className="space-y-3">
-      <div className="-mx-6 bg-[#faf7f2] dark:bg-content1 rounded-2xl overflow-hidden">
+      <div className="-mx-6 bg-[#faf7f2] dark:bg-surface rounded-2xl overflow-hidden">
         <div className="px-6 pt-5 pb-3">
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-3 w-32 mt-2" />
