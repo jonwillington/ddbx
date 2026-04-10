@@ -34,15 +34,7 @@ export const Navbar = () => {
             })}
           </ul>
         </div>
-        <div className="flex items-center gap-3">
-          <a
-            className="text-xs text-muted hover:text-[#7a6552]"
-            href={siteConfig.links.source}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            source
-          </a>
+        <div className="flex items-center">
           <ThemeSwitch />
         </div>
       </header>

@@ -187,6 +187,14 @@ export default function DashboardPage() {
     const visible = deals.slice(0, limit);
     const remaining = deals.length - limit;
 
+    const fmtGbp = (n: number) =>
+      new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(n);
+    const topValues = [...deals]
+      .sort((a, b) => b.value_gbp - a.value_gbp)
+      .slice(0, 3)
+      .map((x) => fmtGbp(x.value_gbp));
+    const caption = `Including ${topValues.join(", ")}${deals.length > 3 ? " ···" : ""}`;
+
     return (
       <div className="bg-[#f5f0e8] dark:bg-black/20">
         {/* Cluster trigger row */}
@@ -205,7 +213,7 @@ export default function DashboardPage() {
               <span className={`text-sm transition-transform duration-200 inline-block ${isOpen ? "rotate-180" : ""}`}>▾</span>
             </div>
           </div>
-          <div className="text-xs text-[#c0b0a0] shrink-0 pl-4">Deals that did not meet our criteria</div>
+          <div className="text-xs text-[#c0b0a0] shrink-0 pl-4">{caption}</div>
         </button>
 
         {/* Expanded rows */}
@@ -218,6 +226,7 @@ export default function DashboardPage() {
                 currentPricePence={prices[d.ticker]}
                 selected={selected?.id === d.id}
                 onSelect={selectDealing}
+                hideDate
               />
             ))}
             {remaining > 0 && (

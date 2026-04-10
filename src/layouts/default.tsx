@@ -13,7 +13,20 @@ export default function DefaultLayout({
       </main>
       <footer className="w-full border-t border-divider bg-content1/40">
         <div className="container mx-auto max-w-7xl px-6 py-5 text-[10px] leading-4 text-foreground/40">
-          <img src="/logo.svg" alt="ddbx" className="h-5 max-w-[56px] mb-4 opacity-30 dark:invert" />
+          <div className="flex items-center justify-between mb-4">
+            <img src="/logo.svg" alt="ddbx" className="h-5 max-w-[56px] opacity-30 dark:invert" />
+            <a
+              href="https://x.com/ddbxuk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-foreground/40 hover:text-foreground/70 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="w-3.5 h-3.5 fill-current shrink-0">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.736-8.861L1.254 2.25H8.08l4.257 5.625zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              <span>For live updates, follow us on X (Twitter)</span>
+            </a>
+          </div>
           <p>
             Disclaimer: The information, ratings, signals, commentary, and any
             related content provided on this website are for general

@@ -65,12 +65,14 @@ export function DealingRow({
   selected,
   onSelect,
   rowClassName,
+  hideDate,
 }: {
   dealing: Dealing;
   currentPricePence?: number;
   selected?: boolean;
   onSelect: (dealing: Dealing) => void;
   rowClassName?: string;
+  hideDate?: boolean;
 }) {
   const a = dealing.analysis;
   const t = dealing.triage;
@@ -82,13 +84,17 @@ export function DealingRow({
     <button
       className={`w-full flex items-center gap-4 px-6 py-3 text-left transition-colors
         ${muted ? "opacity-60" : ""}
-        ${selected ? "bg-[#7a6552]/[0.07] dark:bg-[#7a6552]/[0.13]" : "hover:bg-black/10 dark:hover:bg-white/5"}
+        ${selected ? "bg-[#7a6552]/[0.07] dark:bg-[#7a6552]/[0.20]" : "hover:bg-black/10 dark:hover:bg-white/5"}
         ${rowClassName ?? ""}`}
       onClick={() => onSelect(dealing)}
     >
       {/* Date column */}
       <div className="flex flex-col w-24 shrink-0 pr-4 -my-2 py-2 justify-center">
-        {today ? (
+        {hideDate ? (
+          <div className="flex justify-center items-center h-8">
+            <div className="w-px h-full bg-[#c8bfb5]/60 dark:bg-white/15 rounded-full" />
+          </div>
+        ) : today ? (
           <div className="text-base font-semibold text-[#7a6552]">Today</div>
         ) : (
           <>
