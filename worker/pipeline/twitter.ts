@@ -200,7 +200,9 @@ export function buildDailySummaryTweet(p: {
   ];
 
   if (noteworthy > 0) {
-    lines.push(`${noteworthy} rated noteworthy 🔵 — full breakdown:`);
+    lines.push(`${noteworthy} rated noteworthy or above 🔵 — full breakdown at:`);
+  } else {
+    lines.push(`Nothing rated noteworthy or above today.`);
   }
 
   lines.push(
