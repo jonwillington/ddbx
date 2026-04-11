@@ -247,9 +247,19 @@ export default {
     const session = DAILY_CRONS[event.cron];
     if (session) {
       const date = new Date().toISOString().slice(0, 10);
-      ctx.waitUntil(runDailySummary(env, date, session).then(() => undefined));
+      console.log(`[cron] tweet cron fired: ${event.cron} → ${session} ${date}`);
+      ctx.waitUntil(
+        runDailySummary(env, date, session)
+          .then((r) => console.log(`[cron] tweet done:`, JSON.stringify(r)))
+          .catch((err) => console.error(`[cron] tweet error:`, (err as Error).message)),
+      );
       return;
     }
-    ctx.waitUntil(runPipeline(env).then(() => undefined));
+    console.log(`[cron] pipeline cron fired: ${event.cron}`);
+    ctx.waitUntil(
+      runPipeline(env)
+        .then((r) => console.log(`[cron] pipeline done:`, JSON.stringify(r)))
+        .catch((err) => console.error(`[cron] pipeline error:`, (err as Error).message)),
+    );
   },
 };
