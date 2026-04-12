@@ -1,6 +1,6 @@
 import { FC, useState, useEffect, useCallback } from "react";
 
-import { SunFilledIcon, MoonFilledIcon } from "@/components/icons";
+import { SunIcon, MoonIcon } from "@heroicons/react/24/solid";
 
 export interface ThemeSwitchProps {
   className?: string;
@@ -42,9 +42,9 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({ className }) => {
       onClick={toggleTheme}
     >
       {theme === "light" ? (
-        <MoonFilledIcon size={22} />
+        <MoonIcon className="w-[22px] h-[22px]" />
       ) : (
-        <SunFilledIcon size={22} />
+        <SunIcon className="w-[22px] h-[22px]" />
       )}
     </button>
   );

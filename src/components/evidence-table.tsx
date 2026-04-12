@@ -1,4 +1,5 @@
 import type { EvidencePoint } from "../../worker/db/types";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/16/solid";
 
 export function EvidenceTable({
   title,
@@ -10,13 +11,12 @@ export function EvidenceTable({
   tone: "for" | "against";
 }) {
   const icon = tone === "for" ? "✓" : "✗";
-  const iconColor = tone === "for" ? "text-green-400" : "text-red-400";
+  const iconColor = tone === "for" ? "text-green-500" : "text-red-500";
 
   if (points.length === 0) {
     return (
       <div>
-        <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <span className={iconColor}>{icon}</span>
+        <h4 className="text-lg font-bold mb-4">
           {title}
         </h4>
         <p className="text-xs text-muted italic">None provided.</p>
@@ -26,11 +26,10 @@ export function EvidenceTable({
 
   return (
     <div>
-      <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
-        <span className={iconColor}>{icon}</span>
+      <h4 className="text-lg font-bold mb-4">
         {title}
       </h4>
-      <div className="divide-y divide-black/10 dark:divide-white/10 border-y border-black/10 dark:border-white/10">
+      <div className="divide-y divide-black/10 dark:divide-white/10 border-b border-black/10 dark:border-white/10">
         {points.map((p, i) => {
           const headline = (p as any).headline ?? (p as any).point ?? "";
           const detail = (p as any).detail ?? "";
@@ -57,9 +56,7 @@ export function EvidenceTable({
                         className="inline-flex items-center gap-0.5 text-blue-400 hover:text-blue-300 underline underline-offset-2"
                       >
                         {sourceLabel}
-                        <svg className="w-3 h-3 shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M4.5 3H3a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M7 2h3m0 0v3m0-3L5 7" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+                        <ArrowTopRightOnSquareIcon className="w-3 h-3 shrink-0" />
                       </a>
                     ) : (
                       <span className="text-muted">{sourceLabel}</span>

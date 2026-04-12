@@ -5,6 +5,8 @@ import type { Dealing } from "@/lib/api";
 import type { RatingChecklist } from "../../worker/db/types";
 import { RatingBadge } from "@/components/rating-badge";
 import { EvidenceTable } from "@/components/evidence-table";
+import { InformationCircleIcon } from "@heroicons/react/20/solid";
+import { Skeleton } from "@/components/skeleton";
 
 const CHECKLIST_LABELS: { key: keyof RatingChecklist; label: string; tooltip: string }[] = [
   {
@@ -41,18 +43,9 @@ const CHECKLIST_LABELS: { key: keyof RatingChecklist; label: string; tooltip: st
 
 function InfoIcon() {
   return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
+    <InformationCircleIcon
       className="w-3.5 h-3.5 shrink-0 text-muted/50 group-hover/tip:text-muted/80 transition-colors"
-    >
-      <path
-        fillRule="evenodd"
-        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z"
-        clipRule="evenodd"
-      />
-    </svg>
+    />
   );
 }
 
@@ -73,8 +66,8 @@ function RatingChecklistView({ checklist }: { checklist: RatingChecklist }) {
                 aria-label={ok ? "passed" : "failed"}
                 className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold shrink-0
                   ${ok
-                    ? "bg-[#2a5024]/[0.12] text-[#2a5024] dark:bg-[#6dc45e]/[0.15] dark:text-[#6dc45e]"
-                    : "bg-[#5e2020]/[0.12] text-[#5e2020] dark:bg-[#d06060]/[0.15] dark:text-[#d06060]"
+                    ? "bg-[#1e6b18]/[0.12] text-[#1e6b18] dark:bg-[#5cd84a]/[0.15] dark:text-[#5cd84a]"
+                    : "bg-[#8b2020]/[0.12] text-[#8b2020] dark:bg-[#e84d4d]/[0.15] dark:text-[#e84d4d]"
                   }`}
               >
                 {ok ? "✓" : "✗"}
@@ -137,13 +130,13 @@ function PositionCard({
   const fmt = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}%`;
   const fmtPp = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}pp`;
 
-  const upText = "text-[#2a5024] dark:text-[#6dc45e]";
-  const downText = "text-[#5e2020] dark:text-[#d06060]";
-  const upBg = "bg-[#2a5024]/[0.12] dark:bg-[#6dc45e]/[0.12]";
-  const downBg = "bg-[#5e2020]/[0.12] dark:bg-[#d06060]/[0.12]";
+  const upText = "text-[#1e6b18] dark:text-[#5cd84a]";
+  const downText = "text-[#8b2020] dark:text-[#e84d4d]";
+  const upBg = "bg-[#1e6b18]/[0.12] dark:bg-[#5cd84a]/[0.12]";
+  const downBg = "bg-[#8b2020]/[0.12] dark:bg-[#e84d4d]/[0.12]";
 
   return (
-    <div className={`grid gap-3 ${ftsePct != null ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+    <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
       <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
         <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Entry</div>
         <div className="text-2xl font-bold tabular-nums">{entry.toFixed(0)}p</div>
@@ -168,7 +161,7 @@ function PositionCard({
         </div>
       </div>
 
-      {ftsePct != null && (
+      {ftsePct != null ? (
         <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
           <div className="text-[10px] text-muted uppercase tracking-wider mb-2">vs FTSE</div>
           <div className="text-2xl font-bold tabular-nums text-foreground/50">
@@ -179,6 +172,12 @@ function PositionCard({
               {fmtPp(alphaPct)} alpha
             </div>
           )}
+        </div>
+      ) : (
+        <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
+          <div className="text-[10px] text-muted uppercase tracking-wider mb-2">vs FTSE</div>
+          <Skeleton className="h-8 w-20 mt-1" />
+          <Skeleton className="h-3 w-16 mt-2" />
         </div>
       )}
     </div>
@@ -393,7 +392,7 @@ export function DealingDetailPanel({
 
                     <div className="text-xs pb-6">
                       <Link
-                        className="text-[#7a6552] hover:underline"
+                        className="text-[#6b5038] hover:underline"
                         to={`/directors/${dealing.director.id}`}
                       >
                         View {dealing.director.name}'s track record →

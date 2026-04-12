@@ -20,12 +20,13 @@ function ordinal(n: number): string {
   }
 }
 
-function parseDate(iso: string): { weekday: string; day: string } {
+function parseDate(iso: string): { weekday: string; day: string; month: string } {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return { weekday: "", day: "—" };
+  if (isNaN(d.getTime())) return { weekday: "", day: "—", month: "" };
   return {
     weekday: d.toLocaleString("en-GB", { weekday: "short" }),
     day: ordinal(d.getDate()),
+    month: d.toLocaleString("en-GB", { month: "short" }),
   };
 }
 
@@ -45,17 +46,54 @@ const VERDICT_LABEL: Record<string, string> = {
   promising: "Promising",
 };
 
+function deltaStyle(delta: number): { bg: string; text: string } {
+  const abs = Math.abs(delta);
+  // Intensity ramps from 0% → 30%+
+  const t = Math.min(abs / 30, 1);
+
+  if (delta >= 0) {
+    const bgAlpha = (0.08 + t * 0.22).toFixed(2);
+    const l = Math.round(42 - t * 18);           // lightness 42% → 24%
+    const c = (0.10 + t * 0.14).toFixed(3);       // chroma 0.10 → 0.24
+    return {
+      bg: `oklch(${l}% ${c} 155 / ${bgAlpha})`,
+      text: `oklch(${l}% ${c} 155)`,
+    };
+  } else {
+    const bgAlpha = (0.08 + t * 0.22).toFixed(2);
+    const l = Math.round(45 - t * 16);
+    const c = (0.10 + t * 0.14).toFixed(3);
+    return {
+      bg: `oklch(${l}% ${c} 18 / ${bgAlpha})`,
+      text: `oklch(${l}% ${c} 18)`,
+    };
+  }
+}
+
 function PriceDelta({ entry, current }: { entry: number; current: number }) {
   const delta = ((current - entry) / entry) * 100;
   const sign = delta >= 0 ? "+" : "";
-  const up = delta >= 0;
+  const { bg, text } = deltaStyle(delta);
   return (
     <span
-      className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold
-        ${up ? "bg-[#7a6552]/10 text-[#5c4a38]" : "bg-[#b8ad9e]/15 text-[#7a6e63]"}`}
+      className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-sm font-semibold"
+      style={{ backgroundColor: bg, color: text }}
     >
-      {up ? "▲" : "▼"} {sign}{delta.toFixed(1)}%
+      {delta >= 0 ? "▲" : "▼"} {sign}{delta.toFixed(1)}%
     </span>
+  );
+}
+
+export function DealingRowHeader({ sticky = false }: { sticky?: boolean }) {
+  return (
+    <div className={`flex items-center text-xs text-muted font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] ${sticky ? "sticky top-32 z-[9]" : ""}`}>
+      <div className="w-36 shrink-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Date</div>
+      <div className="w-[4.5rem] shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">Ticker</div>
+      <div className="flex-1 min-w-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Company</div>
+      <div className="w-36 shrink-0 px-4 py-2.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]">Value</div>
+      <div className="w-32 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">Performance</div>
+      <div className="w-32 shrink-0 px-4 py-2.5 text-center">Rating</div>
+    </div>
   );
 }
 
@@ -66,6 +104,7 @@ export function DealingRow({
   onSelect,
   rowClassName,
   hideDate,
+  showMonth,
 }: {
   dealing: Dealing;
   currentPricePence?: number;
@@ -73,6 +112,7 @@ export function DealingRow({
   onSelect: (dealing: Dealing) => void;
   rowClassName?: string;
   hideDate?: boolean;
+  showMonth?: boolean;
 }) {
   const a = dealing.analysis;
   const t = dealing.triage;
@@ -82,59 +122,60 @@ export function DealingRow({
 
   return (
     <button
-      className={`w-full flex items-center gap-4 px-6 py-3 text-left transition-colors
+      className={`w-full flex items-stretch text-left transition-colors
         ${muted ? "opacity-60" : ""}
-        ${selected ? "bg-[#7a6552]/[0.07] dark:bg-[#7a6552]/[0.20]" : "hover:bg-black/10 dark:hover:bg-white/5"}
+        ${selected ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]" : "hover:bg-black/[0.03] dark:hover:bg-white/5"}
         ${rowClassName ?? ""}`}
       onClick={() => onSelect(dealing)}
     >
-      {/* Date column */}
-      <div className="flex flex-col w-24 shrink-0 pr-4 -my-2 py-2 justify-center">
-        {hideDate ? (
-          <div className="flex justify-center items-center h-8">
-            <div className="w-px h-full bg-[#c8bfb5]/60 dark:bg-white/15 rounded-full" />
-          </div>
-        ) : today ? (
-          <div className="text-base font-semibold text-[#7a6552]">Today</div>
+      {/* Date */}
+      <div className="w-36 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
+        {hideDate ? null : today ? (
+          <div className="text-base font-semibold text-[#6b5038]">Today</div>
         ) : (
-          <>
-            <div className="text-[11px] text-muted uppercase tracking-wide leading-none mb-0.5">
-              {date.weekday}
-            </div>
-            <div className="text-xl font-semibold leading-tight">
-              {date.day}
-            </div>
-          </>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-sm text-foreground/50 font-medium">{date.weekday}</span>
+            <span className="text-base font-medium leading-tight">{date.day},</span>
+            {showMonth && <span className="text-sm text-foreground/50 font-medium">{date.month}</span>}
+          </div>
         )}
       </div>
 
-      {/* Ticker column */}
-      <div className="w-20 shrink-0 flex items-center">
-        <span className="font-mono text-sm font-semibold bg-surface px-1.5 py-0.5 rounded border border-separator text-foreground">
+      {/* Ticker */}
+      <div className="w-[4.5rem] shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+        <span className="font-mono text-sm font-semibold px-2 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary">
           {dealing.ticker.replace(/\.L$/, "")}
         </span>
       </div>
 
-      {/* Company + director */}
-      <div className="flex-1 min-w-0">
-        <div className="text-base font-semibold truncate">{dealing.company.replace(/\s*\([^)]*\)\s*$/, "")}</div>
-        <div className="text-xs text-muted truncate">
+      {/* Company */}
+      <div className="flex-1 min-w-0 px-4 py-4 flex flex-col justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+        <div className="text-base font-medium truncate leading-snug">{dealing.company.replace(/\s*\([^)]*\)\s*$/, "")}</div>
+        <div className="text-sm text-muted truncate mt-0.5">
           {dealing.director.name} · {dealing.director.role}
         </div>
       </div>
 
-      {/* Value + rating */}
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="text-right">
-          <div className="text-xl font-semibold">{fmtGbp(dealing.value_gbp)}</div>
-        </div>
-        {currentPricePence != null && (
+      {/* Value */}
+      <div className="w-36 shrink-0 px-4 py-4 flex items-center justify-end border-r border-black/[0.06] dark:border-white/[0.06]">
+        <div className="text-xl font-medium tabular-nums">{fmtGbp(dealing.value_gbp)}</div>
+      </div>
+
+      {/* Performance */}
+      <div className="w-32 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+        {currentPricePence != null ? (
           <PriceDelta entry={dealing.price_pence} current={currentPricePence} />
-        )}
-        {a ? (
-          <RatingBadge rating={a.rating} className="ml-6" />
         ) : (
-          <span className="ml-6 inline-flex items-center justify-center w-28 rounded-md border border-[#d0c8be]/50 bg-[#d0c8be]/10 py-1.5 text-xs font-semibold text-[#9a9188]">
+          <span className="text-xs text-muted">—</span>
+        )}
+      </div>
+
+      {/* Rating */}
+      <div className="w-32 shrink-0 px-4 py-4 flex items-center justify-center">
+        {a ? (
+          <RatingBadge rating={a.rating} />
+        ) : (
+          <span className="inline-flex items-center justify-center w-full rounded-md border border-[#d0c8be]/50 bg-[#d0c8be]/10 py-2 text-sm font-semibold text-[#7a7068]">
             {VERDICT_LABEL[t?.verdict ?? ""] ?? "—"}
           </span>
         )}

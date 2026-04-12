@@ -56,8 +56,8 @@ export default function DirectorPage() {
             </div>
             {d.profile.flags.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold mb-1 text-red-400">Flags</h3>
-                <ul className="text-sm list-disc pl-5 text-red-400/90">
+                <h3 className="text-sm font-semibold mb-1 text-red-500">Flags</h3>
+                <ul className="text-sm list-disc pl-5 text-red-500/90">
                   {d.profile.flags.map((f, i) => (
                     <li key={i}>{f}</li>
                   ))}

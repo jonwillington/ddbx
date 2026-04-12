@@ -44,7 +44,7 @@ export function PerformanceChart({
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <div className="text-xs text-muted">
           {headerLabel ?? "Normalised portfolio value"} · {first.date} → {last.date} ·{" "}
-          <span className={change >= 0 ? "text-green-400" : "text-red-400"}>
+          <span className={change >= 0 ? "text-green-500" : "text-red-500"}>
             {change >= 0 ? "+" : ""}
             {(change * 100).toFixed(1)}%
           </span>

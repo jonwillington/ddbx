@@ -109,8 +109,8 @@ export default function PortfolioPage() {
                   key={f.fy}
                   className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                     active
-                      ? "border-[#7a6552] bg-[#7a6552]/10 text-[#7a6552]"
-                      : "border-separator text-muted hover:border-[#7a6552]/50"
+                      ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
+                      : "border-separator text-muted hover:border-[#6b5038]/50"
                   }`}
                   onClick={() => setFy(f.fy)}
                 >
@@ -130,7 +130,7 @@ export default function PortfolioPage() {
           </div>
           <div
             className={`mt-2 text-4xl md:text-5xl font-semibold ${
-              beat ? "text-green-400" : "text-red-400"
+              beat ? "text-green-500" : "text-red-500"
             }`}
           >
             {verdict}
@@ -204,7 +204,7 @@ export default function PortfolioPage() {
                       >
                         <td className="px-4 py-2 font-mono">
                           <Link
-                            className="hover:text-[#7a6552]"
+                            className="hover:text-[#6b5038]"
                             to={`/dealings/${pick.dealing_id}`}
                           >
                             {pick.ticker}
@@ -226,8 +226,8 @@ export default function PortfolioPage() {
                         <td
                           className={`text-right px-4 py-2 ${
                             pick.return_pct >= 0
-                              ? "text-green-400"
-                              : "text-red-400"
+                              ? "text-green-500"
+                              : "text-red-500"
                           }`}
                         >
                           {pct(pick.return_pct)}
@@ -235,15 +235,15 @@ export default function PortfolioPage() {
                         <td
                           className={`text-right px-4 py-2 ${
                             pick.ftse_return_pct >= 0
-                              ? "text-green-400"
-                              : "text-red-400"
+                              ? "text-green-500"
+                              : "text-red-500"
                           }`}
                         >
                           {pct(pick.ftse_return_pct)}
                         </td>
                         <td
                           className={`text-right px-4 py-2 font-medium ${
-                            beatPick ? "text-green-400" : "text-red-400"
+                            beatPick ? "text-green-500" : "text-red-500"
                           }`}
                         >
                           {pp(pick.alpha_pp)}
@@ -330,9 +330,9 @@ function Stat({
       <div
         className={`text-2xl font-semibold mt-1 ${
           tone === "pos"
-            ? "text-green-400"
+            ? "text-green-500"
             : tone === "neg"
-              ? "text-red-400"
+              ? "text-red-500"
               : ""
         }`}
       >
