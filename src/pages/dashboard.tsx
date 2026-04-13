@@ -508,14 +508,35 @@ export default function DashboardPage() {
     </div>
   );
 
+  const tickerEl = heroStats && heroStats.topPicks.length > 0 ? (
+    <div className="flex items-stretch">
+      <div className="shrink-0 flex items-center py-2.5 pr-4 border-r border-separator/40 text-[9px] font-semibold uppercase tracking-widest text-[#6b5038]/70 whitespace-nowrap">
+        Biggest gains detected
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <div style={{ display: "flex", width: "max-content", animation: "ho-ticker 28s linear infinite" }}>
+          {[...heroStats.topPicks, ...heroStats.topPicks].map((p, i) => (
+            <div key={i} className="inline-flex items-center gap-2 px-5 py-2.5 border-r border-separator/30 shrink-0">
+              <span className="text-[11px] font-mono font-medium text-foreground/75">{p.ticker}</span>
+              <span className="text-[11px] font-mono" style={{ color: "oklch(36% 0.16 155)" }}>
+                +{(p.stockRet * 100).toFixed(1)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
-    <DefaultLayout drawerRight={isTradingDay}>
+    <DefaultLayout drawerRight={isTradingDay} ticker={tickerEl}>
       <section className="pb-8 space-y-8">
-        {/* Full-bleed hero — breaks out of container, gradients fade to page bg */}
-        <div
-          className="relative -mx-4 md:-mx-6 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 40%, transparent 70%), radial-gradient(ellipse 40% 80% at 15% 50%, rgba(255,255,255,0.2) 0%, transparent 70%), radial-gradient(ellipse 35% 70% at 70% 30%, rgba(232,224,213,0.18) 0%, transparent 65%), radial-gradient(circle at 85% 80%, rgba(200,188,172,0.1) 0%, transparent 50%)" }}
-        >
+        {/* Full-bleed hero — breaks out of container */}
+        <div className="relative -mx-4 md:-mx-6 overflow-hidden">
+          {/* Top fade — orbs dissolve into ticker */}
+          <div className="absolute inset-x-0 top-0 h-16 pointer-events-none z-[5] bg-gradient-to-b from-[#f5f0e8] dark:from-background to-transparent" />
+          {/* Bottom fade — orbs dissolve into content */}
+          <div className="absolute inset-x-0 bottom-0 h-20 pointer-events-none z-[5] bg-gradient-to-t from-[#f5f0e8] dark:from-background to-transparent" />
         <div
           className="relative flex flex-col lg:flex-row items-center lg:items-center gap-5 lg:gap-8 px-6 py-5 lg:px-8 lg:py-7 max-w-7xl mx-auto"
         >
@@ -599,10 +620,6 @@ export default function DashboardPage() {
               86%  { opacity: 0;    stroke-dashoffset: 0; }
               100% { opacity: 0;    stroke-dashoffset: 300; }
             }
-            @keyframes ho-ticker {
-              from { transform: translateX(0); }
-              to   { transform: translateX(-50%); }
-            }
             @media (prefers-reduced-motion: reduce) {
               .hero-orb, .hero-dot, .hero-glow, .hero-line { animation: none !important; }
               .hero-orb-a { opacity: 0.12; }
@@ -613,8 +630,8 @@ export default function DashboardPage() {
               .hero-line { opacity: 0; }
             }
           `}</style>
-          {/* Orb container — only right 66% of hero, hidden on mobile */}
-          <div className="hidden lg:block absolute inset-y-0 left-[34%] right-0 overflow-hidden pointer-events-none">
+          {/* Orb container — only right 66% of hero */}
+          <div className="hidden lg:block absolute inset-y-0 left-[34%] right-0 pointer-events-none z-0">
             {/* Trend lines — price movement suggestion */}
             <svg
               aria-hidden="true"
@@ -782,26 +799,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Top-by-alpha ticker strip */}
-        {heroStats && heroStats.topPicks.length > 0 && (
-          <div className="flex items-stretch border-t border-[#e8e0d5]/50 dark:border-separator/40" style={{ background: "rgba(240,235,226,0.25)" }}>
-            <div className="shrink-0 flex items-center px-3 border-r border-[#e8e0d5]/50 dark:border-separator/40 text-[9px] font-semibold uppercase tracking-widest text-[#6b5038]/70 whitespace-nowrap">
-              Biggest gains detected
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <div style={{ display: "flex", width: "max-content", animation: "ho-ticker 28s linear infinite" }}>
-                {[...heroStats.topPicks, ...heroStats.topPicks].map((p, i) => (
-                  <div key={i} className="inline-flex items-center gap-2 px-5 py-1.5 border-r border-[#e8e0d5]/40 dark:border-separator/30 shrink-0">
-                    <span className="text-[11px] font-mono font-medium text-foreground/75">{p.ticker}</span>
-                    <span className="text-[11px] font-mono" style={{ color: p.stockRet >= 0 ? "oklch(36% 0.16 155)" : "oklch(38% 0.16 18)" }}>
-                      {p.stockRet >= 0 ? "+" : ""}{(p.stockRet * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
         </div>
 
         <div className="space-y-6">
@@ -900,7 +897,7 @@ export default function DashboardPage() {
                   return (
                     <div key={key}>
                       {/* Month header */}
-                      <div className="sticky top-16 z-10 pt-3 bg-[#f5f0e8] dark:bg-background">
+                      <div className="sticky top-[102px] z-10 pt-3 bg-[#f5f0e8] dark:bg-background">
                       <button
                         className={`w-full flex items-center justify-between px-6 py-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors bg-[#faf7f2] dark:bg-surface rounded-t-xl ${monthOpen ? "" : "rounded-b-xl"}`}
                         onClick={() => toggleMonth(key)}

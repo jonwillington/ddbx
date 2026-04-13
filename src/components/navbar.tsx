@@ -8,7 +8,7 @@ export const Navbar = () => {
   const location = useLocation();
 
   return (
-    <nav className="sticky top-0 z-40 w-full border-b border-separator bg-[#f5f0e8]/90 dark:bg-background/70 backdrop-blur-lg">
+    <nav className="w-full border-b border-separator bg-[#f5f0e8]/90 dark:bg-background/70 backdrop-blur-lg">
       <header className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-3 px-4 md:gap-4 md:px-6">
         <div className="flex items-center gap-6">
           <Link to="/" className="shrink-0">

@@ -13,6 +13,11 @@ body {
   font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
+@keyframes ho-ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
 /* ─── Warm dark-brown theme ──────────────────────────────────────────────────
    Overrides HeroUI's cold gray-blue dark defaults (~hue 286) with a palette
    that matches the warm beige light mode (~hue 55-78).

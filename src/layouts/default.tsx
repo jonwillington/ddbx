@@ -247,16 +247,27 @@ function TermsContent() {
 export default function DefaultLayout({
   children,
   drawerRight,
+  ticker,
 }: {
   children: React.ReactNode;
   drawerRight?: boolean;
+  ticker?: React.ReactNode;
 }) {
   const [legalPage, setLegalPage] = useState<LegalPage>(null);
   const closeLegal = useCallback(() => setLegalPage(null), []);
 
   return (
     <div className={`relative flex flex-col min-h-screen bg-[#f5f0e8] dark:bg-background ${drawerRight ? "lg:mr-80" : ""}`}>
-      <Navbar />
+      <div className="sticky top-0 z-40">
+        <Navbar />
+        {ticker && (
+          <div className="w-full border-b border-separator/50 bg-[#f5f0e8]/90 dark:bg-background/80 backdrop-blur-lg">
+            <div className="mx-auto max-w-[1280px] px-4 md:px-6 flex items-stretch">
+              {ticker}
+            </div>
+          </div>
+        )}
+      </div>
       <main className="container mx-auto max-w-7xl px-4 md:px-6 flex-grow pt-8">
         {children}
       </main>
