@@ -1015,8 +1015,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Scrollable deal list */}
+          {/* Scrollable content */}
           <div className="flex-1 min-h-0 overflow-y-auto">
+            {ukTodayNewsStrip}
+
             {todayDeals.length > 0 && (
               <>
                 <div className="px-4 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
@@ -1087,7 +1089,6 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-            {ukTodayNewsStrip}
           </div>
         </aside>
       )}
