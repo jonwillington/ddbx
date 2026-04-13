@@ -6,6 +6,7 @@ import type { RatingChecklist } from "../../worker/db/types";
 import { RatingBadge } from "@/components/rating-badge";
 import { EvidenceTable } from "@/components/evidence-table";
 import { InformationCircleIcon } from "@heroicons/react/20/solid";
+import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "@/components/skeleton";
 import { api } from "@/lib/api";
 
@@ -266,6 +267,51 @@ function fmtGbp(n: number) {
   }).format(n);
 }
 
+/** Shown in the detail drawer when we have no Opus analysis — triage only. */
+function TriageOnlyAnalysisNotice({
+  triage,
+}: {
+  triage: Dealing["triage"];
+}) {
+  const verdictLabel =
+    triage?.verdict === "skip"
+      ? "Skipped"
+      : triage?.verdict === "maybe"
+        ? "Maybe"
+        : triage?.verdict === "promising"
+          ? "Promising"
+          : "Screened";
+
+  return (
+    <div
+      role="note"
+      className="flex gap-3 rounded-lg border border-amber-200/90 bg-amber-50/95 px-3.5 py-3.5 text-left shadow-sm dark:border-amber-900/55 dark:bg-amber-950/35"
+    >
+      <InformationCircleOutlineIcon
+        className="w-5 h-5 shrink-0 text-amber-700 dark:text-amber-400 mt-0.5"
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+          No further analysis on this purchase
+          <span className="font-normal font-mono text-xs text-amber-900/70 dark:text-amber-300/80 ml-2">
+            ({verdictLabel})
+          </span>
+        </p>
+        {triage?.reason ? (
+          <p className="text-sm text-amber-950/95 dark:text-amber-100/90 mt-2 leading-relaxed">
+            {triage.reason}
+          </p>
+        ) : (
+          <p className="text-xs text-muted mt-2 italic">
+            No triage explanation was stored for this purchase.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PositionCard({
   entry,
   current,
@@ -468,6 +514,8 @@ export function DealingDetailPanel({
                   </p>
                 )}
 
+                {!a && <TriageOnlyAnalysisNotice triage={t} />}
+
                 <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 py-4 border-y border-black/10 dark:border-white/10">
                   <div>
                     <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Buyer</dt>
@@ -504,16 +552,6 @@ export function DealingDetailPanel({
                     ftseEntry={ftseEntryPence}
                     ftseCurrent={ftseCurrentPence}
                   />
-                )}
-
-                {!a && t && (
-                  <div>
-                    <h4 className="text-sm font-semibold mb-1">Triage note</h4>
-                    <p className="text-sm text-foreground/80">{t.reason}</p>
-                    <p className="text-xs text-muted mt-2 italic">
-                      This dealing did not pass triage, so no deep analysis was run.
-                    </p>
-                  </div>
                 )}
 
                 {a && (

@@ -100,9 +100,9 @@ function AlphaDelta({ stockEntry, stockCurrent, ftseEntry, ftseCurrent }: { stoc
   );
 }
 
-export function DealingRowHeader({ sticky = false, showVsFtse = false }: { sticky?: boolean; showVsFtse?: boolean }) {
+export function DealingRowHeader({ showVsFtse = false }: { showVsFtse?: boolean }) {
   return (
-    <div className={`hidden md:flex items-center text-xs text-muted font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] rounded-t-xl ${sticky ? "sticky top-[166px] z-[9]" : ""}`}>
+    <div className="hidden md:flex items-center text-xs text-muted font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] rounded-t-xl">
       <div className="w-36 shrink-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Date</div>
       <div className="w-[4.5rem] shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">Ticker</div>
       <div className="flex-1 min-w-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Company</div>

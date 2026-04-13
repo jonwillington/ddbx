@@ -996,7 +996,7 @@ export default function DashboardPage() {
 
                         return (
                         <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
-                          <DealingRowHeader sticky showVsFtse />
+                          <DealingRowHeader showVsFtse />
                           <div className="divide-y divide-black/[0.06] dark:divide-separator">
                           {days.map((day) => {
                             const segments = buildSegments(day.all, day.key);
