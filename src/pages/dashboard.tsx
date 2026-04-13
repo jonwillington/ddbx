@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import DefaultLayout from "@/layouts/default";
@@ -118,6 +118,25 @@ export default function DashboardPage() {
     items: UkNewsItem[];
     fetched_at: string | null;
   } | null>(null);
+  const prevNewsUrlsRef = useRef<Set<string> | null>(null);
+  const [newNewsUrls, setNewNewsUrls] = useState<Set<string>>(new Set());
+
+  // Track which news items are new after a refresh
+  useEffect(() => {
+    if (!ukNews || ukNews.items.length === 0) return;
+    const currentUrls = new Set(ukNews.items.map((n) => n.url));
+    if (prevNewsUrlsRef.current === null) {
+      // First load — nothing is "new"
+      prevNewsUrlsRef.current = currentUrls;
+    } else {
+      const fresh = new Set<string>();
+      for (const url of currentUrls) {
+        if (!prevNewsUrlsRef.current.has(url)) fresh.add(url);
+      }
+      if (fresh.size > 0) setNewNewsUrls(fresh);
+      prevNewsUrlsRef.current = currentUrls;
+    }
+  }, [ukNews]);
 
   const selected = useMemo(
     () => (routeId && dealings ? dealings.find((d) => d.id === routeId) ?? null : null),
@@ -495,7 +514,10 @@ export default function DashboardPage() {
                   loading="lazy"
                 />
                 <span className="min-w-0">
-                  <span className="block text-[10px] font-mono leading-none text-[#6b5038]/90 dark:text-[#c4a882] mb-1">
+                  <span className="flex items-center gap-1.5 text-[10px] font-mono leading-none text-[#6b5038]/90 dark:text-[#c4a882] mb-1">
+                    {newNewsUrls.has(n.url) && (
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-[#7c5cbf] animate-[fade-in-up_0.3s_ease-out]" />
+                    )}
                     {n.source}
                   </span>
                   <span className="inline-flex items-start gap-1.5 text-xs text-foreground/90 leading-snug line-clamp-3 group-hover:text-[#6b5038] transition-colors">
