@@ -6,10 +6,18 @@ import { title } from "@/components/primitives";
 import { DealingRow, DealingRowHeader } from "@/components/dealing-row";
 import { DealingDetailPanel } from "@/components/dealing-detail-panel";
 import { Skeleton } from "@/components/skeleton";
-import { api, type Dealing, type Portfolio } from "@/lib/api";
-import { ChevronDownIcon, CalendarDaysIcon, PlayIcon, TrashIcon, ArrowTrendingUpIcon } from "@heroicons/react/24/outline";
+import { api, type Dealing, type UkNewsItem } from "@/lib/api";
+import {
+  ChevronDownIcon,
+  CalendarDaysIcon,
+  PlayIcon,
+  TrashIcon,
+  ArrowTrendingUpIcon,
+  NewspaperIcon,
+} from "@heroicons/react/24/outline";
 
 type ViewMode = "chronological" | "by-gain";
+type HeroFilter = "all" | "significant" | "noteworthy" | "minor" | "routine";
 
 interface DayBucket {
   weekday: string;       // e.g. "THU"
@@ -92,8 +100,13 @@ export default function DashboardPage() {
   const [skippedVisible, setSkippedVisible] = useState<Record<string, number>>({});
   const [monthNoteworthyOnly, setMonthNoteworthyOnly] = useState<Set<string>>(new Set());
   const [monthExpandAll, setMonthExpandAll] = useState<Set<string>>(new Set());
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [heroFilter, setHeroFilter] = useState<HeroFilter>("significant");
+  const [search, setSearch] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [ukNews, setUkNews] = useState<{
+    items: UkNewsItem[];
+    fetched_at: string | null;
+  } | null>(null);
 
   const selected = useMemo(
     () => (routeId && dealings ? dealings.find((d) => d.id === routeId) ?? null : null),
@@ -107,15 +120,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     api.dealings().then(setDealings).catch((e) => setErr((e as Error).message));
-    api.portfolio().then((p) => {
-      if (p.picks_count > 0) { setPortfolio(p); return; }
-      // Current FY empty — find the most recent FY with picks
-      const best = p.available_fys
-        .filter((f) => f.picks_count > 0)
-        .sort((a, b) => b.fy - a.fy)[0];
-      if (best) api.portfolio(best.fy).then(setPortfolio).catch(() => {});
-      else setPortfolio(p);
-    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -138,25 +142,65 @@ export default function DashboardPage() {
     }).catch(() => {});
   }, [dealings]);
 
+  const filteredDealings = useMemo(() => {
+    if (!dealings) return null;
+    if (!search.trim()) return dealings;
+    const q = search.trim().toLowerCase();
+    return dealings.filter((d) =>
+      d.ticker.toLowerCase().includes(q) ||
+      d.company.toLowerCase().includes(q) ||
+      d.director.name.toLowerCase().includes(q),
+    );
+  }, [dealings, search]);
+
   const todayKey = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   }, []);
 
   const todayDeals = useMemo((): Dealing[] => {
-    if (!dealings) return [];
-    return dealings.filter((d) => d.trade_date.slice(0, 10) === todayKey);
-  }, [dealings, todayKey]);
+    if (!filteredDealings) return [];
+    return filteredDealings.filter((d) => d.trade_date.slice(0, 10) === todayKey);
+  }, [filteredDealings, todayKey]);
 
   const isTradingDay = useMemo(() => {
     const dow = new Date().getDay();
     return dow >= 1 && dow <= 5;
   }, []);
 
+  useEffect(() => {
+    if (!isTradingDay) {
+      setUkNews(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .ukNews()
+      .then((data) => {
+        if (!cancelled) setUkNews(data);
+      })
+      .catch(() => {
+        if (!cancelled) setUkNews({ items: [], fetched_at: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTradingDay]);
+
+  const marketOpen = useMemo(() => {
+    const now = new Date();
+    const dow = now.getDay();
+    if (dow < 1 || dow > 5) return false;
+    const h = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", hour12: false }));
+    const m = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", minute: "2-digit" }));
+    const mins = h * 60 + m;
+    return mins >= 480 && mins < 990;
+  }, []);
+
   const grouped = useMemo((): MonthBucket[] => {
-    if (!dealings) return [];
+    if (!filteredDealings) return [];
     const buckets: MonthBucket[] = [];
-    for (const d of dealings) {
+    for (const d of filteredDealings) {
       // Exclude today's deals — they get their own section
       if (d.trade_date.slice(0, 10) === todayKey) continue;
 
@@ -183,22 +227,61 @@ export default function DashboardPage() {
       else { day.skippedCount++; bucket.skippedCount++; }
     }
     return buckets;
-  }, [dealings, todayKey]);
+  }, [filteredDealings, todayKey]);
 
-  // Default-open the first month once data arrives
+  // Default-open all months once data arrives
   useEffect(() => {
     if (openMonths === null && grouped.length > 0) {
-      setOpenMonths(new Set([grouped[0].key]));
+      setOpenMonths(new Set(grouped.map((g) => g.key)));
     }
   }, [grouped, openMonths]);
 
   const byGain = useMemo((): Dealing[] => {
-    if (!dealings) return [];
-    return dealings
+    if (!filteredDealings) return [];
+    return filteredDealings
       .filter((d) => isSuggested(d) && prices[d.ticker] != null)
       .map((d) => ({ ...d, _gainPct: ((prices[d.ticker] - d.price_pence) / d.price_pence) * 100 }))
       .sort((a, b) => b._gainPct - a._gainPct);
-  }, [dealings, prices]);
+  }, [filteredDealings, prices]);
+
+  // Hero performance stats — computed client-side from dealings + prices + FTSE
+  const heroStats = useMemo(() => {
+    if (!dealings || Object.keys(prices).length === 0 || Object.keys(ftseEntries).length === 0) return null;
+    const ftseNow = prices["^FTAS"];
+    if (ftseNow == null) return null;
+
+    // Filter dealings based on heroFilter
+    const filtered = dealings.filter((d) => {
+      if (d.tx_type && d.tx_type !== "buy") return false;
+      const rating = d.analysis?.rating;
+      if (heroFilter === "all") return true;
+      if (heroFilter === "routine") return !rating || rating === "routine";
+      return rating === heroFilter;
+    });
+
+    // Build per-pick stats
+    const picks: { ticker: string; stockRet: number; ftseRet: number; alpha: number }[] = [];
+    for (const d of filtered) {
+      const current = prices[d.ticker];
+      const ftseEntry = ftseEntries[d.trade_date.slice(0, 10)];
+      if (current == null || ftseEntry == null || ftseEntry === 0 || d.price_pence === 0) continue;
+      const stockRet = (current - d.price_pence) / d.price_pence;
+      const ftseRet = (ftseNow - ftseEntry) / ftseEntry;
+      if (!isFinite(stockRet) || !isFinite(ftseRet)) continue;
+      picks.push({ ticker: d.ticker.replace(/\.L$/, ""), stockRet, ftseRet, alpha: (stockRet - ftseRet) * 100 });
+    }
+
+    if (picks.length === 0) return null;
+
+    const avgStock = picks.reduce((s, p) => s + p.stockRet, 0) / picks.length;
+    const avgFtse = picks.reduce((s, p) => s + p.ftseRet, 0) / picks.length;
+    const alphaPp = (avgStock - avgFtse) * 100;
+    const beatCount = picks.filter((p) => p.alpha > 0).length;
+
+    const topPicks = [...picks].sort((a, b) => b.alpha - a.alpha).slice(0, 5);
+
+    return { count: picks.length, avgStock, avgFtse, alphaPp, beatCount, topPicks };
+  }, [dealings, prices, ftseEntries, heroFilter]);
 
   const toggleMonth = (key: string) => {
     setOpenMonths((prev) => {
@@ -353,11 +436,62 @@ export default function DashboardPage() {
     );
   };
 
+  const ukTodayNewsStrip = (
+    <div className="border-b border-[#e8e0d5] dark:border-separator px-5 lg:px-4 py-3 shrink-0 max-h-[min(38vh,280px)] overflow-y-auto">
+      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/35" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500/90" />
+        </span>
+        <NewspaperIcon className="w-3.5 h-3.5" />
+        UK markets
+      </div>
+      {ukNews === null ? (
+        <p className="text-xs text-muted">Loading headlines…</p>
+      ) : ukNews.items.length === 0 ? (
+        <p className="text-xs text-muted">No headlines available right now.</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {ukNews.items.slice(0, 12).map((n, i) => (
+            <li key={`${n.url}-${i}`}>
+              <a
+                href={n.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block group"
+              >
+                <span className="text-[10px] font-mono text-[#6b5038]/90 dark:text-[#c4a882]">
+                  {n.source}
+                </span>
+                <span className="block text-xs text-foreground/90 leading-snug line-clamp-3 group-hover:text-[#6b5038] transition-colors">
+                  {n.title}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {ukNews?.fetched_at && (
+        <p className="text-[10px] text-muted/50 mt-2">
+          Refreshed{" "}
+          {new Date(ukNews.fetched_at).toLocaleString("en-GB", {
+            timeZone: "Europe/London",
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+        </p>
+      )}
+      <p className="text-[10px] text-muted/45 mt-2 leading-relaxed">
+        Third-party headlines (BBC, Guardian, City AM, This is Money); opens in a new tab.
+      </p>
+    </div>
+  );
+
   return (
-    <DefaultLayout>
+    <DefaultLayout drawerRight={isTradingDay}>
       <section className="pb-8 space-y-8">
         <div
-          className="relative flex flex-col lg:flex-row items-center lg:items-center gap-8 lg:gap-12 px-6 py-8 lg:px-8 lg:py-10 rounded-2xl border border-[#e8e0d5]/70 dark:border-separator/50 overflow-hidden"
+          className="relative flex flex-col lg:flex-row items-center lg:items-center gap-8 lg:gap-12 px-6 py-8 lg:px-8 lg:py-10 rounded-2xl border border-[#e8e0d5]/70 dark:border-separator/50 overflow-hidden min-h-[280px] lg:min-h-[320px]"
           style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 40%, rgba(245,240,232,0.15) 100%), radial-gradient(ellipse 60% 80% at 20% 50%, rgba(255,255,255,0.25) 0%, transparent 70%), radial-gradient(ellipse 50% 70% at 75% 30%, rgba(232,224,213,0.2) 0%, transparent 65%), radial-gradient(circle at 90% 80%, rgba(200,188,172,0.12) 0%, transparent 50%)" }}
         >
           {/* Animated background — spans full hero */}
@@ -369,13 +503,13 @@ export default function DashboardPage() {
             .hero-orb-d { animation: ho-d 5s ease-in-out infinite; }
             .hero-orb-e { animation: ho-e 4.5s cubic-bezier(0.4,0.1,0.6,0.9) infinite; animation-delay: -3s; }
             .hero-dot { position: absolute; border-radius: 50%; will-change: opacity, transform; pointer-events: none; }
-            .hero-dot-a { animation: ho-dot 8s ease-in-out infinite; }
-            .hero-dot-b { animation: ho-dot 8s ease-in-out infinite; animation-delay: -2.8s; }
-            .hero-dot-c { animation: ho-dot 8s ease-in-out infinite; animation-delay: -5.5s; }
+            .hero-dot-a { animation: ho-dot 8s ease-in-out infinite; animation-delay: 0.3s; }
+            .hero-dot-b { animation: ho-dot 8s ease-in-out infinite; animation-delay: 1.6s; }
+            .hero-dot-c { animation: ho-dot 8s ease-in-out infinite; animation-delay: 3.65s; }
             .hero-glow { position: absolute; border-radius: 50%; will-change: opacity, transform; pointer-events: none; }
-            .hero-glow-a { animation: ho-glow 8s ease-out infinite; }
-            .hero-glow-b { animation: ho-glow 8s ease-out infinite; animation-delay: -2.8s; }
-            .hero-glow-c { animation: ho-glow 8s ease-out infinite; animation-delay: -5.5s; }
+            .hero-glow-a { animation: ho-glow 8s ease-out infinite; animation-delay: 0.3s; }
+            .hero-glow-b { animation: ho-glow 8s ease-out infinite; animation-delay: 1.6s; }
+            .hero-glow-c { animation: ho-glow 8s ease-out infinite; animation-delay: 3.65s; }
             @keyframes ho-a {
               0%   { opacity: 0.03; transform: scale(0.8) translate(-5%,2%); }
               20%  { opacity: 0.22; transform: scale(1.15) translate(-2%,1%); }
@@ -425,6 +559,10 @@ export default function DashboardPage() {
               14%  { opacity: 0;    transform: scale(2.5); }
               100% { opacity: 0;    transform: scale(0); }
             }
+            @keyframes pulse-dot {
+              0%, 80%, 100% { opacity: 0.15; transform: scale(0.8); }
+              40% { opacity: 0.6; transform: scale(1); }
+            }
             @media (prefers-reduced-motion: reduce) {
               .hero-orb, .hero-dot, .hero-glow { animation: none !important; }
               .hero-orb-a { opacity: 0.12; }
@@ -446,8 +584,8 @@ export default function DashboardPage() {
             {/* Purchase dots with glow */}
             <div className="hero-glow hero-glow-a" style={{ left: "15%", top: "20%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
             <div className="hero-dot hero-dot-a" style={{ left: "15%", top: "20%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
-            <div className="hero-glow hero-glow-b" style={{ left: "60%", top: "70%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
-            <div className="hero-dot hero-dot-b" style={{ left: "60%", top: "70%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
+            <div className="hero-glow hero-glow-b" style={{ left: "40%", top: "62%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
+            <div className="hero-dot hero-dot-b" style={{ left: "40%", top: "62%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
             <div className="hero-glow hero-glow-c" style={{ left: "75%", top: "10%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
             <div className="hero-dot hero-dot-c" style={{ left: "75%", top: "10%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
           </div>
@@ -471,20 +609,32 @@ export default function DashboardPage() {
 
           {/* Right — performance vs FTSE */}
           <div className="relative w-full lg:w-[380px] shrink-0 z-10">
-            {portfolio ? (() => {
-              const beat = portfolio.alpha_pp >= 0;
-              const outperformers = portfolio.picks.filter((p) => p.alpha_pp > 0).length;
+            {heroStats ? (() => {
+              const { count, avgStock, avgFtse, alphaPp, beatCount, topPicks } = heroStats;
+              const beat = alphaPp >= 0;
 
               return (
                 <div className="bg-[#faf7f2] dark:bg-surface rounded-xl border border-[#e8e0d5]/60 dark:border-separator/60 overflow-hidden">
-                  {/* Header */}
+                  {/* Header + filter pills */}
                   <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted uppercase tracking-wider">
                       <ArrowTrendingUpIcon className="w-4 h-4" />
-                      Picks vs FTSE All-Share
+                      Performance vs FTSE
                     </div>
-                    <div className="text-[10px] text-muted/60 mt-0.5">
-                      Since {new Date(portfolio.fy_start).toLocaleString("en-GB", { month: "short" })} '{String(portfolio.fy).padStart(2, "0")} &middot; {portfolio.picks_count} picks &middot; {portfolio.in_progress ? "in progress" : "complete"}
+                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                      {(["all", "significant", "noteworthy", "minor", "routine"] as const).map((f) => (
+                        <button
+                          key={f}
+                          className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                            heroFilter === f
+                              ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
+                              : "border-[#d0c8be]/60 dark:border-separator text-muted hover:border-[#6b5038]/50"
+                          }`}
+                          onClick={() => setHeroFilter(f)}
+                        >
+                          {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -492,22 +642,23 @@ export default function DashboardPage() {
                   <div className="px-5 py-5">
                     <div className="text-xs text-muted mb-1">Outperformance</div>
                     <div className={`text-3xl font-semibold tracking-tight ${beat ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                      {beat ? "+" : ""}{portfolio.alpha_pp.toFixed(1)}<span className="text-lg ml-0.5">pp</span>
+                      {beat ? "+" : ""}{alphaPp.toFixed(1)}<span className="text-lg ml-0.5">pp</span>
                     </div>
+                    <div className="text-[10px] text-muted/60 mt-1">{count} purchases</div>
                   </div>
 
                   {/* Stat rows */}
                   <div className="px-5 pb-4 space-y-3">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">Our picks</span>
-                      <span className={`font-medium font-mono ${portfolio.picks_return_pct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                        {portfolio.picks_return_pct >= 0 ? "+" : ""}{(portfolio.picks_return_pct * 100).toFixed(1)}%
+                      <span className="text-muted">{heroFilter === "all" ? "All purchases" : heroFilter.charAt(0).toUpperCase() + heroFilter.slice(1)}</span>
+                      <span className={`font-medium font-mono ${avgStock >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                        {avgStock >= 0 ? "+" : ""}{(avgStock * 100).toFixed(1)}%
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted">FTSE All-Share</span>
                       <span className="font-medium font-mono text-foreground/70">
-                        {portfolio.ftse_return_pct >= 0 ? "+" : ""}{(portfolio.ftse_return_pct * 100).toFixed(1)}%
+                        {avgFtse >= 0 ? "+" : ""}{(avgFtse * 100).toFixed(1)}%
                       </span>
                     </div>
 
@@ -515,32 +666,27 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted">Beat FTSE</span>
                         <span className="font-medium font-mono">
-                          {outperformers}/{portfolio.picks_count}
+                          {beatCount}/{count}
                           <span className="text-muted ml-1.5">
-                            ({portfolio.picks_count > 0 ? Math.round((outperformers / portfolio.picks_count) * 100) : 0}%)
+                            ({count > 0 ? Math.round((beatCount / count) * 100) : 0}%)
                           </span>
                         </span>
                       </div>
                     </div>
 
-                    {/* Mini bar chart — top outperformers */}
-                    {(() => {
-                      const sorted = [...portfolio.picks]
-                        .sort((a, b) => b.alpha_pp - a.alpha_pp)
-                        .slice(0, 5);
-                      if (sorted.length === 0) return null;
-                      const maxAbs = Math.max(...sorted.map((p) => Math.abs(p.alpha_pp)), 1);
-
+                    {/* Mini bar chart — top by alpha */}
+                    {topPicks.length > 0 && (() => {
+                      const maxAbs = Math.max(...topPicks.map((p) => Math.abs(p.alpha)), 1);
                       return (
                         <div className="border-t border-[#e8e0d5] dark:border-separator pt-3 mt-3 space-y-2">
-                          <div className="text-[10px] text-muted uppercase tracking-wider">Top picks by alpha</div>
-                          {sorted.map((p) => {
-                            const positive = p.alpha_pp >= 0;
-                            const width = Math.min(Math.abs(p.alpha_pp) / maxAbs * 100, 100);
+                          <div className="text-[10px] text-muted uppercase tracking-wider">Top by alpha</div>
+                          {topPicks.map((p, i) => {
+                            const positive = p.alpha >= 0;
+                            const width = Math.min(Math.abs(p.alpha) / maxAbs * 100, 100);
                             return (
-                              <div key={p.dealing_id} className="flex items-center gap-2">
+                              <div key={i} className="flex items-center gap-2">
                                 <span className="text-xs font-mono w-16 shrink-0 truncate text-muted">
-                                  {p.ticker.replace(/\.L$/, "")}
+                                  {p.ticker}
                                 </span>
                                 <div className="flex-1 h-3 bg-black/[0.04] dark:bg-white/[0.04] rounded-full overflow-hidden">
                                   <div
@@ -549,7 +695,7 @@ export default function DashboardPage() {
                                   />
                                 </div>
                                 <span className={`text-xs font-mono w-14 text-right shrink-0 ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                                  {positive ? "+" : ""}{p.alpha_pp.toFixed(1)}
+                                  {positive ? "+" : ""}{p.alpha.toFixed(1)}
                                 </span>
                               </div>
                             );
@@ -561,80 +707,88 @@ export default function DashboardPage() {
                 </div>
               );
             })() : (
-              <div className="bg-[#faf7f2] dark:bg-surface rounded-xl border border-[#e8e0d5] dark:border-separator p-5 space-y-3">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-8 w-24 mt-2" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-2/3" />
+              <div className="bg-[#faf7f2] dark:bg-surface rounded-xl border border-[#e8e0d5]/60 dark:border-separator/60 overflow-hidden">
+                {/* Header */}
+                <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator space-y-2.5">
+                  <Skeleton className="h-3.5 w-36" />
+                  <div className="flex gap-1.5">
+                    <Skeleton className="h-5 w-10 rounded-full" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <Skeleton className="h-5 w-18 rounded-full" />
+                    <Skeleton className="h-5 w-12 rounded-full" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                  </div>
+                </div>
+                {/* Alpha headline */}
+                <div className="px-5 py-5">
+                  <Skeleton className="h-3 w-24 mb-2" />
+                  <Skeleton className="h-9 w-28" />
+                  <Skeleton className="h-2.5 w-20 mt-2" />
+                </div>
+                {/* Stat rows */}
+                <div className="px-5 pb-4 space-y-3">
+                  <div className="flex justify-between"><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-16" /></div>
+                  <div className="flex justify-between"><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-16" /></div>
+                  <div className="border-t border-[#e8e0d5] dark:border-separator pt-3">
+                    <div className="flex justify-between"><Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-24" /></div>
+                  </div>
+                  {/* Top picks chart */}
+                  <div className="border-t border-[#e8e0d5] dark:border-separator pt-3 mt-3 space-y-2">
+                    <Skeleton className="h-2.5 w-24" />
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-3 flex-1 rounded-full" />
+                        <Skeleton className="h-3 w-14" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
 
         <div className="space-y-6">
-          {/* View mode toggle */}
-          <div className="flex gap-2">
-            {(["chronological", "by-gain"] as const).map((mode) => (
-              <button
-                key={mode}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  viewMode === mode
-                    ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
-                    : "border-separator text-muted hover:border-[#6b5038]/50"
-                }`}
-                onClick={() => setViewMode(mode)}
-              >
-                {mode === "chronological" ? "Chronological" : "By gain"}
-              </button>
-            ))}
-          </div>
-
-          {err && <div className="text-sm text-red-400">Error: {err}</div>}
-
-          {!dealings ? (
-            <DashboardSkeleton />
-          ) : viewMode === "by-gain" ? (
-            byGain.length === 0 ? (
-              <div className="text-sm text-muted">No dealings with current prices available.</div>
-            ) : (
-              <div className="bg-[#faf7f2] dark:bg-surface rounded-xl animate-content-in">
-                <DealingRowHeader showVsFtse />
-                <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
-                  {byGain.map((d) => (
-                    <DealingRow
-                      key={d.id}
-                      dealing={d}
-                      currentPricePence={prices[d.ticker]}
-                      ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
-                      ftseCurrentPence={prices["^FTAS"]}
-                      showVsFtse
-                      selected={selected?.id === d.id}
-                      onSelect={selectDealing}
-                                            showMonth
-                    />
-                  ))}
-                </div>
+            {/* View mode toggle + search */}
+            <div className="flex items-center gap-3 bg-[#faf7f2] dark:bg-surface px-5 py-3.5 rounded-xl border border-transparent dark:border-separator/50">
+              <div className="flex gap-2">
+                {(["chronological", "by-gain"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                      viewMode === mode
+                        ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
+                        : "border-separator text-muted hover:border-[#6b5038]/50"
+                    }`}
+                    onClick={() => setViewMode(mode)}
+                  >
+                    {mode === "chronological" ? "Chronological" : "By gain"}
+                  </button>
+                ))}
               </div>
-            )
-          ) : (
-            <div className="space-y-6 animate-content-in">
-              {/* Today section — hidden on non-trading days */}
-              {isTradingDay && (
-              <div className="bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-5">
-                  <div>
-                    <div className="text-xl font-semibold flex items-center gap-2"><PlayIcon className="w-5 h-5" />Today</div>
-                    {todayDeals.length > 0 && (
-                      <div className="text-xs text-muted mt-0.5">
-                        {todayDeals.filter(isSuggested).length} analysed · {todayDeals.filter((d) => !isSuggested(d)).length} skipped
-                      </div>
-                    )}
-                  </div>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search ticker, company, director..."
+                className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
+              />
+            </div>
+
+            {/* Mobile-only today section */}
+            {isTradingDay && (
+              <div className="lg:hidden bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
+                  <div className="text-sm font-semibold flex items-center gap-2"><PlayIcon className="w-4 h-4" />Today</div>
+                  {todayDeals.length > 0 && (
+                    <div className="text-xs text-muted mt-0.5">
+                      {todayDeals.filter(isSuggested).length} analysed · {todayDeals.filter((d) => !isSuggested(d)).length} skipped
+                    </div>
+                  )}
                 </div>
+                {ukTodayNewsStrip}
                 {todayDeals.length > 0 ? (
-                  <>
-                  <DealingRowHeader />
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
                     {todayDeals.map((d) => (
                       <DealingRow
@@ -643,121 +797,245 @@ export default function DashboardPage() {
                         currentPricePence={prices[d.ticker]}
                         selected={selected?.id === d.id}
                         onSelect={selectDealing}
-                                                hideDate
+                        hideDate
                       />
                     ))}
                   </div>
-                  </>
                 ) : (
-                  <div className="px-6 pb-5 text-sm text-muted">
-                    Check back later today for details of trades made today.
+                  <div className="px-5 py-4 text-sm text-muted">
+                    Monitoring for new trades...
                   </div>
                 )}
               </div>
-              )}
+            )}
 
-              {/* Month groups (excluding today) */}
-              {grouped.map(({ label, year, key, days, analysedCount, skippedCount }) => {
-                const monthOpen = openMonths?.has(key) ?? false;
+            {err && <div className="text-sm text-red-400">Error: {err}</div>}
 
-                return (
-                  <div key={key} className="">
-                    {/* Month header */}
-                    <div className="sticky top-16 z-10 pt-3 bg-[#f5f0e8] dark:bg-background">
-                    <button
-                      className={`w-full flex items-center justify-between px-6 py-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors bg-[#faf7f2] dark:bg-surface rounded-t-xl ${monthOpen ? "" : "rounded-b-xl"}`}
-                      onClick={() => toggleMonth(key)}
-                    >
-                      <div className="flex items-center gap-3 text-left">
-                        <CalendarDaysIcon className="w-5 h-5 text-muted shrink-0" />
-                        <div className="text-xl font-semibold">{label} {year}</div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs text-muted">
-                          {analysedCount} analysed · {skippedCount} skipped
-                        </span>
-                        <ChevronDownIcon
-                          className={`w-5 h-5 text-muted shrink-0 transition-transform duration-200 ${monthOpen ? "rotate-180" : ""}`}
-                        />
-                      </div>
-                    </button>
-                    {monthOpen && (
-                      <div className="flex items-center gap-6 px-6 py-4 bg-[#faf8f5] dark:bg-surface border-t border-[#e8e0d5] dark:border-separator">
-                        <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={monthNoteworthyOnly.has(key)}
-                            onChange={() => toggleNoteworthyOnly(key)}
-                            className="w-3.5 h-3.5 rounded accent-[#6b5038]"
+            {!dealings ? (
+              <DashboardSkeleton />
+            ) : viewMode === "by-gain" ? (
+              byGain.length === 0 ? (
+                <div className="text-sm text-muted">No dealings with current prices available.</div>
+              ) : (
+                <div className="bg-[#faf7f2] dark:bg-surface rounded-xl animate-content-in">
+                  <DealingRowHeader showVsFtse />
+                  <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
+                    {byGain.map((d) => (
+                      <DealingRow
+                        key={d.id}
+                        dealing={d}
+                        currentPricePence={prices[d.ticker]}
+                        ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
+                        ftseCurrentPence={prices["^FTAS"]}
+                        showVsFtse
+                        selected={selected?.id === d.id}
+                        onSelect={selectDealing}
+                        showMonth
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            ) : (
+              <div className="space-y-6 animate-content-in">
+                {/* Month groups (excluding today) */}
+                {grouped.map(({ label, year, key, days, analysedCount, skippedCount }) => {
+                  const monthOpen = openMonths?.has(key) ?? false;
+
+                  return (
+                    <div key={key}>
+                      {/* Month header */}
+                      <div className="sticky top-16 z-10 pt-3 bg-[#f5f0e8] dark:bg-background">
+                      <button
+                        className={`w-full flex items-center justify-between px-6 py-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors bg-[#faf7f2] dark:bg-surface rounded-t-xl ${monthOpen ? "" : "rounded-b-xl"}`}
+                        onClick={() => toggleMonth(key)}
+                      >
+                        <div className="flex items-center gap-3 text-left">
+                          <CalendarDaysIcon className="w-5 h-5 text-muted shrink-0" />
+                          <div className="text-xl font-semibold">{label} {year}</div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs text-muted">
+                            {analysedCount} analysed · {skippedCount} skipped
+                          </span>
+                          <ChevronDownIcon
+                            className={`w-5 h-5 text-muted shrink-0 transition-transform duration-200 ${monthOpen ? "rotate-180" : ""}`}
                           />
-                          Noteworthy only
-                        </label>
-                        <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={monthExpandAll.has(key)}
-                            onChange={() => toggleExpandAll(key)}
-                            className="w-3.5 h-3.5 rounded accent-[#6b5038]"
-                          />
-                          Expand all
-                        </label>
+                        </div>
+                      </button>
+                      {monthOpen && (
+                        <div className="flex items-center gap-6 px-6 py-4 bg-[#faf8f5] dark:bg-surface border-t border-[#e8e0d5] dark:border-separator">
+                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={monthNoteworthyOnly.has(key)}
+                              onChange={() => toggleNoteworthyOnly(key)}
+                              className="w-3.5 h-3.5 rounded accent-[#6b5038]"
+                            />
+                            Noteworthy only
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={monthExpandAll.has(key)}
+                              onChange={() => toggleExpandAll(key)}
+                              className="w-3.5 h-3.5 rounded accent-[#6b5038]"
+                            />
+                            Expand all
+                          </label>
+                        </div>
+                      )}
                       </div>
-                    )}
-                    </div>
 
-                    {monthOpen && (() => {
-                      const noteworthyOnly = monthNoteworthyOnly.has(key);
-                      const expandAll = monthExpandAll.has(key);
+                      {monthOpen && (() => {
+                        const noteworthyOnly = monthNoteworthyOnly.has(key);
+                        const expandAll = monthExpandAll.has(key);
 
-                      return (
-                      <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
-                        <DealingRowHeader sticky showVsFtse />
-                        <div className="divide-y divide-black/[0.06] dark:divide-separator">
-                        {days.map((day) => {
-                          const segments = buildSegments(day.all, day.key);
+                        return (
+                        <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
+                          <DealingRowHeader sticky showVsFtse />
+                          <div className="divide-y divide-black/[0.06] dark:divide-separator">
+                          {days.map((day) => {
+                            const segments = buildSegments(day.all, day.key);
 
-                          return segments.map((seg) => {
-                            if (noteworthyOnly && seg.type === "skipped") return null;
-                            if (seg.type === "analysed") {
-                              return (
-                              <DealingRow
-                                key={seg.deal.id}
-                                dealing={seg.deal}
-                                currentPricePence={prices[seg.deal.ticker]}
-                                ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
-                                ftseCurrentPence={prices["^FTAS"]}
-                                showVsFtse
-                                selected={selected?.id === seg.deal.id}
-                                onSelect={selectDealing}
-                                                                showMonth
-                              />
-                              );
-                            }
-                            if (expandAll) {
+                            return segments.map((seg) => {
+                              if (noteworthyOnly && seg.type === "skipped") return null;
+                              if (seg.type === "analysed") {
+                                return (
+                                <DealingRow
+                                  key={seg.deal.id}
+                                  dealing={seg.deal}
+                                  currentPricePence={prices[seg.deal.ticker]}
+                                  ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
+                                  ftseCurrentPence={prices["^FTAS"]}
+                                  showVsFtse
+                                  selected={selected?.id === seg.deal.id}
+                                  onSelect={selectDealing}
+                                  showMonth
+                                />
+                                );
+                              }
+                              if (expandAll) {
+                                return (
+                                  <div key={seg.clusterKey}>
+                                    {renderSkippedCluster(seg.deals, seg.clusterKey, true)}
+                                  </div>
+                                );
+                              }
                               return (
                                 <div key={seg.clusterKey}>
-                                  {renderSkippedCluster(seg.deals, seg.clusterKey, true)}
+                                  {renderSkippedCluster(seg.deals, seg.clusterKey)}
                                 </div>
                               );
-                            }
-                            return (
-                              <div key={seg.clusterKey}>
-                                {renderSkippedCluster(seg.deals, seg.clusterKey)}
-                              </div>
-                            );
-                          });
-                        })}
+                            });
+                          })}
+                          </div>
                         </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+      </section>
+
+      {/* Today drawer — fixed full-height panel on right edge (desktop only) */}
+      {isTradingDay && (
+        <aside className="hidden lg:flex fixed top-0 right-0 bottom-0 w-80 flex-col border-l border-[#e8e0d5] dark:border-separator bg-[#faf7f2] dark:bg-surface z-20">
+          {/* Header — matches navbar h-16 */}
+          <div className="h-16 px-5 flex items-center border-b border-[#e8e0d5] dark:border-separator shrink-0">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-sm font-semibold">Today</span>
+              {todayDeals.length > 0 && (
+                <span className="text-[10px] text-muted truncate">
+                  {todayDeals.filter(isSuggested).length} analysed · {todayDeals.filter((d) => !isSuggested(d)).length} skipped
+                </span>
+              )}
+              <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                <span className="relative inline-flex items-center justify-center w-4 h-4">
+                  <span className={`absolute inset-0 rounded-full ${marketOpen ? "bg-green-500/15" : "bg-red-500/15"}`} />
+                  <span className={`relative w-1.5 h-1.5 rounded-full ${marketOpen ? "bg-green-500" : "bg-red-500/60"}`} />
+                </span>
+                <span className="text-xs text-muted">{marketOpen ? "Open" : "Closed"}</span>
+              </div>
+            </div>
+          </div>
+
+          {ukTodayNewsStrip}
+
+          {/* Scrollable deal list */}
+          {todayDeals.length > 0 ? (
+            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-black/[0.06] dark:divide-separator">
+              {todayDeals.map((d) => {
+                const a = d.analysis;
+                const tickerLabel = d.ticker.replace(/\.L$/, "");
+                const companyLabel = d.company.replace(/\s*\([^)]*\)\s*$/, "");
+                return (
+                  <button
+                    key={d.id}
+                    className={`w-full text-left px-4 py-3.5 transition-colors ${
+                      selected?.id === d.id
+                        ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]"
+                        : "hover:bg-black/[0.03] dark:hover:bg-white/5"
+                    } ${!a ? "opacity-60" : ""}`}
+                    onClick={() => selectDealing(d)}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary">
+                        {tickerLabel}
+                      </span>
+                      <span className="text-sm font-medium truncate">{companyLabel}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted truncate">
+                        {d.director.name}
+                      </span>
+                      <span className="text-sm font-medium tabular-nums shrink-0 ml-2">
+                        {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(d.value_gbp)}
+                      </span>
+                    </div>
+                    {a && (
+                      <div className="mt-1.5">
+                        <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                          a.rating === "significant" ? "bg-[#8b4513]/18 text-[#6b2f0a] border-[#8b4513]/40 dark:bg-[#d4845a]/15 dark:text-[#e8a878] dark:border-[#d4845a]/35" :
+                          a.rating === "noteworthy"  ? "bg-[#6b5038]/14 text-[#4a3520] border-[#6b5038]/35 dark:bg-[#b8956e]/12 dark:text-[#c4a882] dark:border-[#b8956e]/30" :
+                          a.rating === "minor"       ? "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40" :
+                                                       "bg-transparent text-[#b0a898] border-[#d8d0c6]/60"
+                        }`}>
+                          {a.rating.charAt(0).toUpperCase() + a.rating.slice(1)}
+                        </span>
                       </div>
-                      );
-                    })()}
-                  </div>
+                    )}
+                  </button>
                 );
               })}
             </div>
+          ) : (
+            <div className="flex-1 min-h-0 flex items-center justify-center py-4">
+              <div className="text-center px-3">
+                {marketOpen ? (
+                  <>
+                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
+                    </div>
+                    <div className="text-sm text-muted">Monitoring for new trades</div>
+                    <div className="text-xs text-muted/50 mt-1">Deals appear here as they're disclosed</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm text-muted">Markets are closed</div>
+                    <div className="text-xs text-muted/50 mt-1">No new dealings today</div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
-        </div>
-      </section>
+        </aside>
+      )}
 
       <DealingDetailPanel
         dealing={selected}

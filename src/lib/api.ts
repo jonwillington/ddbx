@@ -4,6 +4,7 @@ import type {
   LatestPrice,
   Portfolio,
   Rating,
+  UkNewsItem,
 } from "../../worker/db/types";
 
 // In dev, Vite proxies /api to wrangler dev (see vite.config.ts).
@@ -36,6 +37,8 @@ export const api = {
     get<{ bars: { date: string; close_pence: number }[] }>(
       `/prices/history?ticker=${encodeURIComponent(ticker)}&days=${days}`,
     ).then((r) => r.bars),
+  ukNews: () =>
+    get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/uk"),
 };
 
-export type { Dealing, DirectorDetail, LatestPrice, Portfolio, Rating };
+export type { Dealing, DirectorDetail, LatestPrice, Portfolio, Rating, UkNewsItem };

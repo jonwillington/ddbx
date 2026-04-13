@@ -122,6 +122,18 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
   metrics_json TEXT
 );
 
+-- Aggregated UK business headlines (RSS). Refreshed on the 15-minute cron.
+CREATE TABLE IF NOT EXISTS news_items (
+  id            TEXT PRIMARY KEY,
+  title         TEXT NOT NULL,
+  url           TEXT NOT NULL UNIQUE,
+  source        TEXT NOT NULL,
+  published_at  TEXT,
+  fetched_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_items_fetched ON news_items(fetched_at DESC);
+
 -- Migration 001 (2026-04-07): add summary column for tweet-ready one-liner
 -- Run once against existing databases:
 --   wrangler d1 execute director-dealings --command "ALTER TABLE analyses ADD COLUMN summary TEXT;"

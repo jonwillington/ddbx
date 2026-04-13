@@ -75,13 +75,44 @@ export async function processListItem(
   }
   if (!extracted || !extracted.is_open_market_buy) return null;
 
+  // Cross-check extracted price against the market close for that date.
+  // Catches cases where the LLM and value/shares all agree internally but
+  // the price is in the wrong unit (or simply hallucinated).
+  let price_pence = extracted.price_pence;
+  if (price_pence > 0) {
+    const marketRow = await env.DB.prepare(
+      `SELECT close_pence FROM prices
+        WHERE ticker = ?1 AND date <= ?2
+        ORDER BY date DESC LIMIT 1`,
+    )
+      .bind(item.ticker, extracted.trade_date)
+      .first<{ close_pence: number }>();
+
+    if (marketRow && marketRow.close_pence > 0) {
+      const ratio = marketRow.close_pence / price_pence;
+      if (ratio > 5) {
+        // Extracted price is far too low — likely in pounds instead of pence.
+        console.log(
+          `price-fix ${item.ticker}: ${price_pence} -> ${price_pence * 100} (market ${marketRow.close_pence}, ratio ${ratio.toFixed(1)}x)`,
+        );
+        price_pence = price_pence * 100;
+      } else if (ratio < 0.2) {
+        // Extracted price is far too high — likely pence * 100.
+        console.log(
+          `price-fix ${item.ticker}: ${price_pence} -> ${price_pence / 100} (market ${marketRow.close_pence}, ratio ${ratio.toFixed(1)}x)`,
+        );
+        price_pence = price_pence / 100;
+      }
+    }
+  }
+
   const director_id = directorIdFromName(extracted.director_name);
   const hash = await hashDealing({
     trade_date: extracted.trade_date,
     director_id,
     ticker: item.ticker,
     shares: extracted.shares,
-    price_pence: extracted.price_pence,
+    price_pence,
   });
 
   return {
@@ -98,10 +129,10 @@ export async function processListItem(
     company: item.company,
     tx_type: "buy",
     shares: extracted.shares,
-    price_pence: extracted.price_pence,
+    price_pence,
     value_gbp:
       extracted.value_gbp ||
-      (extracted.price_pence * extracted.shares) / 100,
+      (price_pence * extracted.shares) / 100,
   };
 }
 

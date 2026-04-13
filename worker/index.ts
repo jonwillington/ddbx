@@ -9,6 +9,11 @@ import { getDealings, getDealingById } from "./db/queries";
 import { getPortfolio } from "./db/portfolio";
 import { getDirector } from "./db/directors";
 import { fetchDailyBars, cacheBars } from "./pipeline/prices";
+import {
+  getUkNews,
+  refreshUkNews,
+  ukNewsIsStale,
+} from "./pipeline/uk-news";
 import { postDailySummary, type DailySummaryDealing, type Session } from "./pipeline/twitter";
 import { FIXTURES } from "./fixtures";
 
@@ -188,6 +193,34 @@ app.get("/api/prices/latest", async (c) => {
   return c.json({ prices: results });
 });
 
+// UK-focused business headlines (BBC, Guardian, City AM, This is Money RSS).
+// Cached in D1; refreshed on the 15-minute cron and when stale on read.
+app.get("/api/news/uk", async (c) => {
+  try {
+    if (await ukNewsIsStale(c.env)) {
+      try {
+        await refreshUkNews(c.env);
+      } catch (err) {
+        console.error(`news/uk refresh: ${(err as Error).message}`);
+      }
+    }
+    const data = await getUkNews(c.env);
+    return c.json(data);
+  } catch {
+    return c.json({ items: [], fetched_at: null });
+  }
+});
+
+// Manual refresh (e.g. after deploying the news table).
+app.post("/__cron/refresh-news", async (c) => {
+  try {
+    const r = await refreshUkNews(c.env);
+    return c.json(r);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
 // Manual pipeline trigger (useful for local dev + ad-hoc re-runs).
 app.post("/__cron/run", async (c) => {
   const result = await runPipeline(c.env);
@@ -243,6 +276,14 @@ app.post("/__backfill", async (c) => {
 });
 
 
+app.post("/__fix-price", async (c) => {
+  const id = c.req.query("id");
+  const pence = Number(c.req.query("price_pence"));
+  if (!id || !pence || isNaN(pence)) return c.json({ error: "id and price_pence required" }, 400);
+  await c.env.DB.prepare("UPDATE dealings SET price_pence = ?1 WHERE id = ?2").bind(pence, id).run();
+  return c.json({ ok: true, id, price_pence: pence });
+});
+
 app.get("/", (c) =>
   c.text("director-dealings worker. See /api/dealings.")
 );
@@ -290,9 +331,14 @@ export default {
     }
     console.log(`[cron] pipeline cron fired: ${event.cron}`);
     ctx.waitUntil(
-      runPipeline(env)
-        .then((r) => console.log(`[cron] pipeline done:`, JSON.stringify(r)))
-        .catch((err) => console.error(`[cron] pipeline error:`, (err as Error).message)),
+      Promise.all([
+        runPipeline(env)
+          .then((r) => console.log(`[cron] pipeline done:`, JSON.stringify(r)))
+          .catch((err) => console.error(`[cron] pipeline error:`, (err as Error).message)),
+        refreshUkNews(env)
+          .then((r) => console.log(`[cron] uk news done:`, JSON.stringify(r)))
+          .catch((err) => console.error(`[cron] uk news error:`, (err as Error).message)),
+      ]),
     );
   },
 };

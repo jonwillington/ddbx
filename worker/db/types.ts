@@ -136,6 +136,14 @@ export interface LatestPrice {
   date: string;
 }
 
+/** UK markets headline from aggregated RSS (outbound links only). */
+export interface UkNewsItem {
+  title: string;
+  url: string;
+  source: string;
+  published_at: string | null;
+}
+
 export interface Portfolio {
   fy: number;                  // 26 means FY26
   fy_start: string;            // ISO, e.g. "2026-04-06"

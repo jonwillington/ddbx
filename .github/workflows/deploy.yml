@@ -23,7 +23,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Build Frontend
-        run: npx vite build
+        run: npm run build
 
       - name: Deploy Frontend
         run: npx wrangler pages deploy dist --project-name=director-dealings

@@ -56,14 +56,17 @@ export async function extractDealing(
     typeof parsed.value_gbp === "number" ? parsed.value_gbp : 0;
 
   // Cross-check: if value_gbp and shares are both known, the implied price
-  // should equal price_pence. If it's ~100x smaller, the LLM read the price
-  // in GBP (e.g. "£0.9308") and incorrectly stored it as pence * 100.
+  // should equal price_pence. Detect and fix ~100x unit errors in either
+  // direction — the LLM sometimes returns GBP as pence or vice-versa.
   if (value_gbp > 0 && parsed.shares > 0 && price_pence > 0) {
     const impliedPence = (value_gbp * 100) / parsed.shares;
     const ratio = impliedPence / price_pence;
     if (ratio > 0.005 && ratio < 0.05) {
       // price_pence is ~100x too high — divide down.
       price_pence = price_pence / 100;
+    } else if (ratio > 20 && ratio < 200) {
+      // price_pence is ~100x too low — LLM returned GBP instead of pence.
+      price_pence = price_pence * 100;
     }
   }
 

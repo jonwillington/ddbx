@@ -246,14 +246,16 @@ function TermsContent() {
 
 export default function DefaultLayout({
   children,
+  drawerRight,
 }: {
   children: React.ReactNode;
+  drawerRight?: boolean;
 }) {
   const [legalPage, setLegalPage] = useState<LegalPage>(null);
   const closeLegal = useCallback(() => setLegalPage(null), []);
 
   return (
-    <div className="relative flex flex-col min-h-screen bg-[#f5f0e8] dark:bg-background">
+    <div className={`relative flex flex-col min-h-screen bg-[#f5f0e8] dark:bg-background ${drawerRight ? "lg:mr-80" : ""}`}>
       <Navbar />
       <main className="container mx-auto max-w-7xl px-4 md:px-6 flex-grow pt-8">
         {children}
