@@ -170,7 +170,7 @@ export default function DashboardPage() {
 
   const todayDeals = useMemo((): Dealing[] => {
     if (!filteredDealings) return [];
-    return filteredDealings.filter((d) => d.trade_date.slice(0, 10) === todayKey);
+    return filteredDealings.filter((d) => (d.disclosed_date ?? d.trade_date).slice(0, 10) === todayKey);
   }, [filteredDealings, todayKey]);
 
   const isTradingDay = useMemo(() => {
@@ -212,7 +212,7 @@ export default function DashboardPage() {
     const buckets: MonthBucket[] = [];
     for (const d of filteredDealings) {
       // Exclude today's deals — they get their own section
-      if (d.trade_date.slice(0, 10) === todayKey) continue;
+      if ((d.disclosed_date ?? d.trade_date).slice(0, 10) === todayKey) continue;
 
       const date = new Date(d.trade_date);
       const monthLabel = date.toLocaleString("en-GB", { month: "long" });
