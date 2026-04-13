@@ -136,7 +136,7 @@ export default function DashboardPage() {
   useEffect(() => { loadDealings(); }, [loadDealings]);
 
   // Poll for new data every 30s — refetch when the DB fingerprint changes
-  useDataVersion(loadDealings, 30_000);
+  const lastChecked = useDataVersion(loadDealings, 30_000);
 
   useEffect(() => {
     if (!dealings || dealings.length === 0) return;
@@ -1082,14 +1082,21 @@ export default function DashboardPage() {
             <div className="py-4 border-t border-black/[0.06] dark:border-separator">
               <div className="text-center px-3">
                 {marketOpen ? (
-                  <div className="flex items-center justify-center gap-2 text-xs text-muted/60">
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
-                    </span>
-                    Monitoring for new disclosures
-                  </div>
+                  <>
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted/60">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
+                      </span>
+                      Monitoring for new disclosures
+                    </div>
+                    {lastChecked && (
+                      <div className="text-[10px] text-muted/40 mt-1">
+                        Last checked {lastChecked.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-xs text-muted/50">Markets are closed</div>
                 )}
