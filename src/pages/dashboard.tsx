@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import DefaultLayout from "@/layouts/default";
@@ -7,6 +7,7 @@ import { DealingRow, DealingRowHeader } from "@/components/dealing-row";
 import { DealingDetailPanel } from "@/components/dealing-detail-panel";
 import { Skeleton } from "@/components/skeleton";
 import { api, type Dealing, type UkNewsItem } from "@/lib/api";
+import { useDataVersion } from "@/lib/use-data-version";
 import {
   ChevronDownIcon,
   CalendarDaysIcon,
@@ -128,9 +129,14 @@ export default function DashboardPage() {
     else navigate("/");
   };
 
-  useEffect(() => {
+  const loadDealings = useCallback(() => {
     api.dealings().then(setDealings).catch((e) => setErr((e as Error).message));
   }, []);
+
+  useEffect(() => { loadDealings(); }, [loadDealings]);
+
+  // Poll for new data every 30s — refetch when the DB fingerprint changes
+  useDataVersion(loadDealings, 30_000);
 
   useEffect(() => {
     if (!dealings || dealings.length === 0) return;

@@ -39,6 +39,8 @@ export const api = {
     ).then((r) => r.bars),
   ukNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/uk"),
+  version: () =>
+    get<{ latest: string | null; total: number }>("/version"),
 };
 
 export type { Dealing, DirectorDetail, LatestPrice, Portfolio, Rating, UkNewsItem };

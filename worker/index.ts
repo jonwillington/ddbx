@@ -27,6 +27,14 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use("/api/*", cors());
 
+app.get("/api/version", async (c) => {
+  const row = await c.env.DB.prepare(
+    `SELECT MAX(created_at) AS latest, COUNT(*) AS total FROM dealings`,
+  ).first<{ latest: string | null; total: number }>();
+  c.header("Cache-Control", "public, max-age=15");
+  return c.json({ latest: row?.latest ?? null, total: row?.total ?? 0 });
+});
+
 app.get("/api/dealings", async (c) => {
   const rating = c.req.query("rating");
   // Until D1 is wired up, fall back to fixtures so the frontend renders.
