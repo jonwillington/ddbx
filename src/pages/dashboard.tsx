@@ -840,32 +840,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-6">
-            {/* View mode toggle + search */}
-            <div className="flex items-center gap-3 bg-[#faf7f2] dark:bg-surface px-5 py-3.5 rounded-xl border border-transparent dark:border-separator/50">
-              <div className="flex gap-2">
-                {(["chronological", "by-gain"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                      viewMode === mode
-                        ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
-                        : "border-separator text-muted hover:border-[#6b5038]/50"
-                    }`}
-                    onClick={() => setViewMode(mode)}
-                  >
-                    {mode === "chronological" ? "Chronological" : "By gain"}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search ticker, company, director..."
-                className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
-              />
-            </div>
-
             {/* Mobile-only today section */}
             {isTradingDay && (
               <div className="lg:hidden bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
@@ -908,6 +882,30 @@ export default function DashboardPage() {
                 <div className="text-sm text-muted">No dealings with current prices available.</div>
               ) : (
                 <div className="bg-[#faf7f2] dark:bg-surface rounded-xl animate-content-in">
+                  <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[#e8e0d5]/50 dark:border-separator/30">
+                    <div className="flex gap-2">
+                      {(["chronological", "by-gain"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                            viewMode === mode
+                              ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
+                              : "border-separator text-muted hover:border-[#6b5038]/50"
+                          }`}
+                          onClick={() => setViewMode(mode)}
+                        >
+                          {mode === "chronological" ? "Chronological" : "By gain"}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search ticker, company, director..."
+                      className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
+                    />
+                  </div>
                   <DealingRowHeader showVsFtse />
                   <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
                     {byGain.map((d) => (
@@ -929,15 +927,42 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-6 animate-content-in">
                 {/* Month groups (excluding today) */}
-                {grouped.map(({ label, year, key, days, analysedCount, skippedCount }) => {
+                {grouped.map(({ label, year, key, days, analysedCount, skippedCount }, monthIdx) => {
                   const monthOpen = openMonths?.has(key) ?? false;
 
                   return (
                     <div key={key}>
+                      {/* Filter bar — attached to first month */}
+                      {monthIdx === 0 && (
+                        <div className="flex items-center gap-3 bg-[#faf7f2] dark:bg-surface px-5 py-3.5 rounded-t-xl border-b border-[#e8e0d5]/50 dark:border-separator/30">
+                          <div className="flex gap-2">
+                            {(["chronological", "by-gain"] as const).map((mode) => (
+                              <button
+                                key={mode}
+                                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                                  viewMode === mode
+                                    ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
+                                    : "border-separator text-muted hover:border-[#6b5038]/50"
+                                }`}
+                                onClick={() => setViewMode(mode)}
+                              >
+                                {mode === "chronological" ? "Chronological" : "By gain"}
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search ticker, company, director..."
+                            className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
+                          />
+                        </div>
+                      )}
                       {/* Month header */}
-                      <div className="sticky top-[102px] z-10 pt-3 bg-[#f5f0e8] dark:bg-background">
+                      <div className={`sticky top-[102px] z-10 ${monthIdx === 0 ? "" : "pt-3"} bg-[#f5f0e8] dark:bg-background`}>
                       <button
-                        className={`w-full flex items-center justify-between px-6 py-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors bg-[#faf7f2] dark:bg-surface rounded-t-xl ${monthOpen ? "" : "rounded-b-xl"}`}
+                        className={`w-full flex items-center justify-between px-6 py-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors bg-[#faf7f2] dark:bg-surface ${monthIdx === 0 ? "" : "rounded-t-xl"} ${monthOpen ? "" : "rounded-b-xl"}`}
                         onClick={() => toggleMonth(key)}
                       >
                         <div className="flex items-center gap-3 text-left">
