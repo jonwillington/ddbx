@@ -1015,77 +1015,80 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {ukTodayNewsStrip}
-
           {/* Scrollable deal list */}
-          {todayDeals.length > 0 ? (
-            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-black/[0.06] dark:divide-separator">
-              {todayDeals.map((d) => {
-                const a = d.analysis;
-                const tickerLabel = d.ticker.replace(/\.L$/, "");
-                const companyLabel = d.company.replace(/\s*\([^)]*\)\s*$/, "");
-                return (
-                  <button
-                    key={d.id}
-                    className={`w-full text-left px-4 py-3.5 transition-colors ${
-                      selected?.id === d.id
-                        ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]"
-                        : "hover:bg-black/[0.03] dark:hover:bg-white/5"
-                    } ${!a ? "opacity-60" : ""}`}
-                    onClick={() => selectDealing(d)}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary">
-                        {tickerLabel}
-                      </span>
-                      <span className="text-sm font-medium truncate">{companyLabel}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted truncate">
-                        {d.director.name}
-                      </span>
-                      <span className="text-sm font-medium tabular-nums shrink-0 ml-2">
-                        {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(d.value_gbp)}
-                      </span>
-                    </div>
-                    {a && (
-                      <div className="mt-1.5">
-                        <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                          a.rating === "significant" ? "bg-[#8b4513]/18 text-[#6b2f0a] border-[#8b4513]/40 dark:bg-[#d4845a]/15 dark:text-[#e8a878] dark:border-[#d4845a]/35" :
-                          a.rating === "noteworthy"  ? "bg-[#6b5038]/14 text-[#4a3520] border-[#6b5038]/35 dark:bg-[#b8956e]/12 dark:text-[#c4a882] dark:border-[#b8956e]/30" :
-                          a.rating === "minor"       ? "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40" :
-                                                       "bg-transparent text-[#b0a898] border-[#d8d0c6]/60"
-                        }`}>
-                          {a.rating.charAt(0).toUpperCase() + a.rating.slice(1)}
-                        </span>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0 flex items-center justify-center py-4">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {todayDeals.length > 0 && (
+              <>
+                <div className="px-4 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                  Today's deals
+                </div>
+                <div className="divide-y divide-black/[0.06] dark:divide-separator">
+                  {todayDeals.map((d) => {
+                    const a = d.analysis;
+                    const tickerLabel = d.ticker.replace(/\.L$/, "");
+                    const companyLabel = d.company.replace(/\s*\([^)]*\)\s*$/, "");
+                    return (
+                      <button
+                        key={d.id}
+                        className={`w-full text-left px-4 py-3.5 transition-colors ${
+                          selected?.id === d.id
+                            ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]"
+                            : "hover:bg-black/[0.03] dark:hover:bg-white/5"
+                        } ${!a ? "opacity-60" : ""}`}
+                        onClick={() => selectDealing(d)}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary">
+                            {tickerLabel}
+                          </span>
+                          <span className="text-sm font-medium truncate">{companyLabel}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted truncate">
+                            {d.director.name}
+                          </span>
+                          <span className="text-sm font-medium tabular-nums shrink-0 ml-2">
+                            {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(d.value_gbp)}
+                          </span>
+                        </div>
+                        {a && (
+                          <div className="mt-1.5">
+                            <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                              a.rating === "significant" ? "bg-[#8b4513]/18 text-[#6b2f0a] border-[#8b4513]/40 dark:bg-[#d4845a]/15 dark:text-[#e8a878] dark:border-[#d4845a]/35" :
+                              a.rating === "noteworthy"  ? "bg-[#6b5038]/14 text-[#4a3520] border-[#6b5038]/35 dark:bg-[#b8956e]/12 dark:text-[#c4a882] dark:border-[#b8956e]/30" :
+                              a.rating === "minor"       ? "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40" :
+                                                           "bg-transparent text-[#b0a898] border-[#d8d0c6]/60"
+                            }`}>
+                              {a.rating.charAt(0).toUpperCase() + a.rating.slice(1)}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Monitoring indicator — always shown on trading days */}
+            <div className="py-4 border-t border-black/[0.06] dark:border-separator">
               <div className="text-center px-3">
                 {marketOpen ? (
-                  <>
-                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted/60">
+                    <span className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
                       <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
                       <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
-                    </div>
-                    <div className="text-sm text-muted">No new trades yet today</div>
-                    <div className="text-xs text-muted/50 mt-1">Monitoring for new disclosures</div>
-                  </>
+                    </span>
+                    Monitoring for new disclosures
+                  </div>
                 ) : (
-                  <>
-                    <div className="text-sm text-muted">Markets are closed</div>
-                    <div className="text-xs text-muted/50 mt-1">No new dealings today</div>
-                  </>
+                  <div className="text-xs text-muted/50">Markets are closed</div>
                 )}
               </div>
             </div>
-          )}
+          </div>
+          {ukTodayNewsStrip}
         </aside>
       )}
 
