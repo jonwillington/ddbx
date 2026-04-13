@@ -32,6 +32,10 @@ export const api = {
   priceOn: (ticker: string, date: string) =>
     get<{ price: number | null }>(`/prices/on?ticker=${encodeURIComponent(ticker)}&date=${date}`)
       .then((r) => r.price),
+  priceHistory: (ticker: string, days = 90) =>
+    get<{ bars: { date: string; close_pence: number }[] }>(
+      `/prices/history?ticker=${encodeURIComponent(ticker)}&days=${days}`,
+    ).then((r) => r.bars),
 };
 
 export type { Dealing, DirectorDetail, LatestPrice, Portfolio, Rating };

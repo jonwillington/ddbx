@@ -77,6 +77,39 @@ app.get("/api/directors/:id", async (c) => {
   return c.json(d);
 });
 
+// Returns daily close prices for a ticker over the last N days (default 90).
+// Checks D1 cache first; falls back to Yahoo Finance and caches the result.
+app.get("/api/prices/history", async (c) => {
+  const ticker = c.req.query("ticker");
+  const days = Math.max(14, Math.min(365, Number(c.req.query("days") ?? 90)));
+  if (!ticker) return c.json({ bars: [] });
+
+  const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  try {
+    const cached = await c.env.DB.prepare(
+      `SELECT date, close_pence FROM prices WHERE ticker = ?1 AND date >= ?2 ORDER BY date ASC`,
+    )
+      .bind(ticker, cutoff)
+      .all<{ date: string; close_pence: number }>();
+
+    // Use cache if we have at least half the expected trading days
+    if (cached.results.length >= Math.floor(days * 0.35)) {
+      return c.json({ bars: cached.results });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const from = now - days * 24 * 3600;
+    const bars = await fetchDailyBars(ticker, from, now);
+    await cacheBars(c.env, ticker, bars);
+    return c.json({ bars });
+  } catch {
+    return c.json({ bars: [] });
+  }
+});
+
 // Returns the most recent price for a ticker at or before a given date.
 // Used by the frontend to look up benchmark entry prices for a dealing.
 app.get("/api/prices/on", async (c) => {

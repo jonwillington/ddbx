@@ -179,15 +179,15 @@ export default function PortfolioPage() {
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted bg-surface/40">
                   <tr>
-                    <th className="text-left px-4 py-2 font-normal">Ticker</th>
-                    <th className="text-left px-4 py-2 font-normal">Company</th>
-                    <th className="text-left px-4 py-2 font-normal">Rating</th>
-                    <th className="text-left px-4 py-2 font-normal">Entered</th>
-                    <th className="text-right px-4 py-2 font-normal">Price</th>
-                    <th className="text-right px-4 py-2 font-normal">Stock</th>
-                    <th className="text-right px-4 py-2 font-normal">FTSE</th>
+                    <th className="text-left px-3 md:px-4 py-2 font-normal">Ticker</th>
+                    <th className="text-left px-3 md:px-4 py-2 font-normal">Company</th>
+                    <th className="text-left px-3 md:px-4 py-2 font-normal">Rating</th>
+                    <th className="text-left px-4 py-2 font-normal hidden md:table-cell">Entered</th>
+                    <th className="text-right px-4 py-2 font-normal hidden lg:table-cell">Price</th>
+                    <th className="text-right px-3 md:px-4 py-2 font-normal">Stock</th>
+                    <th className="text-right px-4 py-2 font-normal hidden md:table-cell">FTSE</th>
                     <th
-                      className="text-right px-4 py-2 font-normal"
+                      className="text-right px-3 md:px-4 py-2 font-normal"
                       title="Stock return minus FTSE return over the same window, in percentage points"
                     >
                       vs FTSE
@@ -202,7 +202,7 @@ export default function PortfolioPage() {
                         key={pick.dealing_id}
                         className="border-t border-separator/50"
                       >
-                        <td className="px-4 py-2 font-mono">
+                        <td className="px-3 md:px-4 py-2 font-mono">
                           <Link
                             className="hover:text-[#6b5038]"
                             to={`/dealings/${pick.dealing_id}`}
@@ -210,21 +210,21 @@ export default function PortfolioPage() {
                             {pick.ticker}
                           </Link>
                         </td>
-                        <td className="px-4 py-2 truncate max-w-[16rem]">
+                        <td className="px-3 md:px-4 py-2 truncate max-w-[8rem] md:max-w-[16rem]">
                           {pick.company}
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-3 md:px-4 py-2">
                           <RatingBadge rating={pick.rating as Rating} />
                         </td>
-                        <td className="px-4 py-2 text-muted">
+                        <td className="px-4 py-2 text-muted hidden md:table-cell">
                           {pick.trade_date}
                         </td>
-                        <td className="text-right px-4 py-2 text-muted whitespace-nowrap">
+                        <td className="text-right px-4 py-2 text-muted whitespace-nowrap hidden lg:table-cell">
                           {pence(pick.entry_price_pence)} →{" "}
                           {pence(pick.current_price_pence)}
                         </td>
                         <td
-                          className={`text-right px-4 py-2 ${
+                          className={`text-right px-3 md:px-4 py-2 ${
                             pick.return_pct >= 0
                               ? "text-green-500"
                               : "text-red-500"
@@ -233,7 +233,7 @@ export default function PortfolioPage() {
                           {pct(pick.return_pct)}
                         </td>
                         <td
-                          className={`text-right px-4 py-2 ${
+                          className={`text-right px-4 py-2 hidden md:table-cell ${
                             pick.ftse_return_pct >= 0
                               ? "text-green-500"
                               : "text-red-500"
@@ -242,7 +242,7 @@ export default function PortfolioPage() {
                           {pct(pick.ftse_return_pct)}
                         </td>
                         <td
-                          className={`text-right px-4 py-2 font-medium ${
+                          className={`text-right px-3 md:px-4 py-2 font-medium ${
                             beatPick ? "text-green-500" : "text-red-500"
                           }`}
                         >

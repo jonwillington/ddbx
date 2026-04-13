@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import DefaultLayout from "@/layouts/default";
-import { title, subtitle } from "@/components/primitives";
+import { title } from "@/components/primitives";
 import { DealingRow, DealingRowHeader } from "@/components/dealing-row";
 import { DealingDetailPanel } from "@/components/dealing-detail-panel";
 import { Skeleton } from "@/components/skeleton";
-import { api, type Dealing } from "@/lib/api";
-import { ChevronDownIcon, CalendarDaysIcon, PlayIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { api, type Dealing, type Portfolio } from "@/lib/api";
+import { ChevronDownIcon, CalendarDaysIcon, PlayIcon, TrashIcon, ArrowTrendingUpIcon } from "@heroicons/react/24/outline";
 
 type ViewMode = "chronological" | "by-gain";
 
@@ -92,6 +92,7 @@ export default function DashboardPage() {
   const [skippedVisible, setSkippedVisible] = useState<Record<string, number>>({});
   const [monthNoteworthyOnly, setMonthNoteworthyOnly] = useState<Set<string>>(new Set());
   const [monthExpandAll, setMonthExpandAll] = useState<Set<string>>(new Set());
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const selected = useMemo(
@@ -106,6 +107,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     api.dealings().then(setDealings).catch((e) => setErr((e as Error).message));
+    api.portfolio().then((p) => {
+      if (p.picks_count > 0) { setPortfolio(p); return; }
+      // Current FY empty — find the most recent FY with picks
+      const best = p.available_fys
+        .filter((f) => f.picks_count > 0)
+        .sort((a, b) => b.fy - a.fy)[0];
+      if (best) api.portfolio(best.fy).then(setPortfolio).catch(() => {});
+      else setPortfolio(p);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -118,15 +128,15 @@ export default function DashboardPage() {
     }).catch(() => {});
   }, [dealings]);
 
-  // Lazy-load FTSE entry price per trade date when a dealing is opened.
+  // Bulk-load FTSE daily closes so we can show "vs FTSE" on every row.
   useEffect(() => {
-    if (!selected) return;
-    const tradeDate = selected.trade_date.slice(0, 10);
-    if (ftseEntries[tradeDate] != null) return;
-    api.priceOn("^FTAS", tradeDate).then((price) => {
-      if (price != null) setFtseEntries((prev) => ({ ...prev, [tradeDate]: price }));
+    if (!dealings || dealings.length === 0) return;
+    api.priceHistory("^FTAS", 365).then((bars) => {
+      const map: Record<string, number> = {};
+      for (const b of bars) map[b.date] = b.close_pence;
+      setFtseEntries(map);
     }).catch(() => {});
-  }, [selected?.id]);
+  }, [dealings]);
 
   const todayKey = useMemo(() => {
     const now = new Date();
@@ -256,37 +266,57 @@ export default function DashboardPage() {
       <div className="bg-black/[0.04] dark:bg-white/[0.03]">
         {/* Cluster trigger row */}
         <button
-          className={`w-full flex items-stretch text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors ${isOpen ? "bg-black/[0.04] dark:bg-white/[0.05]" : ""}`}
+          className={`w-full text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors ${isOpen ? "bg-black/[0.04] dark:bg-white/[0.05]" : ""}`}
           onClick={() => toggleSkipped(clusterKey)}
         >
-          {/* Date — same w-36 as DealingRow */}
-          <div className="w-36 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-sm text-foreground/50 font-medium">{weekday}</span>
-              <span className="text-base font-medium leading-tight">{ordinal(day)},</span>
-              <span className="text-sm text-foreground/50 font-medium">{month}</span>
+          {/* ── Mobile skipped cluster (<md) ── */}
+          <div className="md:hidden px-4 py-3.5">
+            <div className="flex items-center gap-2 mb-2">
+              <TrashIcon className="w-3.5 h-3.5 text-muted/50 shrink-0" />
+              <span className="text-xs text-foreground/50 font-medium">{weekday} {ordinal(day)}, {month}</span>
+              <ChevronDownIcon className={`w-4 h-4 text-muted shrink-0 ml-auto transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
             </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {allTickers.slice(0, 4).map((t, i) => (
+                <span key={i} className="font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted">
+                  {t}
+                </span>
+              ))}
+              {allTickers.length > 4 && (
+                <span className="text-xs text-muted/70">+{allTickers.length - 4} more</span>
+              )}
+            </div>
+            <div className="text-xs text-muted/70 mt-1.5">None met our criteria to analyse further</div>
           </div>
-          {/* Ticker — skip icon */}
-          <div className="w-[4.5rem] shrink-0 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-            <TrashIcon className="w-4 h-4 text-muted/50" />
-          </div>
-          {/* Tickers + caption */}
-          <div className="flex-1 min-w-0 px-4 py-4 flex items-center">
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {allTickers.slice(0, 5).map((t, i) => (
-                  <span key={i} className="font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted">
-                    {t}
-                  </span>
-                ))}
-                {allTickers.length > 5 && (
-                  <span className="text-xs text-muted/70">+{allTickers.length - 5} more</span>
-                )}
+
+          {/* ── Desktop skipped cluster (md+) ── */}
+          <div className="hidden md:flex items-stretch">
+            <div className="w-36 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-sm text-foreground/50 font-medium">{weekday}</span>
+                <span className="text-base font-medium leading-tight">{ordinal(day)},</span>
+                <span className="text-sm text-foreground/50 font-medium">{month}</span>
               </div>
-              <div className="text-xs text-muted/70 mt-1.5">None of these purchases met our criteria to analyse further</div>
             </div>
-            <ChevronDownIcon className={`w-5 h-5 text-muted shrink-0 ml-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+            <div className="w-[4.5rem] shrink-0 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+              <TrashIcon className="w-4 h-4 text-muted/50" />
+            </div>
+            <div className="flex-1 min-w-0 px-4 py-4 flex items-center">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {allTickers.slice(0, 5).map((t, i) => (
+                    <span key={i} className="font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted">
+                      {t}
+                    </span>
+                  ))}
+                  {allTickers.length > 5 && (
+                    <span className="text-xs text-muted/70">+{allTickers.length - 5} more</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted/70 mt-1.5">None of these purchases met our criteria to analyse further</div>
+              </div>
+              <ChevronDownIcon className={`w-5 h-5 text-muted shrink-0 ml-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+            </div>
           </div>
         </button>
 
@@ -298,6 +328,9 @@ export default function DashboardPage() {
                 key={d.id}
                 dealing={d}
                 currentPricePence={prices[d.ticker]}
+                ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
+                ftseCurrentPence={prices["^FTAS"]}
+                showVsFtse
                 selected={selected?.id === d.id}
                 onSelect={selectDealing}
                 hideDate
@@ -322,18 +355,226 @@ export default function DashboardPage() {
 
   return (
     <DefaultLayout>
-      <section className="py-8 space-y-6">
-        <div className="text-center py-8">
-          <h1 className={title()}>Director dealings rated</h1>
-          <p className={subtitle({ class: "mt-2 max-w-md mx-auto" })}>
-            UK director purchases, triaged and deep-analysed overnight. Expand a
-            row to see the evidence for and against.
-          </p>
+      <section className="pb-8 space-y-8">
+        <div
+          className="relative flex flex-col lg:flex-row items-center lg:items-center gap-8 lg:gap-12 px-6 py-8 lg:px-8 lg:py-10 rounded-2xl border border-[#e8e0d5]/70 dark:border-separator/50 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 40%, rgba(245,240,232,0.15) 100%), radial-gradient(ellipse 60% 80% at 20% 50%, rgba(255,255,255,0.25) 0%, transparent 70%), radial-gradient(ellipse 50% 70% at 75% 30%, rgba(232,224,213,0.2) 0%, transparent 65%), radial-gradient(circle at 90% 80%, rgba(200,188,172,0.12) 0%, transparent 50%)" }}
+        >
+          {/* Animated background — spans full hero */}
+          <style>{`
+            .hero-orb { position: absolute; border-radius: 50%; will-change: opacity, transform; pointer-events: none; }
+            .hero-orb-a { animation: ho-a 3.5s cubic-bezier(0.45,0.05,0.55,0.95) infinite; }
+            .hero-orb-b { animation: ho-b 4.2s cubic-bezier(0.4,0,0.6,1) infinite; animation-delay: -1.2s; }
+            .hero-orb-c { animation: ho-c 3.8s cubic-bezier(0.5,0,0.5,1) infinite; animation-delay: -2.4s; }
+            .hero-orb-d { animation: ho-d 5s ease-in-out infinite; }
+            .hero-orb-e { animation: ho-e 4.5s cubic-bezier(0.4,0.1,0.6,0.9) infinite; animation-delay: -3s; }
+            .hero-dot { position: absolute; border-radius: 50%; will-change: opacity, transform; pointer-events: none; }
+            .hero-dot-a { animation: ho-dot 8s ease-in-out infinite; }
+            .hero-dot-b { animation: ho-dot 8s ease-in-out infinite; animation-delay: -2.8s; }
+            .hero-dot-c { animation: ho-dot 8s ease-in-out infinite; animation-delay: -5.5s; }
+            .hero-glow { position: absolute; border-radius: 50%; will-change: opacity, transform; pointer-events: none; }
+            .hero-glow-a { animation: ho-glow 8s ease-out infinite; }
+            .hero-glow-b { animation: ho-glow 8s ease-out infinite; animation-delay: -2.8s; }
+            .hero-glow-c { animation: ho-glow 8s ease-out infinite; animation-delay: -5.5s; }
+            @keyframes ho-a {
+              0%   { opacity: 0.03; transform: scale(0.8) translate(-5%,2%); }
+              20%  { opacity: 0.22; transform: scale(1.15) translate(-2%,1%); }
+              38%  { opacity: 0.16; transform: scale(1.05) translate(-1%,0.5%); }
+              55%  { opacity: 0.03; transform: scale(0.85); }
+              100% { opacity: 0.03; transform: scale(0.8) translate(-5%,2%); }
+            }
+            @keyframes ho-b {
+              0%   { opacity: 0.02; transform: scale(0.85); }
+              25%  { opacity: 0.18; transform: scale(1.2) translate(3%,-2%); }
+              45%  { opacity: 0.12; transform: scale(1.08) translate(2%,-1%); }
+              62%  { opacity: 0.02; transform: scale(0.88); }
+              100% { opacity: 0.02; transform: scale(0.85); }
+            }
+            @keyframes ho-c {
+              0%   { opacity: 0.02; transform: scale(0.9); }
+              15%  { opacity: 0.16; transform: scale(1.15) translate(1%,4%); }
+              32%  { opacity: 0.10; transform: scale(1.05) translate(0.5%,2%); }
+              48%  { opacity: 0.02; transform: scale(0.88); }
+              68%  { opacity: 0.08; transform: scale(1.04) translate(1%,1%); }
+              82%  { opacity: 0.02; transform: scale(0.9); }
+              100% { opacity: 0.02; transform: scale(0.9); }
+            }
+            @keyframes ho-d {
+              0%   { opacity: 0.01; transform: scale(0.82); }
+              28%  { opacity: 0.12; transform: scale(1.1) translate(-1%,-3%); }
+              44%  { opacity: 0.02; transform: scale(0.86); }
+              100% { opacity: 0.01; transform: scale(0.82); }
+            }
+            @keyframes ho-e {
+              0%   { opacity: 0.02; transform: scale(0.75); }
+              22%  { opacity: 0.14; transform: scale(1.15) translate(2%,-3%); }
+              40%  { opacity: 0.08; transform: scale(1.06) translate(1%,-2%); }
+              58%  { opacity: 0.02; transform: scale(0.78); }
+              100% { opacity: 0.02; transform: scale(0.75); }
+            }
+            @keyframes ho-dot {
+              0%   { opacity: 0;    transform: scale(0); }
+              5%   { opacity: 0.7;  transform: scale(1.3); }
+              8%   { opacity: 0.55; transform: scale(1.0); }
+              16%  { opacity: 0;    transform: scale(0.6); }
+              100% { opacity: 0;    transform: scale(0); }
+            }
+            @keyframes ho-glow {
+              0%   { opacity: 0;    transform: scale(0); }
+              5%   { opacity: 0.35; transform: scale(0.8); }
+              14%  { opacity: 0;    transform: scale(2.5); }
+              100% { opacity: 0;    transform: scale(0); }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .hero-orb, .hero-dot, .hero-glow { animation: none !important; }
+              .hero-orb-a { opacity: 0.12; }
+              .hero-orb-b { opacity: 0.08; }
+              .hero-orb-c { opacity: 0.06; }
+              .hero-orb-d { opacity: 0.04; }
+              .hero-orb-e { opacity: 0.04; }
+            }
+          `}</style>
+          {/* Orb container — only right 66% of hero, hidden on mobile */}
+          <div className="hidden lg:block absolute inset-y-0 left-[34%] right-0 overflow-hidden pointer-events-none">
+            {/* Large ambient orbs — fixed size for perfect circles */}
+            <div className="hero-orb hero-orb-a" style={{ left: "10%", top: "-40%", width: 320, height: 320, background: "#b8a898" }} />
+            <div className="hero-orb hero-orb-b" style={{ left: "45%", top: "-20%", width: 280, height: 280, background: "#c4b5a5" }} />
+            <div className="hero-orb hero-orb-c" style={{ left: "25%", top: "30%", width: 260, height: 260, background: "#a89880" }} />
+            {/* Ring orbs */}
+            <div className="hero-orb hero-orb-d" style={{ left: "5%", top: "-50%", width: 360, height: 360, border: "1px solid #9a8878", background: "transparent" }} />
+            <div className="hero-orb hero-orb-e" style={{ left: "40%", top: "10%", width: 240, height: 240, border: "1px solid #b0a090", background: "transparent" }} />
+            {/* Purchase dots with glow */}
+            <div className="hero-glow hero-glow-a" style={{ left: "15%", top: "20%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
+            <div className="hero-dot hero-dot-a" style={{ left: "15%", top: "20%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
+            <div className="hero-glow hero-glow-b" style={{ left: "60%", top: "70%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
+            <div className="hero-dot hero-dot-b" style={{ left: "60%", top: "70%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
+            <div className="hero-glow hero-glow-c" style={{ left: "75%", top: "10%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
+            <div className="hero-dot hero-dot-c" style={{ left: "75%", top: "10%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
+          </div>
+
+          {/* Left — branding + value prop */}
+          <div className="relative flex-1 text-center lg:text-left z-10">
+            <h1 className={title()}>Find value in<br />insider deals.</h1>
+            <ul className="mt-4 space-y-1.5 text-sm text-muted">
+              {[
+                "Every UK director purchase, automatically screened",
+                "AI-rated by conviction, context, and track record",
+                "Only the buys worth your attention rise to the top",
+              ].map((line) => (
+                <li key={line} className="flex items-center justify-center lg:justify-start gap-2">
+                  <span className="text-[#6b5038]">✓</span>
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Right — performance vs FTSE */}
+          <div className="relative w-full lg:w-[380px] shrink-0 z-10">
+            {portfolio ? (() => {
+              const beat = portfolio.alpha_pp >= 0;
+              const outperformers = portfolio.picks.filter((p) => p.alpha_pp > 0).length;
+
+              return (
+                <div className="bg-[#faf7f2] dark:bg-surface rounded-xl border border-[#e8e0d5]/60 dark:border-separator/60 overflow-hidden">
+                  {/* Header */}
+                  <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
+                    <div className="flex items-center gap-2 text-xs font-medium text-muted uppercase tracking-wider">
+                      <ArrowTrendingUpIcon className="w-4 h-4" />
+                      Picks vs FTSE All-Share
+                    </div>
+                    <div className="text-[10px] text-muted/60 mt-0.5">
+                      Since {new Date(portfolio.fy_start).toLocaleString("en-GB", { month: "short" })} '{String(portfolio.fy).padStart(2, "0")} &middot; {portfolio.picks_count} picks &middot; {portfolio.in_progress ? "in progress" : "complete"}
+                    </div>
+                  </div>
+
+                  {/* Alpha headline */}
+                  <div className="px-5 py-5">
+                    <div className="text-xs text-muted mb-1">Outperformance</div>
+                    <div className={`text-3xl font-semibold tracking-tight ${beat ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                      {beat ? "+" : ""}{portfolio.alpha_pp.toFixed(1)}<span className="text-lg ml-0.5">pp</span>
+                    </div>
+                  </div>
+
+                  {/* Stat rows */}
+                  <div className="px-5 pb-4 space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted">Our picks</span>
+                      <span className={`font-medium font-mono ${portfolio.picks_return_pct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                        {portfolio.picks_return_pct >= 0 ? "+" : ""}{(portfolio.picks_return_pct * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted">FTSE All-Share</span>
+                      <span className="font-medium font-mono text-foreground/70">
+                        {portfolio.ftse_return_pct >= 0 ? "+" : ""}{(portfolio.ftse_return_pct * 100).toFixed(1)}%
+                      </span>
+                    </div>
+
+                    <div className="border-t border-[#e8e0d5] dark:border-separator pt-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted">Beat FTSE</span>
+                        <span className="font-medium font-mono">
+                          {outperformers}/{portfolio.picks_count}
+                          <span className="text-muted ml-1.5">
+                            ({portfolio.picks_count > 0 ? Math.round((outperformers / portfolio.picks_count) * 100) : 0}%)
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Mini bar chart — top outperformers */}
+                    {(() => {
+                      const sorted = [...portfolio.picks]
+                        .sort((a, b) => b.alpha_pp - a.alpha_pp)
+                        .slice(0, 5);
+                      if (sorted.length === 0) return null;
+                      const maxAbs = Math.max(...sorted.map((p) => Math.abs(p.alpha_pp)), 1);
+
+                      return (
+                        <div className="border-t border-[#e8e0d5] dark:border-separator pt-3 mt-3 space-y-2">
+                          <div className="text-[10px] text-muted uppercase tracking-wider">Top picks by alpha</div>
+                          {sorted.map((p) => {
+                            const positive = p.alpha_pp >= 0;
+                            const width = Math.min(Math.abs(p.alpha_pp) / maxAbs * 100, 100);
+                            return (
+                              <div key={p.dealing_id} className="flex items-center gap-2">
+                                <span className="text-xs font-mono w-16 shrink-0 truncate text-muted">
+                                  {p.ticker.replace(/\.L$/, "")}
+                                </span>
+                                <div className="flex-1 h-3 bg-black/[0.04] dark:bg-white/[0.04] rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${positive ? "bg-emerald-500/60" : "bg-red-400/50"}`}
+                                    style={{ width: `${width}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-mono w-14 text-right shrink-0 ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                                  {positive ? "+" : ""}{p.alpha_pp.toFixed(1)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="bg-[#faf7f2] dark:bg-surface rounded-xl border border-[#e8e0d5] dark:border-separator p-5 space-y-3">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-8 w-24 mt-2" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
           {/* View mode toggle */}
-          <div className="bg-[#faf7f2] dark:bg-surface px-6 py-4 rounded-xl flex gap-2 border border-transparent dark:border-separator/50">
+          <div className="flex gap-2">
             {(["chronological", "by-gain"] as const).map((mode) => (
               <button
                 key={mode}
@@ -357,14 +598,17 @@ export default function DashboardPage() {
             byGain.length === 0 ? (
               <div className="text-sm text-muted">No dealings with current prices available.</div>
             ) : (
-              <div className="bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden animate-content-in">
-                <DealingRowHeader sticky />
-                <div className="divide-y divide-black/[0.06] dark:divide-separator">
+              <div className="bg-[#faf7f2] dark:bg-surface rounded-xl animate-content-in">
+                <DealingRowHeader showVsFtse />
+                <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
                   {byGain.map((d) => (
                     <DealingRow
                       key={d.id}
                       dealing={d}
                       currentPricePence={prices[d.ticker]}
+                      ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
+                      ftseCurrentPence={prices["^FTAS"]}
+                      showVsFtse
                       selected={selected?.id === d.id}
                       onSelect={selectDealing}
                                             showMonth
@@ -388,7 +632,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-                {todayDeals.length > 0 && (
+                {todayDeals.length > 0 ? (
                   <>
                   <DealingRowHeader />
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
@@ -404,6 +648,10 @@ export default function DashboardPage() {
                     ))}
                   </div>
                   </>
+                ) : (
+                  <div className="px-6 pb-5 text-sm text-muted">
+                    Check back later today for details of trades made today.
+                  </div>
                 )}
               </div>
               )}
@@ -463,7 +711,7 @@ export default function DashboardPage() {
 
                       return (
                       <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
-                        <DealingRowHeader sticky />
+                        <DealingRowHeader sticky showVsFtse />
                         <div className="divide-y divide-black/[0.06] dark:divide-separator">
                         {days.map((day) => {
                           const segments = buildSegments(day.all, day.key);
@@ -476,6 +724,9 @@ export default function DashboardPage() {
                                 key={seg.deal.id}
                                 dealing={seg.deal}
                                 currentPricePence={prices[seg.deal.ticker]}
+                                ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
+                                ftseCurrentPence={prices["^FTAS"]}
+                                showVsFtse
                                 selected={selected?.id === seg.deal.id}
                                 onSelect={selectDealing}
                                                                 showMonth

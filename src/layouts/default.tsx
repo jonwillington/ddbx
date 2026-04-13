@@ -255,11 +255,11 @@ export default function DefaultLayout({
   return (
     <div className="relative flex flex-col min-h-screen bg-[#f5f0e8] dark:bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-7xl px-6 flex-grow pt-16">
+      <main className="container mx-auto max-w-7xl px-4 md:px-6 flex-grow pt-8">
         {children}
       </main>
       <footer className="w-full border-t border-separator bg-surface/60">
-        <div className="container mx-auto max-w-7xl px-6 py-5 text-[10px] leading-4 text-foreground/40">
+        <div className="container mx-auto max-w-7xl px-4 md:px-6 py-5 text-[10px] leading-4 text-foreground/40">
           <div className="flex items-center justify-between mb-4">
             <img src="/logo.svg" alt="ddbx" className="h-5 max-w-[56px] opacity-30 dark:invert" />
             <a
@@ -309,7 +309,7 @@ export default function DefaultLayout({
             risk, including the possible loss of capital.
           </p>
           {/* Legal links */}
-          <div className="flex gap-4 mt-4 pt-3 border-t border-separator/50">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4 pt-3 border-t border-separator/50">
             {LEGAL_LINKS.map(({ label, page }) => (
               <button
                 key={page}

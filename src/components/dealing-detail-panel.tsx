@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { Dealing } from "@/lib/api";
@@ -7,6 +7,7 @@ import { RatingBadge } from "@/components/rating-badge";
 import { EvidenceTable } from "@/components/evidence-table";
 import { InformationCircleIcon } from "@heroicons/react/20/solid";
 import { Skeleton } from "@/components/skeleton";
+import { api } from "@/lib/api";
 
 const CHECKLIST_LABELS: { key: keyof RatingChecklist; label: string; tooltip: string }[] = [
   {
@@ -46,6 +47,172 @@ function InfoIcon() {
     <InformationCircleIcon
       className="w-3.5 h-3.5 shrink-0 text-muted/50 group-hover/tip:text-muted/80 transition-colors"
     />
+  );
+}
+
+type PriceBar = { date: string; close_pence: number };
+type Period = "since" | "ytd" | "max";
+
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "since", label: "Since entry" },
+  { key: "ytd", label: "YTD" },
+  { key: "max", label: "Max" },
+];
+
+function MiniPriceChart({
+  ticker,
+  tradeDate,
+  entryPricePence,
+}: {
+  ticker: string;       // full ticker e.g. "TSCO.L"
+  tradeDate: string;    // YYYY-MM-DD
+  entryPricePence: number;
+}) {
+  const [period, setPeriod] = useState<Period>("since");
+  const [allBars, setAllBars] = useState<PriceBar[]>([]);
+
+  const displayTicker = ticker.replace(/\.L$/, "");
+
+  useEffect(() => {
+    if (!ticker) { setAllBars([]); return; }
+    setAllBars([]);
+    api.priceHistory(ticker, 365).then(setAllBars).catch(() => {});
+  }, [ticker]);
+
+  const bars = useMemo(() => {
+    if (period === "since") return allBars.filter((b) => b.date >= tradeDate);
+    if (period === "ytd") return allBars.filter((b) => b.date >= `${new Date().getFullYear()}-01-01`);
+    return allBars;
+  }, [allBars, period, tradeDate]);
+
+  const lastBar = allBars[allBars.length - 1];
+  const up = lastBar ? lastBar.close_pence >= entryPricePence : true;
+  const returnPct = lastBar ? ((lastBar.close_pence - entryPricePence) / entryPricePence) * 100 : 0;
+
+  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+  const lineColor = up ? (isDark ? "#5cd84a" : "#1e6b18") : (isDark ? "#e84d4d" : "#8b2020");
+  const upCls = "text-[#1e6b18] dark:text-[#5cd84a]";
+  const downCls = "text-[#8b2020] dark:text-[#e84d4d]";
+
+  const W = 240, H = 160;
+  const pL = 2, pR = 2, pT = 8, pB = 18;
+
+  let svgContent: React.ReactNode = null;
+
+  if (bars.length >= 2) {
+    const prices = bars.map((b) => b.close_pence);
+    const rawMin = Math.min(...prices);
+    const rawMax = Math.max(...prices);
+    const yPad = (rawMax - rawMin) * 0.06 || 5;
+    const yMin = rawMin - yPad;
+    const yMax = rawMax + yPad;
+    const yRange = yMax - yMin;
+    const n = bars.length;
+
+    const xS = (i: number) => pL + (i / (n - 1)) * (W - pL - pR);
+    const yS = (v: number) => pT + (1 - (v - yMin) / yRange) * (H - pT - pB);
+
+    const entryIdx = period === "since" ? 0 : bars.findIndex((b) => b.date >= tradeDate);
+    const entryY = yS(entryPricePence);
+    const path = bars
+      .map((b, i) => `${i === 0 ? "M" : "L"}${xS(i).toFixed(1)},${yS(b.close_pence).toFixed(1)}`)
+      .join(" ");
+
+    svgContent = (
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height="100%"
+        preserveAspectRatio="none"
+        style={{ display: "block" }}
+      >
+        <line x1={pL} y1={entryY} x2={W - pR} y2={entryY}
+          stroke="#888" strokeWidth={0.75} strokeDasharray="3,3" opacity={0.35} />
+        {entryIdx > 0 && (
+          <line x1={xS(entryIdx)} y1={pT} x2={xS(entryIdx)} y2={H - pB}
+            stroke="#888" strokeWidth={0.75} strokeDasharray="3,3" opacity={0.35} />
+        )}
+        <path d={path} fill="none" stroke={lineColor} strokeWidth={1.5}
+          strokeLinecap="round" strokeLinejoin="round" />
+        {entryIdx >= 0 && entryIdx < n && (
+          <circle cx={xS(entryIdx)} cy={yS(bars[entryIdx].close_pence)}
+            r={2.5} fill={lineColor} opacity={0.55} />
+        )}
+        <circle cx={xS(n - 1)} cy={yS(bars[n - 1].close_pence)} r={2.5} fill={lineColor} />
+        <text x={pL} y={H - 4} fontSize={8} fill="#999">{bars[0].date.slice(5)}</text>
+        <text x={W - pR} y={H - 4} fontSize={8} textAnchor="end" fill="#999">{bars[n - 1].date.slice(5)}</text>
+      </svg>
+    );
+  }
+
+  // Price legend values derived from the currently-visible bars
+  const visiblePrices = bars.map((b) => b.close_pence);
+  const periodHigh = visiblePrices.length ? Math.max(...visiblePrices) : null;
+  const periodLow  = visiblePrices.length ? Math.min(...visiblePrices) : null;
+  const nowPrice   = lastBar?.close_pence ?? null;
+  const fmtP = (p: number) => `${p.toFixed(0)}p`;
+
+  return (
+    <div className="flex flex-col h-full gap-2">
+      {/* Header row */}
+      <div className="flex items-center justify-between shrink-0">
+        <span className="text-[10px] text-muted uppercase tracking-wider font-medium">
+          {displayTicker}
+        </span>
+        {lastBar && (
+          <span className={`text-[10px] font-semibold tabular-nums ${up ? upCls : downCls}`}>
+            {returnPct >= 0 ? "+" : ""}{returnPct.toFixed(1)}% since buy
+          </span>
+        )}
+      </div>
+
+      {/* Period toggles */}
+      <div className="flex gap-1 shrink-0">
+        {PERIODS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setPeriod(key)}
+            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+              period === key
+                ? "border-[#6b5038]/50 bg-[#6b5038]/10 text-[#6b5038] dark:text-[#a8804e]"
+                : "border-black/10 dark:border-white/10 text-muted hover:border-[#6b5038]/30"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Price legend */}
+      {nowPrice !== null && (
+        <div className="flex items-center gap-3 shrink-0 border-t border-black/[0.07] dark:border-white/[0.07] pt-2">
+          <span className="text-[10px] text-muted">
+            Entry <span className="font-mono tabular-nums text-foreground/70">{fmtP(entryPricePence)}</span>
+          </span>
+          <span className="text-[10px] text-muted">
+            Now <span className={`font-mono tabular-nums font-semibold ${up ? upCls : downCls}`}>{fmtP(nowPrice)}</span>
+          </span>
+          {periodHigh !== null && periodLow !== null && (
+            <span className="text-[10px] text-muted ml-auto">
+              <span className="font-mono tabular-nums">{fmtP(periodLow)}</span>
+              <span className="opacity-40 mx-0.5">–</span>
+              <span className="font-mono tabular-nums">{fmtP(periodHigh)}</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Chart fills remaining height */}
+      <div className="flex-1 min-h-0">
+        {bars.length >= 2 ? svgContent : (
+          <div className="flex items-center justify-center h-full">
+            <span className="text-xs text-muted/50">
+              {allBars.length === 0 ? "Loading chart…" : "No data for this period"}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -200,7 +367,6 @@ export function DealingDetailPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [atBottom, setAtBottom] = useState(false);
-
   const open = !!dealing;
   const a = dealing?.analysis;
   const t = dealing?.triage;
@@ -241,6 +407,7 @@ export function DealingDetailPanel({
     if (el) el.scrollTop = 0;
   }, [dealing?.id]);
 
+
   return (
     <>
       {/* Backdrop */}
@@ -261,7 +428,7 @@ export function DealingDetailPanel({
           <>
             {/* Fixed header — always accessible; company name fades in once scrolled */}
             <div
-              className={`shrink-0 flex items-center gap-3 px-8 py-4 border-b transition-all duration-200
+              className={`shrink-0 flex items-center gap-3 px-5 md:px-8 py-4 border-b transition-all duration-200
                 ${scrolled
                   ? "border-black/10 dark:border-white/10 shadow-[0_2px_12px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
                   : "border-transparent"
@@ -292,7 +459,7 @@ export function DealingDetailPanel({
               onScroll={handleScroll}
               className="flex-1 overflow-y-auto"
             >
-              <div className="p-8 space-y-6">
+              <div className="p-5 md:p-8 space-y-6">
                 <h1 className="text-3xl font-bold leading-tight tracking-tight">{company}</h1>
 
                 {a?.summary && (
@@ -351,7 +518,18 @@ export function DealingDetailPanel({
 
                 {a && (
                   <>
-                    {a.checklist && <RatingChecklistView checklist={a.checklist} />}
+                    {a.checklist && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
+                        <RatingChecklistView checklist={a.checklist} />
+                        <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] p-4 flex flex-col">
+                          <MiniPriceChart
+                            ticker={dealing.ticker}
+                            tradeDate={dealing.trade_date.slice(0, 10)}
+                            entryPricePence={dealing.price_pence}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {a.thesis_points.length > 0 && (
                       <div>

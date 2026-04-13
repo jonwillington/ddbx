@@ -11,7 +11,9 @@ export function EvidenceTable({
   tone: "for" | "against";
 }) {
   const icon = tone === "for" ? "✓" : "✗";
-  const iconColor = tone === "for" ? "text-green-500" : "text-red-500";
+  const iconColor = tone === "for"
+    ? "text-[#1e6b18] dark:text-[#5cd84a]"
+    : "text-[#8b2020] dark:text-[#e84d4d]";
 
   if (points.length === 0) {
     return (
@@ -53,7 +55,7 @@ export function EvidenceTable({
                         href={sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-0.5 text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                        className="inline-flex items-center gap-0.5 text-[#6b5038] dark:text-[#a8804e] hover:underline underline-offset-2"
                       >
                         {sourceLabel}
                         <ArrowTopRightOnSquareIcon className="w-3 h-3 shrink-0" />

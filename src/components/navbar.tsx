@@ -43,7 +43,7 @@ export const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-40 w-full border-b border-separator bg-[#f5f0e8]/90 dark:bg-background/70 backdrop-blur-lg">
-      <header className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-4 px-6">
+      <header className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-3 px-4 md:gap-4 md:px-6">
         <div className="flex items-center gap-6">
           <Link to="/" className="shrink-0">
             <img src="/logo.svg" alt={siteConfig.name} className="h-7 max-w-[56px] dark:invert" />
@@ -69,15 +69,17 @@ export const Navbar = () => {
             })}
           </ul>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="flex items-center gap-1.5 md:gap-2">
             <span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0">
               <span className={`absolute inset-0 rounded-full ${marketOpen ? "bg-green-500/15" : "bg-red-500/15"}`} />
               <span className={`relative w-1.5 h-1.5 rounded-full ${marketOpen ? "bg-green-500" : "bg-red-500/60"}`} />
             </span>
             <span className="text-xs text-muted">
-              {marketOpen ? "Market open" : "Market closed"}
-              {!marketOpen && nextMarketOpen && ` · Reopens ${nextMarketOpen}`}
+              {marketOpen ? "Market open" : "Closed"}
+              <span className="hidden sm:inline">
+                {!marketOpen && nextMarketOpen && ` · Reopens ${nextMarketOpen}`}
+              </span>
             </span>
           </div>
           <ThemeSwitch />
