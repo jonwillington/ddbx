@@ -1087,8 +1087,8 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+            {ukTodayNewsStrip}
           </div>
-          {ukTodayNewsStrip}
         </aside>
       )}
 
