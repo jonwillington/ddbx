@@ -14,6 +14,8 @@ import {
   TrashIcon,
   ArrowTrendingUpIcon,
   NewspaperIcon,
+  ArrowTopRightOnSquareIcon,
+  ArrowsUpDownIcon,
 } from "@heroicons/react/24/outline";
 
 type ViewMode = "chronological" | "by-gain";
@@ -86,6 +88,14 @@ function ordinal(n: number): string {
   const v = n % 100;
   if (v >= 11 && v <= 13) return `${n}th`;
   return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
+}
+
+function hostnameFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 export default function DashboardPage() {
@@ -278,7 +288,7 @@ export default function DashboardPage() {
     const alphaPp = (avgStock - avgFtse) * 100;
     const beatCount = picks.filter((p) => p.alpha > 0).length;
 
-    const topPicks = [...picks].sort((a, b) => b.alpha - a.alpha).slice(0, 5);
+    const topPicks = [...picks].filter((p) => p.stockRet > 0).sort((a, b) => b.stockRet - a.stockRet).slice(0, 5);
 
     return { count: picks.length, avgStock, avgFtse, alphaPp, beatCount, topPicks };
   }, [dealings, prices, ftseEntries, heroFilter]);
@@ -438,33 +448,44 @@ export default function DashboardPage() {
 
   const ukTodayNewsStrip = (
     <div className="border-b border-[#e8e0d5] dark:border-separator px-5 lg:px-4 py-3 shrink-0 max-h-[min(38vh,280px)] overflow-y-auto">
-      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/35" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500/90" />
-        </span>
+      <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted mb-3">
+        <span className="inline-flex items-center gap-2">
         <NewspaperIcon className="w-3.5 h-3.5" />
-        UK markets
+          UK market news
+        </span>
+        <span className="inline-flex items-center gap-1 text-[9px] text-muted/70">
+          <ArrowsUpDownIcon className="w-3 h-3" />
+          Scroll
+        </span>
       </div>
       {ukNews === null ? (
         <p className="text-xs text-muted">Loading headlines…</p>
       ) : ukNews.items.length === 0 ? (
         <p className="text-xs text-muted">No headlines available right now.</p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="space-y-4">
           {ukNews.items.slice(0, 12).map((n, i) => (
-            <li key={`${n.url}-${i}`}>
+            <li key={`${n.url}-${i}`} className="pb-0.5">
               <a
                 href={n.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block group"
+                className="flex items-start gap-2 group"
               >
-                <span className="text-[10px] font-mono text-[#6b5038]/90 dark:text-[#c4a882]">
-                  {n.source}
-                </span>
-                <span className="block text-xs text-foreground/90 leading-snug line-clamp-3 group-hover:text-[#6b5038] transition-colors">
-                  {n.title}
+                <img
+                  src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostnameFromUrl(n.url))}&sz=32`}
+                  alt=""
+                  className="w-3.5 h-3.5 mt-0.5 rounded-sm shrink-0"
+                  loading="lazy"
+                />
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-mono leading-none text-[#6b5038]/90 dark:text-[#c4a882] mb-1">
+                    {n.source}
+                  </span>
+                  <span className="inline-flex items-start gap-1.5 text-xs text-foreground/90 leading-snug line-clamp-3 group-hover:text-[#6b5038] transition-colors">
+                    <span>{n.title}</span>
+                    <ArrowTopRightOnSquareIcon className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-60 group-hover:opacity-100" />
+                  </span>
                 </span>
               </a>
             </li>
@@ -490,9 +511,13 @@ export default function DashboardPage() {
   return (
     <DefaultLayout drawerRight={isTradingDay}>
       <section className="pb-8 space-y-8">
+        {/* Full-bleed hero — breaks out of container, gradients fade to page bg */}
         <div
-          className="relative flex flex-col lg:flex-row items-center lg:items-center gap-8 lg:gap-12 px-6 py-8 lg:px-8 lg:py-10 rounded-2xl border border-[#e8e0d5]/70 dark:border-separator/50 overflow-hidden min-h-[280px] lg:min-h-[320px]"
-          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 40%, rgba(245,240,232,0.15) 100%), radial-gradient(ellipse 60% 80% at 20% 50%, rgba(255,255,255,0.25) 0%, transparent 70%), radial-gradient(ellipse 50% 70% at 75% 30%, rgba(232,224,213,0.2) 0%, transparent 65%), radial-gradient(circle at 90% 80%, rgba(200,188,172,0.12) 0%, transparent 50%)" }}
+          className="relative -mx-4 md:-mx-6 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 40%, transparent 70%), radial-gradient(ellipse 40% 80% at 15% 50%, rgba(255,255,255,0.2) 0%, transparent 70%), radial-gradient(ellipse 35% 70% at 70% 30%, rgba(232,224,213,0.18) 0%, transparent 65%), radial-gradient(circle at 85% 80%, rgba(200,188,172,0.1) 0%, transparent 50%)" }}
+        >
+        <div
+          className="relative flex flex-col lg:flex-row items-center lg:items-center gap-5 lg:gap-8 px-6 py-5 lg:px-8 lg:py-7 max-w-7xl mx-auto"
         >
           {/* Animated background — spans full hero */}
           <style>{`
@@ -563,17 +588,65 @@ export default function DashboardPage() {
               0%, 80%, 100% { opacity: 0.15; transform: scale(0.8); }
               40% { opacity: 0.6; transform: scale(1); }
             }
+            .hero-line { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; will-change: opacity, stroke-dashoffset; }
+            .hero-line-a { animation: ho-line 18s ease-in-out infinite; animation-delay: 0.8s; stroke-dasharray: 300; }
+            .hero-line-b { animation: ho-line 14s ease-in-out infinite; animation-delay: -5s; stroke-dasharray: 300; }
+            .hero-line-c { animation: ho-line 11s ease-in-out infinite; animation-delay: -8s; stroke-dasharray: 200; }
+            @keyframes ho-line {
+              0%   { opacity: 0;    stroke-dashoffset: 300; }
+              6%   { opacity: 0.11; stroke-dashoffset: 278; }
+              70%  { opacity: 0.11; stroke-dashoffset: 0; }
+              86%  { opacity: 0;    stroke-dashoffset: 0; }
+              100% { opacity: 0;    stroke-dashoffset: 300; }
+            }
+            @keyframes ho-ticker {
+              from { transform: translateX(0); }
+              to   { transform: translateX(-50%); }
+            }
             @media (prefers-reduced-motion: reduce) {
-              .hero-orb, .hero-dot, .hero-glow { animation: none !important; }
+              .hero-orb, .hero-dot, .hero-glow, .hero-line { animation: none !important; }
               .hero-orb-a { opacity: 0.12; }
               .hero-orb-b { opacity: 0.08; }
               .hero-orb-c { opacity: 0.06; }
               .hero-orb-d { opacity: 0.04; }
               .hero-orb-e { opacity: 0.04; }
+              .hero-line { opacity: 0; }
             }
           `}</style>
           {/* Orb container — only right 66% of hero, hidden on mobile */}
           <div className="hidden lg:block absolute inset-y-0 left-[34%] right-0 overflow-hidden pointer-events-none">
+            {/* Trend lines — price movement suggestion */}
+            <svg
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              {/* Uptrend with two small pullbacks */}
+              <polyline
+                className="hero-line hero-line-a"
+                points="0,56 10,51 18,47 24,53 33,45 41,41 49,44 57,37 65,33 71,37 79,30 87,27 95,25 100,23"
+                stroke="#9a8878"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+              {/* V-shape dip and recovery */}
+              <polyline
+                className="hero-line hero-line-b"
+                points="0,68 14,73 26,80 38,77 50,70 62,63 72,58 82,53 92,49 100,46"
+                stroke="#b0a090"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+              {/* Short volatile run — mid-right */}
+              <polyline
+                className="hero-line hero-line-c"
+                points="38,53 48,48 55,51 63,44 71,48 79,41 87,45 94,39 100,37"
+                stroke="#8B7258"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
             {/* Large ambient orbs — fixed size for perfect circles */}
             <div className="hero-orb hero-orb-a" style={{ left: "10%", top: "-40%", width: 320, height: 320, background: "#b8a898" }} />
             <div className="hero-orb hero-orb-b" style={{ left: "45%", top: "-20%", width: 280, height: 280, background: "#c4b5a5" }} />
@@ -610,18 +683,18 @@ export default function DashboardPage() {
           {/* Right — performance vs FTSE */}
           <div className="relative w-full lg:w-[380px] shrink-0 z-10">
             {heroStats ? (() => {
-              const { count, avgStock, avgFtse, alphaPp, beatCount, topPicks } = heroStats;
+              const { count, avgStock, avgFtse, alphaPp, beatCount } = heroStats;
               const beat = alphaPp >= 0;
 
               return (
                 <div className="bg-[#faf7f2] dark:bg-surface rounded-xl border border-[#e8e0d5]/60 dark:border-separator/60 overflow-hidden">
                   {/* Header + filter pills */}
-                  <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
+                  <div className="px-4 py-3 border-b border-[#e8e0d5] dark:border-separator">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted uppercase tracking-wider">
                       <ArrowTrendingUpIcon className="w-4 h-4" />
                       Performance vs FTSE
                     </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    <div className="flex flex-wrap gap-1.5 mt-2">
                       {(["all", "significant", "noteworthy", "minor", "routine"] as const).map((f) => (
                         <button
                           key={f}
@@ -639,19 +712,19 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Alpha headline */}
-                  <div className="px-5 py-5">
+                  <div className="px-4 py-3">
                     <div className="text-xs text-muted mb-1">Outperformance</div>
-                    <div className={`text-3xl font-semibold tracking-tight ${beat ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                      {beat ? "+" : ""}{alphaPp.toFixed(1)}<span className="text-lg ml-0.5">pp</span>
+                    <div className="text-2xl font-semibold tracking-tight" style={{ color: beat ? "oklch(36% 0.16 155)" : "oklch(38% 0.16 18)" }}>
+                      {beat ? "+" : ""}{alphaPp.toFixed(1)}<span className="text-base ml-0.5">pp</span>
                     </div>
-                    <div className="text-[10px] text-muted/60 mt-1">{count} purchases</div>
+                    <div className="text-[10px] text-muted/60 mt-0.5">{count} purchases</div>
                   </div>
 
                   {/* Stat rows */}
-                  <div className="px-5 pb-4 space-y-3">
+                  <div className="px-4 pb-3 space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted">{heroFilter === "all" ? "All purchases" : heroFilter.charAt(0).toUpperCase() + heroFilter.slice(1)}</span>
-                      <span className={`font-medium font-mono ${avgStock >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                      <span className="font-medium font-mono" style={{ color: avgStock >= 0 ? "oklch(36% 0.16 155)" : "oklch(38% 0.16 18)" }}>
                         {avgStock >= 0 ? "+" : ""}{(avgStock * 100).toFixed(1)}%
                       </span>
                     </div>
@@ -662,7 +735,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
 
-                    <div className="border-t border-[#e8e0d5] dark:border-separator pt-3">
+                    <div className="border-t border-[#e8e0d5] dark:border-separator pt-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted">Beat FTSE</span>
                         <span className="font-medium font-mono">
@@ -674,35 +747,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Mini bar chart — top by alpha */}
-                    {topPicks.length > 0 && (() => {
-                      const maxAbs = Math.max(...topPicks.map((p) => Math.abs(p.alpha)), 1);
-                      return (
-                        <div className="border-t border-[#e8e0d5] dark:border-separator pt-3 mt-3 space-y-2">
-                          <div className="text-[10px] text-muted uppercase tracking-wider">Top by alpha</div>
-                          {topPicks.map((p, i) => {
-                            const positive = p.alpha >= 0;
-                            const width = Math.min(Math.abs(p.alpha) / maxAbs * 100, 100);
-                            return (
-                              <div key={i} className="flex items-center gap-2">
-                                <span className="text-xs font-mono w-16 shrink-0 truncate text-muted">
-                                  {p.ticker}
-                                </span>
-                                <div className="flex-1 h-3 bg-black/[0.04] dark:bg-white/[0.04] rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full transition-all ${positive ? "bg-emerald-500/60" : "bg-red-400/50"}`}
-                                    style={{ width: `${width}%` }}
-                                  />
-                                </div>
-                                <span className={`text-xs font-mono w-14 text-right shrink-0 ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                                  {positive ? "+" : ""}{p.alpha.toFixed(1)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
                   </div>
                 </div>
               );
@@ -726,27 +770,38 @@ export default function DashboardPage() {
                   <Skeleton className="h-2.5 w-20 mt-2" />
                 </div>
                 {/* Stat rows */}
-                <div className="px-5 pb-4 space-y-3">
+                <div className="px-4 pb-3 space-y-2">
                   <div className="flex justify-between"><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-16" /></div>
                   <div className="flex justify-between"><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-16" /></div>
-                  <div className="border-t border-[#e8e0d5] dark:border-separator pt-3">
+                  <div className="border-t border-[#e8e0d5] dark:border-separator pt-2">
                     <div className="flex justify-between"><Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-24" /></div>
-                  </div>
-                  {/* Top picks chart */}
-                  <div className="border-t border-[#e8e0d5] dark:border-separator pt-3 mt-3 space-y-2">
-                    <Skeleton className="h-2.5 w-24" />
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-16" />
-                        <Skeleton className="h-3 flex-1 rounded-full" />
-                        <Skeleton className="h-3 w-14" />
-                      </div>
-                    ))}
                   </div>
                 </div>
               </div>
             )}
           </div>
+        </div>
+
+        {/* Top-by-alpha ticker strip */}
+        {heroStats && heroStats.topPicks.length > 0 && (
+          <div className="flex items-stretch border-t border-[#e8e0d5]/50 dark:border-separator/40" style={{ background: "rgba(240,235,226,0.25)" }}>
+            <div className="shrink-0 flex items-center px-3 border-r border-[#e8e0d5]/50 dark:border-separator/40 text-[9px] font-semibold uppercase tracking-widest text-[#6b5038]/70 whitespace-nowrap">
+              Biggest gains detected
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <div style={{ display: "flex", width: "max-content", animation: "ho-ticker 28s linear infinite" }}>
+                {[...heroStats.topPicks, ...heroStats.topPicks].map((p, i) => (
+                  <div key={i} className="inline-flex items-center gap-2 px-5 py-1.5 border-r border-[#e8e0d5]/40 dark:border-separator/30 shrink-0">
+                    <span className="text-[11px] font-mono font-medium text-foreground/75">{p.ticker}</span>
+                    <span className="text-[11px] font-mono" style={{ color: p.stockRet >= 0 ? "oklch(36% 0.16 155)" : "oklch(38% 0.16 18)" }}>
+                      {p.stockRet >= 0 ? "+" : ""}{(p.stockRet * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         </div>
 
         <div className="space-y-6">
@@ -955,8 +1010,8 @@ export default function DashboardPage() {
               )}
               <div className="ml-auto flex items-center gap-1.5 shrink-0">
                 <span className="relative inline-flex items-center justify-center w-4 h-4">
-                  <span className={`absolute inset-0 rounded-full ${marketOpen ? "bg-green-500/15" : "bg-red-500/15"}`} />
-                  <span className={`relative w-1.5 h-1.5 rounded-full ${marketOpen ? "bg-green-500" : "bg-red-500/60"}`} />
+                  <span className="absolute inset-0 rounded-full" style={{ background: marketOpen ? "oklch(45% 0.14 155 / 0.15)" : "oklch(45% 0.14 18 / 0.15)" }} />
+                  <span className="relative w-1.5 h-1.5 rounded-full" style={{ background: marketOpen ? "oklch(45% 0.14 155)" : "oklch(45% 0.14 18 / 0.6)" }} />
                 </span>
                 <span className="text-xs text-muted">{marketOpen ? "Open" : "Closed"}</span>
               </div>
@@ -1022,8 +1077,8 @@ export default function DashboardPage() {
                       <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
                       <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
                     </div>
-                    <div className="text-sm text-muted">Monitoring for new trades</div>
-                    <div className="text-xs text-muted/50 mt-1">Deals appear here as they're disclosed</div>
+                    <div className="text-sm text-muted">No new trades yet today</div>
+                    <div className="text-xs text-muted/50 mt-1">Monitoring for new disclosures</div>
                   </>
                 ) : (
                   <>
