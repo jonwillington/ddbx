@@ -188,10 +188,6 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!isTradingDay) {
-      setUkNews(null);
-      return;
-    }
     let cancelled = false;
     api
       .ukNews()
@@ -204,7 +200,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [isTradingDay]);
+  }, []);
 
   const marketOpen = useMemo(() => {
     const now = new Date();
@@ -468,7 +464,18 @@ export default function DashboardPage() {
         </span>
       </div>
       {ukNews === null ? (
-        <p className="text-xs text-muted">Loading headlines…</p>
+        <ul className="space-y-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <li key={i} className="pb-0.5 flex items-start gap-2">
+              <Skeleton className="w-3.5 h-3.5 rounded-sm shrink-0 mt-0.5" />
+              <span className="flex-1 min-w-0 space-y-1.5">
+                <Skeleton className="h-2.5 w-16" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/4" />
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : ukNews.items.length === 0 ? (
         <p className="text-xs text-muted">No headlines available right now.</p>
       ) : (
