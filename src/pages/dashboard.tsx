@@ -22,6 +22,9 @@ import {
 type ViewMode = "chronological" | "by-gain";
 type HeroFilter = "all" | "significant" | "noteworthy" | "minor" | "routine";
 
+/** Set true to show the per-month "Noteworthy only" / "Expand all" toolbar again. */
+const SHOW_MONTH_FILTER_BAR = false;
+
 interface DayBucket {
   weekday: string;       // e.g. "THU"
   day: string;           // e.g. "4th"
@@ -121,6 +124,11 @@ export default function DashboardPage() {
   const prevNewsUrlsRef = useRef<Set<string> | null>(null);
   const [newNewsUrls, setNewNewsUrls] = useState<Set<string>>(new Set());
 
+  const isTradingDay = useMemo(() => {
+    const dow = new Date().getDay();
+    return dow >= 1 && dow <= 5;
+  }, []);
+
   // Track which news items are new after a refresh
   useEffect(() => {
     if (!ukNews || ukNews.items.length === 0) return;
@@ -200,26 +208,6 @@ export default function DashboardPage() {
     if (!filteredDealings) return [];
     return filteredDealings.filter((d) => (d.disclosed_date ?? d.trade_date).slice(0, 10) === todayKey);
   }, [filteredDealings, todayKey]);
-
-  const isTradingDay = useMemo(() => {
-    const dow = new Date().getDay();
-    return dow >= 1 && dow <= 5;
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .ukNews()
-      .then((data) => {
-        if (!cancelled) setUkNews(data);
-      })
-      .catch(() => {
-        if (!cancelled) setUkNews({ items: [], fetched_at: null });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const marketOpen = useMemo(() => {
     const now = new Date();
@@ -978,7 +966,7 @@ export default function DashboardPage() {
                           />
                         </div>
                       </button>
-                      {monthOpen && (
+                      {SHOW_MONTH_FILTER_BAR && monthOpen && (
                         <div className="flex items-center gap-6 px-6 py-4 bg-[#faf8f5] dark:bg-surface border-t border-[#e8e0d5] dark:border-separator">
                           <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
                             <input
