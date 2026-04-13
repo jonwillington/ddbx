@@ -1039,7 +1039,7 @@ export default function DashboardPage() {
             <div className="relative flex-1 min-h-0">
               <div className="absolute inset-x-0 top-0 h-4 pointer-events-none z-[1] bg-gradient-to-b from-[#faf7f2] dark:from-surface to-transparent" />
               <div className="absolute inset-x-0 bottom-0 h-4 pointer-events-none z-[1] bg-gradient-to-t from-[#faf7f2] dark:from-surface to-transparent" />
-              <div className="h-full overflow-y-auto">
+              <div className="h-full overflow-y-auto overscroll-contain">
                 {todayDeals.length > 0 && (
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
                     {todayDeals.map((d) => {
@@ -1121,7 +1121,7 @@ export default function DashboardPage() {
             <div className="relative flex-1 min-h-0">
               <div className="absolute inset-x-0 top-0 h-4 pointer-events-none z-[1] bg-gradient-to-b from-[#faf7f2] dark:from-surface to-transparent" />
               <div className="absolute inset-x-0 bottom-0 h-4 pointer-events-none z-[1] bg-gradient-to-t from-[#faf7f2] dark:from-surface to-transparent" />
-              <div className="h-full overflow-y-auto">
+              <div className="h-full overflow-y-auto overscroll-contain">
                 {ukTodayNewsStrip}
               </div>
             </div>
