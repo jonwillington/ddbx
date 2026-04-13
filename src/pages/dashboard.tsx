@@ -131,7 +131,10 @@ export default function DashboardPage() {
 
   const loadDealings = useCallback(() => {
     api.dealings().then(setDealings).catch((e) => setErr((e as Error).message));
-  }, []);
+    if (isTradingDay) {
+      api.ukNews().then(setUkNews).catch(() => {});
+    }
+  }, [isTradingDay]);
 
   useEffect(() => { loadDealings(); }, [loadDealings]);
 
@@ -471,7 +474,7 @@ export default function DashboardPage() {
       ) : (
         <ul className="space-y-4">
           {ukNews.items.slice(0, 12).map((n, i) => (
-            <li key={`${n.url}-${i}`} className="pb-0.5">
+            <li key={`${n.url}-${i}`} className="pb-0.5" style={{ animation: `fade-in-up 0.4s ease-out ${i * 0.04}s both` }}>
               <a
                 href={n.url}
                 target="_blank"
