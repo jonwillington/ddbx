@@ -4,9 +4,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import DefaultLayout from "@/layouts/default";
 import { title } from "@/components/primitives";
 import { DealingRow, DealingRowHeader } from "@/components/dealing-row";
+import { RatingBadge } from "@/components/rating-badge";
 import { DealingDetailPanel } from "@/components/dealing-detail-panel";
 import { Skeleton } from "@/components/skeleton";
 import { api, type Dealing, type UkNewsItem } from "@/lib/api";
+import { isSuggestedDealing } from "@/lib/dealing-classify";
+import { compareDealingsNewestFirst, formatDisclosedCompact } from "@/lib/dealing-dates";
 import { useDataVersion } from "@/lib/use-data-version";
 import {
   ChevronDownIcon,
@@ -47,19 +50,13 @@ type Segment =
   | { type: "analysed"; deal: Dealing }
   | { type: "skipped"; deals: Dealing[]; clusterKey: string };
 
-// A dealing only counts as "suggested" if Opus actually rated it above the
-// noise floor. "routine" means <2 of 6 checklist items passed — functionally
-// the same as a triage skip, so we group it with the skipped cluster.
-function isSuggested(d: Dealing): boolean {
-  return !!d.analysis && d.analysis.rating !== "routine";
-}
-
 function buildSegments(all: Dealing[], monthKey: string): Segment[] {
   // Sort so suggested deals come before skipped within each day
   const sorted = [...all].sort((a, b) => {
-    const aS = isSuggested(a) ? 0 : 1;
-    const bS = isSuggested(b) ? 0 : 1;
-    return aS - bS;
+    const aS = isSuggestedDealing(a) ? 0 : 1;
+    const bS = isSuggestedDealing(b) ? 0 : 1;
+    if (aS !== bS) return aS - bS;
+    return compareDealingsNewestFirst(a, b);
   });
 
   const segments: Segment[] = [];
@@ -77,7 +74,7 @@ function buildSegments(all: Dealing[], monthKey: string): Segment[] {
   };
 
   for (const d of sorted) {
-    if (isSuggested(d)) {
+    if (isSuggestedDealing(d)) {
       flushSkipped();
       segments.push({ type: "analysed", deal: d });
     } else {
@@ -206,7 +203,10 @@ export default function DashboardPage() {
 
   const todayDeals = useMemo((): Dealing[] => {
     if (!filteredDealings) return [];
-    return filteredDealings.filter((d) => (d.disclosed_date ?? d.trade_date).slice(0, 10) === todayKey);
+    const list = filteredDealings.filter(
+      (d) => (d.disclosed_date ?? d.trade_date).slice(0, 10) === todayKey,
+    );
+    return [...list].sort(compareDealingsNewestFirst);
   }, [filteredDealings, todayKey]);
 
   const marketOpen = useMemo(() => {
@@ -245,8 +245,13 @@ export default function DashboardPage() {
         bucket.days.push(day);
       }
       day.all.push(d);
-      if (isSuggested(d)) { day.analysedCount++; bucket.analysedCount++; }
+      if (isSuggestedDealing(d)) { day.analysedCount++; bucket.analysedCount++; }
       else { day.skippedCount++; bucket.skippedCount++; }
+    }
+    for (const b of buckets) {
+      for (const day of b.days) {
+        day.all.sort(compareDealingsNewestFirst);
+      }
     }
     return buckets;
   }, [filteredDealings, todayKey]);
@@ -261,7 +266,7 @@ export default function DashboardPage() {
   const byGain = useMemo((): Dealing[] => {
     if (!filteredDealings) return [];
     return filteredDealings
-      .filter((d) => isSuggested(d) && prices[d.ticker] != null)
+      .filter((d) => isSuggestedDealing(d) && prices[d.ticker] != null)
       .map((d) => ({ ...d, _gainPct: ((prices[d.ticker] - d.price_pence) / d.price_pence) * 100 }))
       .sort((a, b) => b._gainPct - a._gainPct);
   }, [filteredDealings, prices]);
@@ -439,6 +444,7 @@ export default function DashboardPage() {
                 selected={selected?.id === d.id}
                 onSelect={selectDealing}
                 hideDate
+                suppressSkippedLabel
               />
             ))}
             {remaining > 0 && (
@@ -835,7 +841,7 @@ export default function DashboardPage() {
                   <div className="text-sm font-semibold flex items-center gap-2"><PlayIcon className="w-4 h-4" />Today</div>
                   {todayDeals.length > 0 && (
                     <div className="text-xs text-muted mt-0.5">
-                      {todayDeals.filter(isSuggested).length} analysed · {todayDeals.filter((d) => !isSuggested(d)).length} skipped
+                      {todayDeals.filter(isSuggestedDealing).length} analysed · {todayDeals.filter((d) => !isSuggestedDealing(d)).length} skipped
                     </div>
                   )}
                 </div>
@@ -906,7 +912,6 @@ export default function DashboardPage() {
                         showVsFtse
                         selected={selected?.id === d.id}
                         onSelect={selectDealing}
-                        showMonth
                       />
                     ))}
                   </div>
@@ -1014,7 +1019,6 @@ export default function DashboardPage() {
                                   showVsFtse
                                   selected={selected?.id === seg.deal.id}
                                   onSelect={selectDealing}
-                                  showMonth
                                 />
                                 );
                               }
@@ -1053,7 +1057,7 @@ export default function DashboardPage() {
               <span className="text-sm font-semibold">Today</span>
               {todayDeals.length > 0 && (
                 <span className="text-[10px] text-muted truncate">
-                  {todayDeals.filter(isSuggested).length} analysed · {todayDeals.filter((d) => !isSuggested(d)).length} skipped
+                  {todayDeals.filter(isSuggestedDealing).length} analysed · {todayDeals.filter((d) => !isSuggestedDealing(d)).length} skipped
                 </span>
               )}
               <div className="ml-auto flex items-center gap-1.5 shrink-0">
@@ -1079,8 +1083,21 @@ export default function DashboardPage() {
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
                     {todayDeals.map((d) => {
                       const a = d.analysis;
+                      const t = d.triage;
                       const tickerLabel = d.ticker.replace(/\.L$/, "");
                       const companyLabel = d.company.replace(/\s*\([^)]*\)\s*$/, "");
+                      const suggested = isSuggestedDealing(d);
+                      const displayIso = d.disclosed_date || d.trade_date;
+                      const triageLabel =
+                        t?.verdict === "skip"
+                          ? "Skipped"
+                          : t?.verdict === "maybe"
+                            ? "Maybe"
+                            : t?.verdict === "promising"
+                              ? "Promising"
+                              : "—";
+                      const showSkippedRail =
+                        !suggested && !(t?.verdict === "skip" && !a);
                       return (
                         <button
                           key={d.id}
@@ -1091,32 +1108,51 @@ export default function DashboardPage() {
                           } ${!a ? "opacity-60" : ""}`}
                           onClick={() => selectDealing(d)}
                         >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary">
-                              {tickerLabel}
-                            </span>
-                            <span className="text-sm font-medium truncate">{companyLabel}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted truncate">
-                              {d.director.name}
-                            </span>
-                            <span className="text-sm font-medium tabular-nums shrink-0 ml-2">
-                              {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(d.value_gbp)}
-                            </span>
-                          </div>
-                          {a && (
-                            <div className="mt-1.5">
-                              <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                                a.rating === "significant" ? "bg-[#8b4513]/18 text-[#6b2f0a] border-[#8b4513]/40 dark:bg-[#d4845a]/15 dark:text-[#e8a878] dark:border-[#d4845a]/35" :
-                                a.rating === "noteworthy"  ? "bg-[#6b5038]/14 text-[#4a3520] border-[#6b5038]/35 dark:bg-[#b8956e]/12 dark:text-[#c4a882] dark:border-[#b8956e]/30" :
-                                a.rating === "minor"       ? "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40" :
-                                                             "bg-transparent text-[#b0a898] border-[#d8d0c6]/60"
-                              }`}>
-                                {a.rating.charAt(0).toUpperCase() + a.rating.slice(1)}
-                              </span>
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary shrink-0">
+                                  {tickerLabel}
+                                </span>
+                                <span className="text-sm font-medium truncate">{companyLabel}</span>
+                              </div>
+                              <div className="text-xs text-muted truncate">{d.director.name}</div>
+                              <div className="text-[10px] text-muted/90 tabular-nums mt-1">
+                                {formatDisclosedCompact(displayIso)}
+                              </div>
                             </div>
-                          )}
+                            <div className="shrink-0 flex flex-col items-end gap-1 text-right">
+                              <span className="text-sm font-medium tabular-nums leading-tight">
+                                {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(d.value_gbp)}
+                              </span>
+                              {suggested && a && (
+                                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                  a.rating === "significant" ? "bg-[#8b4513]/18 text-[#6b2f0a] border-[#8b4513]/40 dark:bg-[#d4845a]/15 dark:text-[#e8a878] dark:border-[#d4845a]/35" :
+                                  a.rating === "noteworthy"  ? "bg-[#6b5038]/14 text-[#4a3520] border-[#6b5038]/35 dark:bg-[#b8956e]/12 dark:text-[#c4a882] dark:border-[#b8956e]/30" :
+                                  a.rating === "minor"       ? "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40" :
+                                                               "bg-transparent text-[#b0a898] border-[#d8d0c6]/60"
+                                }`}>
+                                  {a.rating.charAt(0).toUpperCase() + a.rating.slice(1)}
+                                </span>
+                              )}
+                              {!suggested && (
+                                <>
+                                  {showSkippedRail && (
+                                    <span className="text-[10px] font-semibold text-amber-900/85 dark:text-amber-200/75 leading-none">
+                                      Skipped
+                                    </span>
+                                  )}
+                                  {a ? (
+                                    <RatingBadge rating={a.rating} className="!w-auto min-w-0 scale-[0.85] origin-right" />
+                                  ) : (
+                                    <span className="inline-flex items-center rounded-md border border-[#d0c8be]/50 bg-[#d0c8be]/10 px-2 py-0.5 text-[10px] font-semibold text-[#7a7068]">
+                                      {triageLabel}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </button>
                       );
                     })}

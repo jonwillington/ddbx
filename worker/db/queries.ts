@@ -182,7 +182,7 @@ export async function getDealings(
     .prepare(
       `${BASE_SELECT}
        WHERE (?1 IS NULL OR a.rating = ?1)
-       ORDER BY d.trade_date DESC, d.created_at DESC
+       ORDER BY d.disclosed_date DESC, d.created_at DESC, d.trade_date DESC
        LIMIT 200`,
     )
     .bind(opts.rating ?? null)

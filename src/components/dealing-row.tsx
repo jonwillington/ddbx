@@ -1,5 +1,7 @@
 import type { Dealing } from "@/lib/api";
 import { RatingBadge } from "@/components/rating-badge";
+import { isSuggestedDealing } from "@/lib/dealing-classify";
+import { formatDisclosedCompact, formatDisclosedParts } from "@/lib/dealing-dates";
 
 function fmtGbp(n: number) {
   return new Intl.NumberFormat("en-GB", {
@@ -7,27 +9,6 @@ function fmtGbp(n: number) {
     currency: "GBP",
     maximumFractionDigits: 0,
   }).format(n);
-}
-
-function ordinal(n: number): string {
-  const v = n % 100;
-  if (v >= 11 && v <= 13) return `${n}th`;
-  switch (n % 10) {
-    case 1: return `${n}st`;
-    case 2: return `${n}nd`;
-    case 3: return `${n}rd`;
-    default: return `${n}th`;
-  }
-}
-
-function parseDate(iso: string): { weekday: string; day: string; month: string } {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return { weekday: "", day: "—", month: "" };
-  return {
-    weekday: d.toLocaleString("en-GB", { weekday: "short" }),
-    day: ordinal(d.getDate()),
-    month: d.toLocaleString("en-GB", { month: "short" }),
-  };
 }
 
 function checkIsToday(iso: string): boolean {
@@ -38,6 +19,16 @@ function checkIsToday(iso: string): boolean {
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate()
   );
+}
+
+function shortTradeDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/London",
+  });
 }
 
 const VERDICT_LABEL: Record<string, string> = {
@@ -103,7 +94,7 @@ function AlphaDelta({ stockEntry, stockCurrent, ftseEntry, ftseCurrent }: { stoc
 export function DealingRowHeader({ showVsFtse = false }: { showVsFtse?: boolean }) {
   return (
     <div className="hidden md:flex items-center text-xs text-muted font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] rounded-t-xl">
-      <div className="w-36 shrink-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Date</div>
+      <div className="w-40 shrink-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Disclosed</div>
       <div className="w-[4.5rem] shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">Ticker</div>
       <div className="flex-1 min-w-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Company</div>
       <div className="w-36 shrink-0 px-4 py-2.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]">Value</div>
@@ -124,7 +115,7 @@ export function DealingRow({
   onSelect,
   rowClassName,
   hideDate,
-  showMonth,
+  suppressSkippedLabel,
 }: {
   dealing: Dealing;
   currentPricePence?: number;
@@ -135,13 +126,25 @@ export function DealingRow({
   onSelect: (dealing: Dealing) => void;
   rowClassName?: string;
   hideDate?: boolean;
-  showMonth?: boolean;
+  /** Hide the extra "Skipped" hint (e.g. rows inside an expanded skipped cluster). */
+  suppressSkippedLabel?: boolean;
 }) {
   const a = dealing.analysis;
   const t = dealing.triage;
   const muted = !a;
-  const date = parseDate(dealing.trade_date);
-  const today = checkIsToday(dealing.trade_date);
+  const pipelineSkipped = !isSuggestedDealing(dealing);
+  const skipStampRedundant =
+    t?.verdict === "skip" && !a;
+  const showSkippedNearDisclosure =
+    pipelineSkipped &&
+    !suppressSkippedLabel &&
+    !skipStampRedundant;
+  const displayIso = dealing.disclosed_date || dealing.trade_date;
+  const { dateLabel, timePart } = formatDisclosedParts(displayIso);
+  const today = checkIsToday(displayIso);
+  const tradeDay = dealing.trade_date.slice(0, 10);
+  const disclosedDay = (dealing.disclosed_date || dealing.trade_date).slice(0, 10);
+  const tradeDiffers = tradeDay !== disclosedDay;
 
   const tickerLabel = dealing.ticker.replace(/\.L$/, "");
   const companyLabel = dealing.company.replace(/\s*\([^)]*\)\s*$/, "");
@@ -160,15 +163,28 @@ export function DealingRow({
         {!hideDate && (
           <div className="mb-2">
             {today ? (
-              <span className="text-xs font-semibold text-[#6b5038]">Today</span>
+              <div>
+                <span className="text-xs font-semibold text-[#6b5038]">Today</span>
+                {timePart && (
+                  <span className="block text-[10px] text-muted tabular-nums mt-0.5">{timePart}</span>
+                )}
+              </div>
             ) : (
-              <span className="text-xs text-foreground/50 font-medium">
-                {date.weekday} {date.day}{showMonth ? `, ${date.month}` : ""}
+              <div>
+                <span className="text-xs text-foreground/50 font-medium">{dateLabel}</span>
+                {timePart && (
+                  <span className="block text-[10px] text-muted tabular-nums mt-0.5">{timePart}</span>
+                )}
+              </div>
+            )}
+            {tradeDiffers && (
+              <span className="block text-[10px] text-muted/70 mt-1">
+                Trade · {shortTradeDate(dealing.trade_date)}
               </span>
             )}
           </div>
         )}
-        {/* Main content: left info + right value/rating */}
+        {/* Main content: left info + right value / Skipped / rating */}
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -180,9 +196,22 @@ export function DealingRow({
             <div className="text-xs text-muted truncate mt-1">
               {dealing.director.name} · {dealing.director.role}
             </div>
+            {hideDate && (
+              <div className="text-[10px] text-muted/90 tabular-nums mt-1">
+                {formatDisclosedCompact(displayIso)}
+                {tradeDiffers && (
+                  <span className="text-muted/60"> · trade {shortTradeDate(dealing.trade_date)}</span>
+                )}
+              </div>
+            )}
           </div>
-          <div className="shrink-0 flex flex-col items-end gap-1.5">
-            <span className="text-base font-medium tabular-nums">{fmtGbp(dealing.value_gbp)}</span>
+          <div className="shrink-0 flex flex-col items-end gap-1">
+            <span className="text-base font-medium tabular-nums leading-tight">{fmtGbp(dealing.value_gbp)}</span>
+            {showSkippedNearDisclosure && (
+              <span className="text-[10px] font-semibold text-amber-900/85 dark:text-amber-200/75 leading-none">
+                Skipped
+              </span>
+            )}
             {a ? (
               <RatingBadge rating={a.rating} />
             ) : (
@@ -203,14 +232,36 @@ export function DealingRow({
       {/* ── Desktop table layout (md+) ── */}
       <div className="hidden md:flex items-stretch">
         {/* Date */}
-        <div className="w-36 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
-          {hideDate ? null : today ? (
-            <div className="text-base font-semibold text-[#6b5038]">Today</div>
+        <div className="w-40 shrink-0 px-4 py-4 flex flex-col justify-center border-r border-black/[0.06] dark:border-white/[0.06] min-h-[3.5rem]">
+          {hideDate ? (
+            <div>
+              <div className="text-xs text-foreground/85 font-medium leading-snug">
+                {formatDisclosedCompact(displayIso)}
+              </div>
+              {tradeDiffers && (
+                <div className="text-[10px] text-muted/75 mt-1">
+                  Trade · {shortTradeDate(dealing.trade_date)}
+                </div>
+              )}
+            </div>
+          ) : today ? (
+            <div>
+              <div className="text-base font-semibold text-[#6b5038]">Today</div>
+              {timePart && (
+                <div className="text-xs text-muted tabular-nums mt-0.5">{timePart}</div>
+              )}
+            </div>
           ) : (
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-sm text-foreground/50 font-medium">{date.weekday}</span>
-              <span className="text-base font-medium leading-tight">{date.day},</span>
-              {showMonth && <span className="text-sm text-foreground/50 font-medium">{date.month}</span>}
+            <div>
+              <div className="text-sm text-foreground/90 font-medium leading-tight">{dateLabel}</div>
+              {timePart && (
+                <div className="text-xs text-muted tabular-nums mt-0.5">{timePart}</div>
+              )}
+              {tradeDiffers && (
+                <div className="text-[10px] text-muted/75 mt-1">
+                  Trade · {shortTradeDate(dealing.trade_date)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -260,12 +311,17 @@ export function DealingRow({
           </div>
         )}
 
-        {/* Rating */}
-        <div className="w-32 shrink-0 px-4 py-4 flex items-center justify-center">
+        {/* Rating — Skipped stacks above badge on the right when relevant */}
+        <div className="w-32 shrink-0 px-3 py-4 flex flex-col items-end justify-center gap-1">
+          {showSkippedNearDisclosure && (
+            <span className="text-[10px] font-semibold text-amber-900/85 dark:text-amber-200/75 leading-none">
+              Skipped
+            </span>
+          )}
           {a ? (
             <RatingBadge rating={a.rating} />
           ) : (
-            <span className="inline-flex items-center justify-center w-full rounded-md border border-[#d0c8be]/50 bg-[#d0c8be]/10 py-2 text-sm font-semibold text-[#7a7068]">
+            <span className="inline-flex items-center justify-center rounded-md border border-[#d0c8be]/50 bg-[#d0c8be]/10 py-2 px-3 text-sm font-semibold text-[#7a7068]">
               {VERDICT_LABEL[t?.verdict ?? ""] ?? "—"}
             </span>
           )}
