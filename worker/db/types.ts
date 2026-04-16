@@ -54,6 +54,7 @@ export interface Dealing {
   id: string;
   trade_date: string;      // ISO
   disclosed_date: string;  // ISO
+  created_at?: string;     // ISO datetime UTC — when the row was ingested
   director: DirectorSummary;
   ticker: string;
   company: string;

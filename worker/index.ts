@@ -15,12 +15,18 @@ import {
   ukNewsIsStale,
 } from "./pipeline/uk-news";
 import { postDailySummary, type DailySummaryDealing, type Session } from "./pipeline/twitter";
+import { sendDigestPush } from "./pipeline/apns";
 import { FIXTURES } from "./fixtures";
 
 export interface Env {
   DB: D1Database;
   ANTHROPIC_API_KEY: string;
   APP_ENV: string;
+  // APNs push notification secrets (set via `wrangler secret put`)
+  APNS_KEY_ID: string;
+  APNS_TEAM_ID: string;
+  APNS_PRIVATE_KEY: string;
+  APNS_BUNDLE_ID?: string; // defaults to "uk.ddbx.app"
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -219,6 +225,50 @@ app.get("/api/news/uk", async (c) => {
   }
 });
 
+// ---- Device token registration for APNs push notifications -----------------
+
+app.post("/api/devices", async (c) => {
+  const body = await c.req.json<{
+    token: string;
+    environment?: string;
+    timezone?: string;
+  }>();
+
+  if (!body.token || typeof body.token !== "string") {
+    return c.json({ error: "token is required" }, 400);
+  }
+
+  const env = body.environment === "production" ? "production" : "sandbox";
+  const tz = body.timezone ?? "Europe/London";
+
+  await c.env.DB.prepare(
+    `INSERT INTO device_tokens (token, environment, timezone, active, updated_at)
+     VALUES (?1, ?2, ?3, 1, datetime('now'))
+     ON CONFLICT(token) DO UPDATE SET
+       environment = excluded.environment,
+       timezone = excluded.timezone,
+       active = 1,
+       updated_at = datetime('now')`,
+  )
+    .bind(body.token, env, tz)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+app.delete("/api/devices", async (c) => {
+  const body = await c.req.json<{ token: string }>();
+  if (!body.token) return c.json({ error: "token is required" }, 400);
+
+  await c.env.DB.prepare(
+    `UPDATE device_tokens SET active = 0 WHERE token = ?1`,
+  )
+    .bind(body.token)
+    .run();
+
+  return c.json({ ok: true });
+});
+
 // Manual refresh (e.g. after deploying the news table).
 app.post("/__cron/refresh-news", async (c) => {
   try {
@@ -312,8 +362,15 @@ async function runDailySummary(env: Env, date: string, session: Session) {
     rating: r.rating,
   }));
 
-  const result = await postDailySummary({ date, session, dealings });
-  return { date, session, total: dealings.length, ...result };
+  const [tweetResult, pushResult] = await Promise.all([
+    postDailySummary({ date, session, dealings }),
+    sendDigestPush(env, { date, session, dealings })
+      .catch((err: Error) => {
+        console.error(`[cron] digest push error: ${err.message}`);
+        return { sent: 0, failed: 0 };
+      }),
+  ]);
+  return { date, session, total: dealings.length, ...tweetResult, push: pushResult };
 }
 
 const DAILY_CRONS: Record<string, Session> = {

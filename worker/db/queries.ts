@@ -14,6 +14,7 @@ interface JoinedRow {
   id: string;
   trade_date: string;
   disclosed_date: string;
+  created_at: string;
   ticker: string;
   company: string;
   tx_type: string;
@@ -44,7 +45,7 @@ interface JoinedRow {
 const BASE_SELECT = `
   SELECT
     d.id, d.trade_date, d.disclosed_date, d.ticker, d.company, d.tx_type,
-    d.shares, d.price_pence, d.value_gbp,
+    d.shares, d.price_pence, d.value_gbp, d.created_at,
     dir.id AS dir_id, dir.name AS dir_name, dir.role AS dir_role,
     dir.company_primary AS dir_company, dir.age_band AS dir_age_band,
     dir.tenure_years AS dir_tenure_years,
@@ -112,6 +113,7 @@ function hydrate(r: JoinedRow, perf: PerformanceRow[] = []): Dealing {
     id: r.id,
     trade_date: r.trade_date,
     disclosed_date: r.disclosed_date,
+    created_at: r.created_at,
     director: {
       id: r.dir_id,
       name: r.dir_name,

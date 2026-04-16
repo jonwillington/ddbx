@@ -162,3 +162,15 @@ ALTER TABLE tickers ADD COLUMN profile_updated_at TEXT;
 --   wrangler d1 execute director-dealings --command "UPDATE analyses SET rating = CASE rating WHEN 'very_interesting' THEN 'significant' WHEN 'interesting' THEN 'noteworthy' WHEN 'somewhat' THEN 'minor' WHEN 'not_interesting' THEN 'routine' ELSE rating END;"
 ALTER TABLE analyses ADD COLUMN checklist_json TEXT;
 ALTER TABLE analyses ADD COLUMN rating_rationale TEXT;
+
+-- Migration 004 (2026-04-14): device token registration for APNs push notifications
+-- Run once against existing databases:
+--   wrangler d1 execute director-dealings --command "CREATE TABLE IF NOT EXISTS device_tokens (token TEXT PRIMARY KEY, environment TEXT NOT NULL DEFAULT 'sandbox', timezone TEXT DEFAULT 'Europe/London', active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));"
+CREATE TABLE IF NOT EXISTS device_tokens (
+  token       TEXT PRIMARY KEY,              -- APNs device token (hex string)
+  environment TEXT NOT NULL DEFAULT 'sandbox', -- "sandbox" | "production"
+  timezone    TEXT DEFAULT 'Europe/London',
+  active      INTEGER NOT NULL DEFAULT 1,    -- 0 = unregistered / invalid
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);

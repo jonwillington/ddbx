@@ -6,6 +6,7 @@ import { ensureDirectorProfile } from "./profile";
 import { ensureCompanyProfile } from "./company-profile";
 import { refreshPerformance } from "./performance";
 import { postTweet } from "./twitter";
+import { sendPushNotifications } from "./apns";
 import {
   finishPipelineRun,
   insertAnalysis,
@@ -73,12 +74,16 @@ export async function runPipeline(env: Env): Promise<PipelineResult> {
             await insertAnalysis(env, d.id, analyzed.analysis, analyzed.usage);
             result.analyzed++;
             if (["significant", "noteworthy"].includes(analyzed.analysis.rating)) {
-              await postTweet({
+              const alertPayload = {
                 id: d.id,
                 ticker: d.ticker,
                 company: d.company,
                 analysis: analyzed.analysis,
-              }).catch((err: Error) => errors.push(`twitter ${d.id}: ${err.message}`));
+              };
+              await postTweet(alertPayload)
+                .catch((err: Error) => errors.push(`twitter ${d.id}: ${err.message}`));
+              await sendPushNotifications(env, alertPayload)
+                .catch((err: Error) => errors.push(`apns ${d.id}: ${err.message}`));
             }
           } catch (err) {
             errors.push(`analyze ${d.id}: ${(err as Error).message}`);
