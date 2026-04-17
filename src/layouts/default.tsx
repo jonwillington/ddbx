@@ -1,15 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/navbar";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 
 type LegalPage = "privacy" | "cookies" | "terms" | "contact" | null;
 
-const LEGAL_LINKS: { label: string; page: LegalPage }[] = [
-  { label: "Contact", page: "contact" },
-  { label: "Privacy Policy", page: "privacy" },
-  { label: "Cookie Policy", page: "cookies" },
-  { label: "Terms & Conditions", page: "terms" },
+const LEGAL_LINKS: { label: string; page: Exclude<LegalPage, null>; path: string }[] = [
+  { label: "Contact", page: "contact", path: "/contact" },
+  { label: "Privacy Policy", page: "privacy", path: "/privacy" },
+  { label: "Cookie Policy", page: "cookies", path: "/cookies" },
+  { label: "Terms & Conditions", page: "terms", path: "/terms" },
 ];
+
+function pathToLegalPage(pathname: string): LegalPage {
+  if (pathname === "/contact") return "contact";
+  if (pathname === "/privacy") return "privacy";
+  if (pathname === "/cookies") return "cookies";
+  if (pathname === "/terms") return "terms";
+  return null;
+}
 
 function LegalDrawer({ page, onClose }: { page: LegalPage; onClose: () => void }) {
   const open = page !== null;
@@ -271,8 +280,23 @@ export default function DefaultLayout({
   drawerRight?: boolean;
   ticker?: React.ReactNode;
 }) {
-  const [legalPage, setLegalPage] = useState<LegalPage>(null);
-  const closeLegal = useCallback(() => setLegalPage(null), []);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const legalPage = pathToLegalPage(location.pathname);
+  const closeLegal = useCallback(() => {
+    const background = (location.state as { background?: string } | null)?.background;
+    navigate(background ?? "/");
+  }, [location.state, navigate]);
+  const openLegal = useCallback(
+    (path: string) => {
+      const isLegal = pathToLegalPage(location.pathname) !== null;
+      const background = isLegal
+        ? (location.state as { background?: string } | null)?.background ?? "/"
+        : `${location.pathname}${location.search}`;
+      navigate(path, { state: { background } });
+    },
+    [location.pathname, location.search, location.state, navigate],
+  );
 
   return (
     <div className={`relative flex flex-col min-h-screen bg-[#f5f0e8] dark:bg-background ${drawerRight ? "lg:mr-80" : ""}`}>
@@ -341,11 +365,11 @@ export default function DefaultLayout({
           </p>
           {/* Legal links */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4 pt-3 border-t border-separator/50">
-            {LEGAL_LINKS.map(({ label, page }) => (
+            {LEGAL_LINKS.map(({ label, page, path }) => (
               <button
                 key={page}
-                className="text-foreground/40 hover:text-foreground/70 transition-colors underline underline-offset-2"
-                onClick={() => setLegalPage(page)}
+                className="text-foreground/40 hover:text-foreground/70 transition-colors underline underline-offset-2 text-left"
+                onClick={() => openLegal(path)}
               >
                 {label}
               </button>
