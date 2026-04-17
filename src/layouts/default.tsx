@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/navbar";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 
-type LegalPage = "privacy" | "cookies" | "terms" | null;
+type LegalPage = "privacy" | "cookies" | "terms" | "contact" | null;
 
 const LEGAL_LINKS: { label: string; page: LegalPage }[] = [
+  { label: "Contact", page: "contact" },
   { label: "Privacy Policy", page: "privacy" },
   { label: "Cookie Policy", page: "cookies" },
   { label: "Terms & Conditions", page: "terms" },
@@ -44,6 +45,7 @@ function LegalDrawer({ page, onClose }: { page: LegalPage; onClose: () => void }
             {page === "privacy" && "Privacy Policy"}
             {page === "cookies" && "Cookie Policy"}
             {page === "terms" && "Terms & Conditions"}
+            {page === "contact" && "Contact"}
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
             <XMarkIcon className="w-5 h-5" />
@@ -53,6 +55,7 @@ function LegalDrawer({ page, onClose }: { page: LegalPage; onClose: () => void }
           {page === "privacy" && <PrivacyContent />}
           {page === "cookies" && <CookieContent />}
           {page === "terms" && <TermsContent />}
+          {page === "contact" && <ContactContent />}
         </div>
       </div>
     </>
@@ -61,6 +64,21 @@ function LegalDrawer({ page, onClose }: { page: LegalPage; onClose: () => void }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-sm font-semibold text-foreground/90 mt-6 mb-2">{children}</h3>;
+}
+
+function ContactContent() {
+  return (
+    <p>
+      Get in touch at{" "}
+      <a
+        href="mailto:jonathanwillington@gmail.com"
+        className="text-foreground/90 underline underline-offset-2 hover:text-foreground"
+      >
+        jonathanwillington@gmail.com
+      </a>
+      .
+    </p>
+  );
 }
 
 function PrivacyContent() {
