@@ -284,18 +284,13 @@ export default function DefaultLayout({
   const navigate = useNavigate();
   const legalPage = pathToLegalPage(location.pathname);
   const closeLegal = useCallback(() => {
-    const background = (location.state as { background?: string } | null)?.background;
-    navigate(background ?? "/");
-  }, [location.state, navigate]);
+    navigate("/");
+  }, [navigate]);
   const openLegal = useCallback(
     (path: string) => {
-      const isLegal = pathToLegalPage(location.pathname) !== null;
-      const background = isLegal
-        ? (location.state as { background?: string } | null)?.background ?? "/"
-        : `${location.pathname}${location.search}`;
-      navigate(path, { state: { background } });
+      navigate(path);
     },
-    [location.pathname, location.search, location.state, navigate],
+    [navigate],
   );
 
   return (
