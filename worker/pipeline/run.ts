@@ -73,18 +73,19 @@ export async function runPipeline(env: Env): Promise<PipelineResult> {
             const analyzed = await analyzeDealing(env, d);
             await insertAnalysis(env, d.id, analyzed.analysis, analyzed.usage);
             result.analyzed++;
+            const alertPayload = {
+              id: d.id,
+              ticker: d.ticker,
+              company: d.company,
+              analysis: analyzed.analysis,
+            };
             if (["significant", "noteworthy"].includes(analyzed.analysis.rating)) {
-              const alertPayload = {
-                id: d.id,
-                ticker: d.ticker,
-                company: d.company,
-                analysis: analyzed.analysis,
-              };
               await postTweet(alertPayload)
                 .catch((err: Error) => errors.push(`twitter ${d.id}: ${err.message}`));
-              await sendPushNotifications(env, alertPayload)
-                .catch((err: Error) => errors.push(`apns ${d.id}: ${err.message}`));
             }
+            // Push fans out internally: noteworthy+ → everyone, lower → opt-in subscribers only.
+            await sendPushNotifications(env, alertPayload)
+              .catch((err: Error) => errors.push(`apns ${d.id}: ${err.message}`));
           } catch (err) {
             errors.push(`analyze ${d.id}: ${(err as Error).message}`);
           }

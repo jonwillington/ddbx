@@ -232,6 +232,7 @@ app.post("/api/devices", async (c) => {
     token: string;
     environment?: string;
     timezone?: string;
+    notify_level?: string;
   }>();
 
   if (!body.token || typeof body.token !== "string") {
@@ -240,17 +241,19 @@ app.post("/api/devices", async (c) => {
 
   const env = body.environment === "production" ? "production" : "sandbox";
   const tz = body.timezone ?? "Europe/London";
+  const notifyLevel = body.notify_level === "all" ? "all" : "noteworthy";
 
   await c.env.DB.prepare(
-    `INSERT INTO device_tokens (token, environment, timezone, active, updated_at)
-     VALUES (?1, ?2, ?3, 1, datetime('now'))
+    `INSERT INTO device_tokens (token, environment, timezone, notify_level, active, updated_at)
+     VALUES (?1, ?2, ?3, ?4, 1, datetime('now'))
      ON CONFLICT(token) DO UPDATE SET
        environment = excluded.environment,
        timezone = excluded.timezone,
+       notify_level = excluded.notify_level,
        active = 1,
        updated_at = datetime('now')`,
   )
-    .bind(body.token, env, tz)
+    .bind(body.token, env, tz, notifyLevel)
     .run();
 
   return c.json({ ok: true });

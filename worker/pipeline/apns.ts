@@ -115,18 +115,23 @@ function buildApnsPayload(p: PushPayload): object {
   };
 }
 
-/** Send a push notification to all registered device tokens. */
+/** Send a push notification to registered device tokens whose notify_level matches the rating. */
 export async function sendPushNotifications(
   env: Env,
   payload: PushPayload,
 ): Promise<{ sent: number; failed: number }> {
-  // Fetch all active device tokens
-  const rows = await env.DB.prepare(
-    `SELECT token, environment FROM device_tokens WHERE active = 1`,
-  ).all<{ token: string; environment: string }>();
+  // Noteworthy+ goes to every active device; lower ratings only to "all" subscribers.
+  const isHighTier = payload.analysis.rating === "significant" || payload.analysis.rating === "noteworthy";
+  const rows = isHighTier
+    ? await env.DB.prepare(
+        `SELECT token, environment FROM device_tokens WHERE active = 1`,
+      ).all<{ token: string; environment: string }>()
+    : await env.DB.prepare(
+        `SELECT token, environment FROM device_tokens WHERE active = 1 AND notify_level = 'all'`,
+      ).all<{ token: string; environment: string }>();
 
   if (rows.results.length === 0) {
-    console.log(`[apns] no registered devices, skipping push for ${payload.id}`);
+    console.log(`[apns] no eligible devices (rating=${payload.analysis.rating}), skipping push for ${payload.id}`);
     return { sent: 0, failed: 0 };
   }
 
