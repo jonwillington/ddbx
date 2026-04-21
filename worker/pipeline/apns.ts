@@ -120,11 +120,11 @@ export async function sendPushNotifications(
   env: Env,
   payload: PushPayload,
 ): Promise<{ sent: number; failed: number }> {
-  // Noteworthy+ goes to every active device; lower ratings only to "all" subscribers.
+  // Noteworthy+ → 'noteworthy' and 'all'; lower ratings → 'all' only. 'none' never receives deal pushes.
   const isHighTier = payload.analysis.rating === "significant" || payload.analysis.rating === "noteworthy";
   const rows = isHighTier
     ? await env.DB.prepare(
-        `SELECT token, environment FROM device_tokens WHERE active = 1`,
+        `SELECT token, environment FROM device_tokens WHERE active = 1 AND notify_level IN ('noteworthy', 'all')`,
       ).all<{ token: string; environment: string }>()
     : await env.DB.prepare(
         `SELECT token, environment FROM device_tokens WHERE active = 1 AND notify_level = 'all'`,
@@ -259,14 +259,14 @@ export async function sendDigestPush(
 
 // ---- Shared broadcast -------------------------------------------------------
 
-/** Send an arbitrary APNs payload to all active devices. */
+/** Send an arbitrary APNs payload to devices that have daily summaries enabled. */
 async function broadcastPush(
   env: Env,
   payload: object,
   label: string,
 ): Promise<{ sent: number; failed: number }> {
   const rows = await env.DB.prepare(
-    `SELECT token, environment FROM device_tokens WHERE active = 1`,
+    `SELECT token, environment FROM device_tokens WHERE active = 1 AND digest_enabled = 1`,
   ).all<{ token: string; environment: string }>();
 
   if (rows.results.length === 0) {

@@ -167,15 +167,20 @@ ALTER TABLE analyses ADD COLUMN rating_rationale TEXT;
 -- Run once against existing databases:
 --   wrangler d1 execute director-dealings --command "CREATE TABLE IF NOT EXISTS device_tokens (token TEXT PRIMARY KEY, environment TEXT NOT NULL DEFAULT 'sandbox', timezone TEXT DEFAULT 'Europe/London', active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));"
 CREATE TABLE IF NOT EXISTS device_tokens (
-  token        TEXT PRIMARY KEY,              -- APNs device token (hex string)
-  environment  TEXT NOT NULL DEFAULT 'sandbox', -- "sandbox" | "production"
-  timezone     TEXT DEFAULT 'Europe/London',
-  active       INTEGER NOT NULL DEFAULT 1,    -- 0 = unregistered / invalid
-  notify_level TEXT NOT NULL DEFAULT 'noteworthy', -- "noteworthy" (default: significant+noteworthy) | "all" (every analyzed dealing)
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  token          TEXT PRIMARY KEY,              -- APNs device token (hex string)
+  environment    TEXT NOT NULL DEFAULT 'sandbox', -- "sandbox" | "production"
+  timezone       TEXT DEFAULT 'Europe/London',
+  active         INTEGER NOT NULL DEFAULT 1,    -- 0 = unregistered / invalid
+  notify_level   TEXT NOT NULL DEFAULT 'noteworthy', -- "none" | "noteworthy" (default: significant+noteworthy) | "all" (every analyzed dealing)
+  digest_enabled INTEGER NOT NULL DEFAULT 1,    -- 1 = receive morning/close daily summaries, 0 = opt out
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Migration 005 (2026-04-20): per-device notify_level preference
 -- Run once against existing databases:
 --   wrangler d1 execute director-dealings --command "ALTER TABLE device_tokens ADD COLUMN notify_level TEXT NOT NULL DEFAULT 'noteworthy';"
+
+-- Migration 006 (2026-04-21): per-device digest_enabled preference
+-- Run once against existing databases:
+--   wrangler d1 execute director-dealings --command "ALTER TABLE device_tokens ADD COLUMN digest_enabled INTEGER NOT NULL DEFAULT 1;"
