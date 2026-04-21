@@ -92,20 +92,29 @@ interface PushPayload {
   id: string;
   ticker: string;
   company: string;
-  analysis: Analysis;
+  director_name: string;
+  value_gbp: number;
+  analysis?: Analysis;
 }
 
 function buildApnsPayload(p: PushPayload): object {
   const cleanCompany = p.company.replace(/\s*\([^)]*\)\s*$/, "");
   const displayTicker = p.ticker.replace(/\.L$/, "");
-  const ratingLabel = p.analysis.rating.charAt(0).toUpperCase() + p.analysis.rating.slice(1);
+
+  let title: string;
+  let body: string;
+  if (p.analysis) {
+    const ratingLabel = p.analysis.rating.charAt(0).toUpperCase() + p.analysis.rating.slice(1);
+    title = `${ratingLabel}: ${displayTicker} · ${cleanCompany}`;
+    body = p.analysis.summary;
+  } else {
+    title = `Buy: ${displayTicker} · ${cleanCompany}`;
+    body = `${p.director_name} · ${formatGbp(p.value_gbp)}`;
+  }
 
   return {
     aps: {
-      alert: {
-        title: `${ratingLabel}: ${displayTicker} · ${cleanCompany}`,
-        body: p.analysis.summary,
-      },
+      alert: { title, body },
       sound: "default",
       "thread-id": "dealing-alerts",
       "mutable-content": 1,
@@ -120,8 +129,11 @@ export async function sendPushNotifications(
   env: Env,
   payload: PushPayload,
 ): Promise<{ sent: number; failed: number }> {
-  // Noteworthy+ → 'noteworthy' and 'all'; lower ratings → 'all' only. 'none' never receives deal pushes.
-  const isHighTier = payload.analysis.rating === "significant" || payload.analysis.rating === "noteworthy";
+  // High-tier (significant/noteworthy) → 'noteworthy' and 'all' subscribers.
+  // Everything else (lower ratings, or unanalysed skip-verdict buys) → 'all' only.
+  // 'none' never receives deal pushes.
+  const isHighTier =
+    payload.analysis?.rating === "significant" || payload.analysis?.rating === "noteworthy";
   const rows = isHighTier
     ? await env.DB.prepare(
         `SELECT token, environment FROM device_tokens WHERE active = 1 AND notify_level IN ('noteworthy', 'all')`,
@@ -131,7 +143,8 @@ export async function sendPushNotifications(
       ).all<{ token: string; environment: string }>();
 
   if (rows.results.length === 0) {
-    console.log(`[apns] no eligible devices (rating=${payload.analysis.rating}), skipping push for ${payload.id}`);
+    const tier = payload.analysis ? `rating=${payload.analysis.rating}` : "unanalysed";
+    console.log(`[apns] no eligible devices (${tier}), skipping push for ${payload.id}`);
     return { sent: 0, failed: 0 };
   }
 

@@ -1,4 +1,5 @@
 import type { Env } from "../index";
+import type { Analysis } from "../db/types";
 import { scrapeDealings } from "./scrape";
 import { triageDealing } from "./triage";
 import { analyzeDealing } from "./analyze";
@@ -68,28 +69,35 @@ export async function runPipeline(env: Env): Promise<PipelineResult> {
         );
         result.triaged++;
 
+        const basePushPayload = {
+          id: d.id,
+          ticker: d.ticker,
+          company: d.company,
+          director_name: d.director.name,
+          value_gbp: d.value_gbp,
+        };
+
+        let analysis: Analysis | undefined;
+
         if (triage.verdict === "promising" || triage.verdict === "maybe") {
           try {
             const analyzed = await analyzeDealing(env, d);
             await insertAnalysis(env, d.id, analyzed.analysis, analyzed.usage);
             result.analyzed++;
-            const alertPayload = {
-              id: d.id,
-              ticker: d.ticker,
-              company: d.company,
-              analysis: analyzed.analysis,
-            };
+            analysis = analyzed.analysis;
             if (["significant", "noteworthy"].includes(analyzed.analysis.rating)) {
-              await postTweet(alertPayload)
+              await postTweet({ ...basePushPayload, analysis: analyzed.analysis })
                 .catch((err: Error) => errors.push(`twitter ${d.id}: ${err.message}`));
             }
-            // Push fans out internally: noteworthy+ → everyone, lower → opt-in subscribers only.
-            await sendPushNotifications(env, alertPayload)
-              .catch((err: Error) => errors.push(`apns ${d.id}: ${err.message}`));
           } catch (err) {
             errors.push(`analyze ${d.id}: ${(err as Error).message}`);
           }
         }
+
+        // Push fans out by notify_level: noteworthy+ → 'noteworthy' and 'all';
+        // everything else (including unanalysed skip-verdict buys) → 'all' only.
+        await sendPushNotifications(env, { ...basePushPayload, analysis })
+          .catch((err: Error) => errors.push(`apns ${d.id}: ${err.message}`));
       } catch (err) {
         errors.push(`dealing ${d.id}: ${(err as Error).message}`);
       }
