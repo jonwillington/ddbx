@@ -100,7 +100,7 @@ export function DealingRowHeader({ showVsFtse = false }: { showVsFtse?: boolean 
       <div className="w-36 shrink-0 px-4 py-2.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]">Value</div>
       <div className="w-32 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">Performance</div>
       {showVsFtse && <div className="w-28 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">vs FTSE</div>}
-      <div className="w-32 shrink-0 px-4 py-2.5 text-center">Rating</div>
+      <div className="w-40 shrink-0 px-4 py-2.5 text-center">Rating</div>
     </div>
   );
 }
@@ -312,7 +312,7 @@ export function DealingRow({
         )}
 
         {/* Rating — Skipped stacks above badge on the right when relevant */}
-        <div className="w-32 shrink-0 px-3 py-4 flex flex-col items-end justify-center gap-1">
+        <div className="w-40 shrink-0 px-4 py-4 flex flex-col items-end justify-center gap-1">
           {showSkippedNearDisclosure && (
             <span className="text-[10px] font-semibold text-amber-900/85 dark:text-amber-200/75 leading-none">
               Skipped
