@@ -401,7 +401,7 @@ export default function DashboardPage() {
 
           {/* ── Desktop skipped cluster (md+) ── */}
           <div className="hidden md:flex items-stretch">
-            <div className="w-36 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
+            <div className="w-40 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
               <div className="flex items-baseline gap-1.5">
                 <span className="text-sm text-foreground/50 font-medium">{weekday}</span>
                 <span className="text-base font-medium leading-tight">{ordinal(day)},</span>
