@@ -310,33 +310,8 @@ export default function DefaultLayout({
       </main>
       <footer className="w-full border-t border-separator bg-surface/60">
         <div className="container mx-auto max-w-7xl px-4 md:px-6 py-5 text-[10px] leading-4 text-foreground/40">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center mb-4">
             <img src="/logo.svg" alt="ddbx" className="h-5 max-w-[56px] opacity-30 dark:invert" />
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
-              <a
-                href="https://x.com/ddbxuk"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-foreground/40 hover:text-foreground/70 transition-colors"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="w-3.5 h-3.5 fill-current shrink-0">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.736-8.861L1.254 2.25H8.08l4.257 5.625zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-                <span>For live updates, follow us on X (Twitter)</span>
-              </a>
-              <a
-                href="https://apps.apple.com/us/app/ddbx-uk/id6762196330?itscg=30200&itsct=apps_box_badge&mttnsubad=6762196330"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: "inline-block" }}
-              >
-                <img
-                  src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1776643200"
-                  alt="Download on the App Store"
-                  style={{ width: "246px", height: "82px", verticalAlign: "middle", objectFit: "contain" }}
-                />
-              </a>
-            </div>
           </div>
           <p>
             Disclaimer: The information, ratings, signals, commentary, and any
@@ -372,17 +347,45 @@ export default function DefaultLayout({
             such offer or solicitation would be unlawful. Investing involves
             risk, including the possible loss of capital.
           </p>
-          {/* Legal links */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4 pt-3 border-t border-separator/50">
-            {LEGAL_LINKS.map(({ label, page, path }) => (
-              <button
-                key={page}
-                className="text-foreground/40 hover:text-foreground/70 transition-colors underline underline-offset-2 text-left"
-                onClick={() => openLegal(path)}
+          {/* Legal links + social/app links */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 pt-3 border-t border-separator/50">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+              {LEGAL_LINKS.map(({ label, page, path }) => (
+                <button
+                  key={page}
+                  className="text-foreground/40 hover:text-foreground/70 transition-colors underline underline-offset-2 text-left"
+                  onClick={() => openLegal(path)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://x.com/ddbxuk"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Follow on X (Twitter)"
+                className="flex items-center gap-1.5 text-foreground/40 hover:text-foreground/70 transition-colors"
               >
-                {label}
-              </button>
-            ))}
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="w-3.5 h-3.5 fill-current shrink-0">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.736-8.861L1.254 2.25H8.08l4.257 5.625zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </a>
+              <a
+                href="https://apps.apple.com/us/app/ddbx-uk/id6762196330?itscg=30200&itsct=apps_box_badge&mttnsubad=6762196330"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Download on the App Store"
+                className="inline-block opacity-70 hover:opacity-100 transition-opacity"
+              >
+                <img
+                  src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1776643200"
+                  alt="Download on the App Store"
+                  style={{ width: "85px", height: "28px", verticalAlign: "middle", objectFit: "contain" }}
+                />
+              </a>
+            </div>
           </div>
         </div>
       </footer>
