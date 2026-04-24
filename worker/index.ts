@@ -301,7 +301,8 @@ app.post("/__cron/run", async (c) => {
 app.post("/__cron/daily", async (c) => {
   const date = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
   const session = (c.req.query("session") ?? "afternoon") as Session;
-  const result = await runDailySummary(c.env, date, session);
+  const skipPush = c.req.query("skip_push") === "1";
+  const result = await runDailySummary(c.env, date, session, { skipPush });
   return c.json(result);
 });
 
@@ -370,7 +371,12 @@ app.get("/", (c) =>
   c.text("director-dealings worker. See /api/dealings.")
 );
 
-async function runDailySummary(env: Env, date: string, session: Session) {
+async function runDailySummary(
+  env: Env,
+  date: string,
+  session: Session,
+  opts: { skipPush?: boolean } = {},
+) {
   // Round-up uses disclosure date, not trade date: directors have up to
   // 4 business days to disclose, so `trade_date = today` is empty most days.
   const rows = await env.DB.prepare(
@@ -391,7 +397,9 @@ async function runDailySummary(env: Env, date: string, session: Session) {
   // Tweet and push are independent — a failure in one must not kill the other.
   const [tweetSettled, pushSettled] = await Promise.allSettled([
     postDailySummary(env, { date, session, dealings }),
-    sendDigestPush(env, { date, session, dealings }),
+    opts.skipPush
+      ? Promise.resolve({ sent: 0, failed: 0, skipped: true as const })
+      : sendDigestPush(env, { date, session, dealings }),
   ]);
 
   const tweetResult = tweetSettled.status === "fulfilled"
