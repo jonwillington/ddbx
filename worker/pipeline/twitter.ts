@@ -1,50 +1,12 @@
-import { createHmac } from "node:crypto";
 import type { Analysis } from "../db/types";
 
 const TWEET_URL = "https://api.twitter.com/2/tweets";
 const SITE_BASE = "https://ddbx.uk";
 
-const CONSUMER_KEY = "bI31l4PekDtBzienvj8SyFIcq";
-const CONSUMER_SECRET = "geoTQVisldxJ0UfeeRC1kbO4p95j8KYBJvPC9fbjliWj1zXmRy";
-const ACCESS_TOKEN = "2041534853150048256-pjxrHQmuRXMTY9iFGEZhiaVtKuf9gV";
-const ACCESS_TOKEN_SECRET = "hIuTbMi5lBxLhWAxlEb1SSnC8tjcEwQOSAsAAhZAy8tlC";
-
-function pct(s: string): string {
-  return encodeURIComponent(s).replace(/[!'()*]/g, (c) =>
-    "%" + c.charCodeAt(0).toString(16).toUpperCase(),
-  );
-}
-
-function oauthHeader(method: string, url: string): string {
-  const ts = Math.floor(Date.now() / 1000).toString();
-  const nonce = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-
-  const params: Record<string, string> = {
-    oauth_consumer_key: CONSUMER_KEY,
-    oauth_nonce: nonce,
-    oauth_signature_method: "HMAC-SHA1",
-    oauth_timestamp: ts,
-    oauth_token: ACCESS_TOKEN,
-    oauth_version: "1.0",
-  };
-
-  const paramStr = Object.entries(params)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${pct(k)}=${pct(v)}`)
-    .join("&");
-
-  const base = `${method.toUpperCase()}&${pct(url)}&${pct(paramStr)}`;
-  const signingKey = `${pct(CONSUMER_SECRET)}&${pct(ACCESS_TOKEN_SECRET)}`;
-
-  const signature = createHmac("sha1", signingKey).update(base).digest("base64");
-
-  const all = { ...params, oauth_signature: signature };
-  const parts = Object.entries(all)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}="${pct(v)}"`)
-    .join(", ");
-
-  return `OAuth ${parts}`;
+// X OAuth 2.0 User Context Bearer token with `tweet.write` scope.
+// Tokens expire after 2h; refresh logic lives in twitter-auth.ts (added next step).
+export interface TwitterCreds {
+  TWITTER_OAUTH2_ACCESS_TOKEN: string;
 }
 
 const RATING_EMOJI: Record<string, string> = {
@@ -89,27 +51,24 @@ function buildTweet(p: {
   ].join("\n");
 }
 
-export async function postTweet(p: {
+export async function postTweet(env: TwitterCreds, p: {
   id: string;
   ticker: string;
   company: string;
   analysis: Analysis;
 }): Promise<void> {
   const text = buildTweet(p);
-  await sendTweet(text);
+  await sendTweet(env, text);
 }
 
-async function sendTweet(text: string): Promise<void> {
-  const body = JSON.stringify({ text });
-  const auth = oauthHeader("POST", TWEET_URL);
-
+export async function sendTweet(creds: TwitterCreds, text: string): Promise<void> {
   const res = await fetch(TWEET_URL, {
     method: "POST",
     headers: {
-      Authorization: auth,
+      Authorization: `Bearer ${creds.TWITTER_OAUTH2_ACCESS_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body,
+    body: JSON.stringify({ text }),
   });
 
   if (!res.ok) {
@@ -216,13 +175,13 @@ export function buildDailySummaryTweet(p: {
   return lines.join("\n");
 }
 
-export async function postDailySummary(p: {
+export async function postDailySummary(env: TwitterCreds, p: {
   date: string;
   session: Session;
   dealings: DailySummaryDealing[];
 }): Promise<{ posted: boolean; text: string | null }> {
   const text = buildDailySummaryTweet(p);
   if (!text) return { posted: false, text: null };
-  await sendTweet(text);
+  await sendTweet(env, text);
   return { posted: true, text };
 }

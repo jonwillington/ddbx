@@ -86,7 +86,7 @@ export async function runPipeline(env: Env): Promise<PipelineResult> {
             result.analyzed++;
             analysis = analyzed.analysis;
             if (["significant", "noteworthy"].includes(analyzed.analysis.rating)) {
-              await postTweet({ ...basePushPayload, analysis: analyzed.analysis })
+              await postTweet(env, { ...basePushPayload, analysis: analyzed.analysis })
                 .catch((err: Error) => errors.push(`twitter ${d.id}: ${err.message}`));
             }
           } catch (err) {

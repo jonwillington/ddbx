@@ -14,7 +14,7 @@ import {
   refreshUkNews,
   ukNewsIsStale,
 } from "./pipeline/uk-news";
-import { postDailySummary, type DailySummaryDealing, type Session } from "./pipeline/twitter";
+import { postDailySummary, sendTweet, type DailySummaryDealing, type Session } from "./pipeline/twitter";
 import { sendDigestPush } from "./pipeline/apns";
 import { FIXTURES } from "./fixtures";
 
@@ -27,6 +27,8 @@ export interface Env {
   APNS_TEAM_ID: string;
   APNS_PRIVATE_KEY: string;
   APNS_BUNDLE_ID?: string; // defaults to "uk.ddbx.app"
+  // X OAuth 2.0 User Context Bearer token (set via `wrangler secret put`)
+  TWITTER_OAUTH2_ACCESS_TOKEN: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -303,6 +305,20 @@ app.post("/__cron/daily", async (c) => {
   return c.json(result);
 });
 
+// Tweet-only smoke test — verifies OAuth credentials without sending pushes.
+// POST /__test-tweet?text=Hello+world  (text is optional; defaults to timestamp)
+app.post("/__test-tweet", async (c) => {
+  const text =
+    c.req.query("text") ??
+    `DDBX pipeline check · ${new Date().toISOString()}`;
+  try {
+    await sendTweet(c.env, text);
+  } catch (err) {
+    return c.json({ ok: false, error: (err as Error).message }, 500);
+  }
+  return c.json({ ok: true, text });
+});
+
 // Re-run Opus analysis on all dealings that already have an analysis row,
 // using the current prompt. Safe to re-run — insertAnalysis does INSERT OR REPLACE.
 // Optional ?limit=N caps how many are processed in one call (default 50).
@@ -355,11 +371,13 @@ app.get("/", (c) =>
 );
 
 async function runDailySummary(env: Env, date: string, session: Session) {
+  // Round-up uses disclosure date, not trade date: directors have up to
+  // 4 business days to disclose, so `trade_date = today` is empty most days.
   const rows = await env.DB.prepare(
     `SELECT d.ticker, d.value_gbp, a.rating
        FROM dealings d
        LEFT JOIN analyses a ON a.dealing_id = d.id
-      WHERE d.trade_date = ?1`,
+      WHERE d.disclosed_date = ?1`,
   )
     .bind(date)
     .all<{ ticker: string; value_gbp: number; rating: string | null }>();
@@ -370,14 +388,22 @@ async function runDailySummary(env: Env, date: string, session: Session) {
     rating: r.rating,
   }));
 
-  const [tweetResult, pushResult] = await Promise.all([
-    postDailySummary({ date, session, dealings }),
-    sendDigestPush(env, { date, session, dealings })
-      .catch((err: Error) => {
-        console.error(`[cron] digest push error: ${err.message}`);
-        return { sent: 0, failed: 0 };
-      }),
+  // Tweet and push are independent — a failure in one must not kill the other.
+  const [tweetSettled, pushSettled] = await Promise.allSettled([
+    postDailySummary(env, { date, session, dealings }),
+    sendDigestPush(env, { date, session, dealings }),
   ]);
+
+  const tweetResult = tweetSettled.status === "fulfilled"
+    ? tweetSettled.value
+    : (console.error(`[cron] tweet error: ${tweetSettled.reason?.message ?? tweetSettled.reason}`),
+       { posted: false, text: null });
+
+  const pushResult = pushSettled.status === "fulfilled"
+    ? pushSettled.value
+    : (console.error(`[cron] digest push error: ${pushSettled.reason?.message ?? pushSettled.reason}`),
+       { sent: 0, failed: 0 });
+
   return { date, session, total: dealings.length, ...tweetResult, push: pushResult };
 }
 
