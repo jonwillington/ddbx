@@ -67,6 +67,14 @@ CREATE TABLE IF NOT EXISTS prices (
   PRIMARY KEY (ticker, date)
 );
 
+-- Daily GBP-per-USD FX rates (source: Frankfurter / ECB). Used to convert
+-- USD-denominated benchmark price bars (S&P 500, MSCI World) into GBP for
+-- like-for-like comparison against UK strategy curves.
+CREATE TABLE IF NOT EXISTS fx_rates (
+  date         TEXT PRIMARY KEY,
+  gbp_per_usd  REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS performance (
   dealing_id   TEXT NOT NULL REFERENCES dealings(id),
   horizon_days INTEGER NOT NULL,       -- 90 / 180 / 365 / 730

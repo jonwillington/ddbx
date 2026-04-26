@@ -14,7 +14,9 @@ const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
+
   if (!res.ok) throw new Error(`${path} ${res.status}`);
+
   return (await res.json()) as T;
 }
 
@@ -28,19 +30,31 @@ export const api = {
     get<Portfolio>(fy != null ? `/portfolio?fy=${fy}` : `/portfolio`),
   director: (id: string) => get<DirectorDetail>(`/directors/${id}`),
   latestPrices: (tickers: string[]) =>
-    get<{ prices: LatestPrice[] }>(`/prices/latest?tickers=${tickers.join(",")}`)
-      .then((r) => r.prices),
+    get<{ prices: LatestPrice[] }>(
+      `/prices/latest?tickers=${tickers.join(",")}`,
+    ).then((r) => r.prices),
   priceOn: (ticker: string, date: string) =>
-    get<{ price: number | null }>(`/prices/on?ticker=${encodeURIComponent(ticker)}&date=${date}`)
-      .then((r) => r.price),
+    get<{ price: number | null }>(
+      `/prices/on?ticker=${encodeURIComponent(ticker)}&date=${date}`,
+    ).then((r) => r.price),
   priceHistory: (ticker: string, days = 90) =>
     get<{ bars: { date: string; close_pence: number }[] }>(
       `/prices/history?ticker=${encodeURIComponent(ticker)}&days=${days}`,
     ).then((r) => r.bars),
+  gbpPerUsdHistory: (days = 730) =>
+    get<{ rates: { date: string; gbp_per_usd: number }[] }>(
+      `/fx/gbp-per-usd?days=${days}`,
+    ).then((r) => r.rates),
   ukNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/uk"),
-  version: () =>
-    get<{ latest: string | null; total: number }>("/version"),
+  version: () => get<{ latest: string | null; total: number }>("/version"),
 };
 
-export type { Dealing, DirectorDetail, LatestPrice, Portfolio, Rating, UkNewsItem };
+export type {
+  Dealing,
+  DirectorDetail,
+  LatestPrice,
+  Portfolio,
+  Rating,
+  UkNewsItem,
+};

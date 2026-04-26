@@ -9,12 +9,14 @@ import { getDealings, getDealingById } from "./db/queries";
 import { getPortfolio } from "./db/portfolio";
 import { getDirector } from "./db/directors";
 import { fetchDailyBars, cacheBars } from "./pipeline/prices";
+import { fetchFrankfurterRates, cacheFxRates } from "./pipeline/fx";
+import { getUkNews, refreshUkNews, ukNewsIsStale } from "./pipeline/uk-news";
 import {
-  getUkNews,
-  refreshUkNews,
-  ukNewsIsStale,
-} from "./pipeline/uk-news";
-import { postDailySummary, sendTweet, type DailySummaryDealing, type Session } from "./pipeline/twitter";
+  postDailySummary,
+  sendTweet,
+  type DailySummaryDealing,
+  type Session,
+} from "./pipeline/twitter";
 import { sendDigestPush } from "./pipeline/apns";
 import { FIXTURES } from "./fixtures";
 
@@ -39,15 +41,19 @@ app.get("/api/version", async (c) => {
   const row = await c.env.DB.prepare(
     `SELECT MAX(created_at) AS latest, COUNT(*) AS total FROM dealings`,
   ).first<{ latest: string | null; total: number }>();
+
   c.header("Cache-Control", "public, max-age=15");
+
   return c.json({ latest: row?.latest ?? null, total: row?.total ?? 0 });
 });
 
 app.get("/api/dealings", async (c) => {
   const rating = c.req.query("rating");
+
   // Until D1 is wired up, fall back to fixtures so the frontend renders.
   try {
     const rows = await getDealings(c.env.DB, { rating });
+
     return c.json({ dealings: rows });
   } catch {
     /* fall through to fixtures if DB unavailable */
@@ -55,46 +61,58 @@ app.get("/api/dealings", async (c) => {
   const filtered = rating
     ? FIXTURES.dealings.filter((d) => d.analysis?.rating === rating)
     : FIXTURES.dealings;
+
   return c.json({ dealings: filtered });
 });
 
 app.get("/api/dealings/:id", async (c) => {
   const id = c.req.param("id");
+
   try {
     const row = await getDealingById(c.env.DB, id);
+
     if (row) return c.json(row);
   } catch {
     /* fall through to fixture */
   }
   const row = FIXTURES.dealings.find((d) => d.id === id);
+
   if (!row) return c.json({ error: "not found" }, 404);
+
   return c.json(row);
 });
 
 app.get("/api/portfolio", async (c) => {
   const fyParam = c.req.query("fy");
   const fy = fyParam ? Number(fyParam) : undefined;
+
   try {
     const p = await getPortfolio(c.env.DB, {
       fy: Number.isFinite(fy) ? fy : undefined,
     });
+
     if (p) return c.json(p);
   } catch {
     /* fall through */
   }
+
   return c.json(FIXTURES.portfolio);
 });
 
 app.get("/api/directors/:id", async (c) => {
   const id = c.req.param("id");
+
   try {
     const d = await getDirector(c.env.DB, id);
+
     if (d) return c.json(d);
   } catch {
     /* fall through */
   }
   const d = FIXTURES.directors.find((x) => x.id === id);
+
   if (!d) return c.json({ error: "not found" }, 404);
+
   return c.json(d);
 });
 
@@ -103,6 +121,7 @@ app.get("/api/directors/:id", async (c) => {
 app.get("/api/prices/history", async (c) => {
   const ticker = c.req.query("ticker");
   const days = Math.max(14, Math.min(365, Number(c.req.query("days") ?? 90)));
+
   if (!ticker) return c.json({ bars: [] });
 
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000)
@@ -124,7 +143,9 @@ app.get("/api/prices/history", async (c) => {
     const now = Math.floor(Date.now() / 1000);
     const from = now - days * 24 * 3600;
     const bars = await fetchDailyBars(ticker, from, now);
+
     await cacheBars(c.env, ticker, bars);
+
     return c.json({ bars });
   } catch {
     return c.json({ bars: [] });
@@ -136,6 +157,7 @@ app.get("/api/prices/history", async (c) => {
 app.get("/api/prices/on", async (c) => {
   const ticker = c.req.query("ticker");
   const date = c.req.query("date");
+
   if (!ticker || !date) return c.json({ price: null });
   try {
     const row = await c.env.DB.prepare(
@@ -143,6 +165,7 @@ app.get("/api/prices/on", async (c) => {
     )
       .bind(ticker, date)
       .first<{ close_pence: number }>();
+
     return c.json({ price: row?.close_pence ?? null });
   } catch {
     return c.json({ price: null });
@@ -153,7 +176,11 @@ app.get("/api/prices/on", async (c) => {
 // from Yahoo Finance (7-day window) for any with no cached price in the last 7 days.
 app.get("/api/prices/latest", async (c) => {
   const raw = c.req.query("tickers") ?? "";
-  const tickers = raw.split(",").map((t) => t.trim()).filter(Boolean);
+  const tickers = raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
   if (tickers.length === 0) return c.json({ prices: [] });
 
   const cutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000)
@@ -162,7 +189,9 @@ app.get("/api/prices/latest", async (c) => {
 
   // SQLite limits numbered placeholders to 100, so chunk lookups.
   const CHUNK = 90;
-  const cachedRows: { ticker: string; close_pence: number; date: string }[] = [];
+  const cachedRows: { ticker: string; close_pence: number; date: string }[] =
+    [];
+
   for (let i = 0; i < tickers.length; i += CHUNK) {
     const chunk = tickers.slice(i, i + CHUNK);
     const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
@@ -175,16 +204,22 @@ app.get("/api/prices/latest", async (c) => {
     )
       .bind(...chunk, cutoff)
       .all<{ ticker: string; close_pence: number; date: string }>();
+
     cachedRows.push(...res.results);
   }
 
   // Keep only the most recent row per ticker from the cache.
   const seen = new Set<string>();
   const results: { ticker: string; price_pence: number; date: string }[] = [];
+
   for (const r of cachedRows) {
     if (!seen.has(r.ticker)) {
       seen.add(r.ticker);
-      results.push({ ticker: r.ticker, price_pence: r.close_pence, date: r.date });
+      results.push({
+        ticker: r.ticker,
+        price_pence: r.close_pence,
+        date: r.date,
+      });
     }
   }
 
@@ -192,14 +227,21 @@ app.get("/api/prices/latest", async (c) => {
   const missing = tickers.filter((t) => !seen.has(t));
   const now = Math.floor(Date.now() / 1000);
   const weekAgo = now - 7 * 24 * 3600;
+
   await Promise.allSettled(
     missing.map(async (ticker) => {
       try {
         const bars = await fetchDailyBars(ticker, weekAgo, now);
+
         if (bars.length === 0) return;
         await cacheBars(c.env, ticker, bars);
         const latest = bars[bars.length - 1];
-        results.push({ ticker, price_pence: latest.close_pence, date: latest.date });
+
+        results.push({
+          ticker,
+          price_pence: latest.close_pence,
+          date: latest.date,
+        });
       } catch {
         // Skip tickers Yahoo Finance can't resolve — non-fatal.
       }
@@ -207,6 +249,41 @@ app.get("/api/prices/latest", async (c) => {
   );
 
   return c.json({ prices: results });
+});
+
+// Daily GBP-per-USD FX rates over the last N days (default 730).
+// Cache-first against fx_rates; on miss we backfill from Frankfurter.
+app.get("/api/fx/gbp-per-usd", async (c) => {
+  const days = Math.max(
+    14,
+    Math.min(2_000, Number(c.req.query("days") ?? 730)),
+  );
+  const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const cached = await c.env.DB.prepare(
+      `SELECT date, gbp_per_usd FROM fx_rates WHERE date >= ?1 ORDER BY date ASC`,
+    )
+      .bind(cutoff)
+      .all<{ date: string; gbp_per_usd: number }>();
+
+    // Frankfurter publishes weekday rates only; ~70% coverage of calendar days
+    // is what a healthy cache looks like.
+    if (cached.results.length >= Math.floor(days * 0.5)) {
+      return c.json({ rates: cached.results });
+    }
+
+    const rows = await fetchFrankfurterRates(cutoff, today);
+
+    await cacheFxRates(c.env, rows);
+
+    return c.json({ rates: rows });
+  } catch {
+    return c.json({ rates: [] });
+  }
 });
 
 // UK-focused business headlines (BBC, Guardian, City AM, This is Money RSS).
@@ -221,6 +298,7 @@ app.get("/api/news/uk", async (c) => {
       }
     }
     const data = await getUkNews(c.env);
+
     return c.json(data);
   } catch {
     return c.json({ items: [], fetched_at: null });
@@ -244,9 +322,10 @@ app.post("/api/devices", async (c) => {
 
   const env = body.environment === "production" ? "production" : "sandbox";
   const tz = body.timezone ?? "Europe/London";
-  const notifyLevel = body.notify_level === "none" || body.notify_level === "all"
-    ? body.notify_level
-    : "noteworthy";
+  const notifyLevel =
+    body.notify_level === "none" || body.notify_level === "all"
+      ? body.notify_level
+      : "noteworthy";
   const digestEnabled = body.digest_enabled === false ? 0 : 1;
 
   await c.env.DB.prepare(
@@ -268,11 +347,10 @@ app.post("/api/devices", async (c) => {
 
 app.delete("/api/devices", async (c) => {
   const body = await c.req.json<{ token: string }>();
+
   if (!body.token) return c.json({ error: "token is required" }, 400);
 
-  await c.env.DB.prepare(
-    `UPDATE device_tokens SET active = 0 WHERE token = ?1`,
-  )
+  await c.env.DB.prepare(`UPDATE device_tokens SET active = 0 WHERE token = ?1`)
     .bind(body.token)
     .run();
 
@@ -283,6 +361,7 @@ app.delete("/api/devices", async (c) => {
 app.post("/__cron/refresh-news", async (c) => {
   try {
     const r = await refreshUkNews(c.env);
+
     return c.json(r);
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);
@@ -292,6 +371,7 @@ app.post("/__cron/refresh-news", async (c) => {
 // Manual pipeline trigger (useful for local dev + ad-hoc re-runs).
 app.post("/__cron/run", async (c) => {
   const result = await runPipeline(c.env);
+
   return c.json(result);
 });
 
@@ -303,6 +383,7 @@ app.post("/__cron/daily", async (c) => {
   const session = (c.req.query("session") ?? "afternoon") as Session;
   const skipPush = c.req.query("skip_push") === "1";
   const result = await runDailySummary(c.env, date, session, { skipPush });
+
   return c.json(result);
 });
 
@@ -310,13 +391,14 @@ app.post("/__cron/daily", async (c) => {
 // POST /__test-tweet?text=Hello+world  (text is optional; defaults to timestamp)
 app.post("/__test-tweet", async (c) => {
   const text =
-    c.req.query("text") ??
-    `DDBX pipeline check · ${new Date().toISOString()}`;
+    c.req.query("text") ?? `DDBX pipeline check · ${new Date().toISOString()}`;
+
   try {
     await sendTweet(c.env, text);
   } catch (err) {
     return c.json({ ok: false, error: (err as Error).message }, 500);
   }
+
   return c.json({ ok: true, text });
 });
 
@@ -338,6 +420,7 @@ app.post("/__reanalyze", async (c) => {
   for (const d of toReanalyze) {
     try {
       const result = await analyzeDealing(c.env, d);
+
       await insertAnalysis(c.env, d.id, result.analysis, result.usage);
       updated++;
     } catch (err) {
@@ -355,21 +438,24 @@ app.post("/__backfill", async (c) => {
   const days = Math.max(1, Math.min(365, Number(c.req.query("days") ?? 30)));
   const start = Math.max(0, Number(c.req.query("start") ?? 0));
   const result = await backfillDays(c.env, days, start);
+
   return c.json(result);
 });
-
 
 app.post("/__fix-price", async (c) => {
   const id = c.req.query("id");
   const pence = Number(c.req.query("price_pence"));
-  if (!id || !pence || isNaN(pence)) return c.json({ error: "id and price_pence required" }, 400);
-  await c.env.DB.prepare("UPDATE dealings SET price_pence = ?1 WHERE id = ?2").bind(pence, id).run();
+
+  if (!id || !pence || isNaN(pence))
+    return c.json({ error: "id and price_pence required" }, 400);
+  await c.env.DB.prepare("UPDATE dealings SET price_pence = ?1 WHERE id = ?2")
+    .bind(pence, id)
+    .run();
+
   return c.json({ ok: true, id, price_pence: pence });
 });
 
-app.get("/", (c) =>
-  c.text("director-dealings worker. See /api/dealings.")
-);
+app.get("/", (c) => c.text("director-dealings worker. See /api/dealings."));
 
 async function runDailySummary(
   env: Env,
@@ -402,17 +488,29 @@ async function runDailySummary(
       : sendDigestPush(env, { date, session, dealings }),
   ]);
 
-  const tweetResult = tweetSettled.status === "fulfilled"
-    ? tweetSettled.value
-    : (console.error(`[cron] tweet error: ${tweetSettled.reason?.message ?? tweetSettled.reason}`),
-       { posted: false, text: null });
+  const tweetResult =
+    tweetSettled.status === "fulfilled"
+      ? tweetSettled.value
+      : (console.error(
+          `[cron] tweet error: ${tweetSettled.reason?.message ?? tweetSettled.reason}`,
+        ),
+        { posted: false, text: null });
 
-  const pushResult = pushSettled.status === "fulfilled"
-    ? pushSettled.value
-    : (console.error(`[cron] digest push error: ${pushSettled.reason?.message ?? pushSettled.reason}`),
-       { sent: 0, failed: 0 });
+  const pushResult =
+    pushSettled.status === "fulfilled"
+      ? pushSettled.value
+      : (console.error(
+          `[cron] digest push error: ${pushSettled.reason?.message ?? pushSettled.reason}`,
+        ),
+        { sent: 0, failed: 0 });
 
-  return { date, session, total: dealings.length, ...tweetResult, push: pushResult };
+  return {
+    date,
+    session,
+    total: dealings.length,
+    ...tweetResult,
+    push: pushResult,
+  };
 }
 
 const DAILY_CRONS: Record<string, Session> = {
@@ -426,14 +524,21 @@ export default {
   // single worker can serve both the hourly pipeline and the daily tweets.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const session = DAILY_CRONS[event.cron];
+
     if (session) {
       const date = new Date().toISOString().slice(0, 10);
-      console.log(`[cron] tweet cron fired: ${event.cron} → ${session} ${date}`);
+
+      console.log(
+        `[cron] tweet cron fired: ${event.cron} → ${session} ${date}`,
+      );
       ctx.waitUntil(
         runDailySummary(env, date, session)
           .then((r) => console.log(`[cron] tweet done:`, JSON.stringify(r)))
-          .catch((err) => console.error(`[cron] tweet error:`, (err as Error).message)),
+          .catch((err) =>
+            console.error(`[cron] tweet error:`, (err as Error).message),
+          ),
       );
+
       return;
     }
     console.log(`[cron] pipeline cron fired: ${event.cron}`);
@@ -441,10 +546,14 @@ export default {
       Promise.all([
         runPipeline(env)
           .then((r) => console.log(`[cron] pipeline done:`, JSON.stringify(r)))
-          .catch((err) => console.error(`[cron] pipeline error:`, (err as Error).message)),
+          .catch((err) =>
+            console.error(`[cron] pipeline error:`, (err as Error).message),
+          ),
         refreshUkNews(env)
           .then((r) => console.log(`[cron] uk news done:`, JSON.stringify(r)))
-          .catch((err) => console.error(`[cron] uk news error:`, (err as Error).message)),
+          .catch((err) =>
+            console.error(`[cron] uk news error:`, (err as Error).message),
+          ),
       ]),
     );
   },

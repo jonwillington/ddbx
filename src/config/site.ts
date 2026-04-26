@@ -10,11 +10,11 @@ export const siteConfig = {
     "Opinionated analysis of UK director (PDMR) share purchases, with evidence tables and tracked performance.",
   navItems: [
     { label: "Dashboard", href: "/" },
-    { label: "Portfolio", href: "/portfolio" },
+    { label: "Performance", href: "/portfolio" },
   ],
   navMenuItems: [
     { label: "Dashboard", href: "/" },
-    { label: "Portfolio", href: "/portfolio" },
+    { label: "Performance", href: "/portfolio" },
   ],
   links: {
     source: "https://www.sharecast.com/uk_shares/director_dealings",
