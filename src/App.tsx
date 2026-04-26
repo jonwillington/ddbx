@@ -2,7 +2,7 @@ import { Route, Routes } from "react-router-dom";
 
 import { DocumentTitle } from "@/components/document-title";
 import DashboardPage from "@/pages/dashboard";
-import PortfolioPage from "@/pages/portfolio";
+import PerformancePage from "@/pages/performance";
 import DirectorPage from "@/pages/director";
 
 function App() {
@@ -16,7 +16,8 @@ function App() {
         <Route element={<DashboardPage />} path="/privacy" />
         <Route element={<DashboardPage />} path="/cookies" />
         <Route element={<DashboardPage />} path="/terms" />
-        <Route element={<PortfolioPage />} path="/portfolio" />
+        <Route element={<PerformancePage />} path="/portfolio" />
+        <Route element={<PerformancePage />} path="/performance" />
         <Route element={<DirectorPage />} path="/directors/:id" />
       </Routes>
     </>
