@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import DefaultLayout from "@/layouts/default";
 import { Skeleton } from "@/components/skeleton";
 import { title } from "@/components/primitives";
+import { TodayDrawer } from "@/components/today-drawer";
 import { api, type Dealing } from "@/lib/api";
 import {
   AMOUNTS,
@@ -64,6 +65,11 @@ export default function PerformancePage() {
   const [dealings, setDealings] = useState<Dealing[] | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const isTradingDay = useMemo(() => {
+    const dow = new Date().getDay();
+    return dow >= 1 && dow <= 5;
+  }, []);
+
   useEffect(() => {
     api
       .dealings()
@@ -112,7 +118,7 @@ export default function PerformancePage() {
 
   if (fetchError) {
     return (
-      <DefaultLayout>
+      <DefaultLayout drawerRight={isTradingDay}>
         <section className="py-8">
           <p className="text-sm text-red-500">
             Error loading performance: {fetchError}
@@ -123,9 +129,9 @@ export default function PerformancePage() {
   }
 
   return (
-    <DefaultLayout>
+    <DefaultLayout drawerRight={isTradingDay}>
       <section className="py-8 space-y-6 animate-content-in">
-        <h1 className={`${title({ size: "sm" })} mb-10`}>Performance</h1>
+        <h1 className={`${title({ size: "sm" })} mb-8`}>Performance</h1>
 
         {dealings == null ? (
           <PerformanceSkeleton />
@@ -228,6 +234,8 @@ export default function PerformancePage() {
         open={activeMetric != null}
         onClose={() => setActiveMetric(null)}
       />
+
+      <TodayDrawer />
     </DefaultLayout>
   );
 }

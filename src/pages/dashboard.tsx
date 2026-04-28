@@ -4,16 +4,15 @@ import { useNavigate, useParams } from "react-router-dom";
 import DefaultLayout from "@/layouts/default";
 import { title } from "@/components/primitives";
 import { DealingRow, DealingRowHeader } from "@/components/dealing-row";
-import { RatingBadge } from "@/components/rating-badge";
 import { DealingDetailPanel } from "@/components/dealing-detail-panel";
 import { Skeleton } from "@/components/skeleton";
 import { api, type Dealing, type UkNewsItem } from "@/lib/api";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
-import { compareDealingsNewestFirst, formatDisclosedCompact, formatDisclosedParts } from "@/lib/dealing-dates";
+import { compareDealingsNewestFirst, formatDisclosedParts } from "@/lib/dealing-dates";
 import { useDataVersion } from "@/lib/use-data-version";
 import { useDiscretion } from "@/lib/discretion";
-import { DayMoreInApp } from "@/components/discretion/day-more-in-app";
 import { BlurredDealingRow } from "@/components/discretion/blurred-dealing-row";
+import { TodayDrawer } from "@/components/today-drawer";
 import {
   ChevronDownIcon,
   CalendarDaysIcon,
@@ -30,6 +29,9 @@ type HeroFilter = "all" | "significant" | "noteworthy" | "minor" | "routine";
 
 /** Set true to show the per-month "Noteworthy only" / "Expand all" toolbar again. */
 const SHOW_MONTH_FILTER_BAR = false;
+
+/** Ticker stand-ins shown (blurred) in skipped-cluster headers when discretion mode is on. */
+const PLACEHOLDER_TICKERS = ["GSK", "BARC", "RR", "VOD", "BP", "TSCO", "AZN", "LLOY", "DGE", "REL"];
 
 interface DayBucket {
   weekday: string;       // e.g. "THU"
@@ -167,7 +169,7 @@ export default function DashboardPage() {
   useEffect(() => { loadDealings(); }, [loadDealings]);
 
   // Poll for new data every 30s — refetch when the DB fingerprint changes
-  const lastChecked = useDataVersion(loadDealings, 30_000);
+  useDataVersion(loadDealings, 30_000);
 
   useEffect(() => {
     if (!dealings || dealings.length === 0) return;
@@ -212,16 +214,6 @@ export default function DashboardPage() {
     );
     return [...list].sort(compareDealingsNewestFirst);
   }, [filteredDealings, todayKey]);
-
-  const marketOpen = useMemo(() => {
-    const now = new Date();
-    const dow = now.getDay();
-    if (dow < 1 || dow > 5) return false;
-    const h = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", hour12: false }));
-    const m = parseInt(now.toLocaleString("en-GB", { timeZone: "Europe/London", minute: "2-digit" }));
-    const mins = h * 60 + m;
-    return mins >= 480 && mins < 990;
-  }, []);
 
   const grouped = useMemo((): MonthBucket[] => {
     if (!filteredDealings) return [];
@@ -400,11 +392,19 @@ export default function DashboardPage() {
               <ChevronDownIcon className={`w-4 h-4 text-muted shrink-0 ml-auto transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              {allTickers.slice(0, 4).map((t, i) => (
-                <span key={i} className="font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted">
-                  {t}
-                </span>
-              ))}
+              {allTickers.slice(0, 4).map((t, i) => {
+                const blurred = discretion.enabled && i >= unblurredCount;
+                return (
+                  <span
+                    key={i}
+                    aria-hidden={blurred || undefined}
+                    className={`font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted ${blurred ? "select-none" : ""}`}
+                    style={blurred ? { filter: "blur(4px)" } : undefined}
+                  >
+                    {blurred ? PLACEHOLDER_TICKERS[i % PLACEHOLDER_TICKERS.length] : t}
+                  </span>
+                );
+              })}
               {allTickers.length > 4 && (
                 <span className="text-xs text-muted/70">+{allTickers.length - 4} more</span>
               )}
@@ -423,11 +423,19 @@ export default function DashboardPage() {
             <div className="flex-1 min-w-0 px-4 py-4 flex items-center">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {allTickers.slice(0, 5).map((t, i) => (
-                    <span key={i} className="font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted">
-                      {t}
-                    </span>
-                  ))}
+                  {allTickers.slice(0, 5).map((t, i) => {
+                    const blurred = discretion.enabled && i >= unblurredCount;
+                    return (
+                      <span
+                        key={i}
+                        aria-hidden={blurred || undefined}
+                        className={`font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted ${blurred ? "select-none" : ""}`}
+                        style={blurred ? { filter: "blur(4px)" } : undefined}
+                      >
+                        {blurred ? PLACEHOLDER_TICKERS[i % PLACEHOLDER_TICKERS.length] : t}
+                      </span>
+                    );
+                  })}
                   {allTickers.length > 5 && (
                     <span className="text-xs text-muted/70">+{allTickers.length - 5} more</span>
                   )}
@@ -1129,166 +1137,7 @@ export default function DashboardPage() {
           </div>
       </section>
 
-      {/* Today drawer — fixed full-height panel on right edge (desktop only) */}
-      {isTradingDay && (
-        <aside className="hidden lg:flex fixed top-0 right-0 bottom-0 w-80 flex-col border-l border-[#e8e0d5] dark:border-separator bg-[#faf7f2] dark:bg-surface z-20">
-          {/* Header — matches navbar h-16 */}
-          <div className="h-16 px-5 flex items-center border-b border-[#e8e0d5] dark:border-separator shrink-0">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <span className="text-sm font-semibold">Today</span>
-              {todayDeals.length > 0 && (
-                <span className="text-[10px] text-muted truncate">
-                  {todayDeals.filter(isSuggestedDealing).length} analysed · {todayDeals.filter((d) => !isSuggestedDealing(d)).length} skipped
-                </span>
-              )}
-              <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                <span className="relative inline-flex items-center justify-center w-4 h-4">
-                  <span className="absolute inset-0 rounded-full" style={{ background: marketOpen ? "oklch(45% 0.14 155 / 0.15)" : "oklch(45% 0.14 18 / 0.15)" }} />
-                  <span className="relative w-1.5 h-1.5 rounded-full" style={{ background: marketOpen ? "oklch(45% 0.14 155)" : "oklch(45% 0.14 18 / 0.6)" }} />
-                </span>
-                <span className="text-xs text-muted">{marketOpen ? "Open" : "Closed"}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Top half — Today's deals */}
-          <div className="flex-1 min-h-0 flex flex-col border-b border-[#e8e0d5] dark:border-separator">
-            <div className="px-4 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted shrink-0">
-              Today's deals
-            </div>
-            <div className="relative flex-1 min-h-0">
-              <div className="absolute inset-x-0 top-0 h-4 pointer-events-none z-[1] bg-gradient-to-b from-[#faf7f2] dark:from-surface to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 h-4 pointer-events-none z-[1] bg-gradient-to-t from-[#faf7f2] dark:from-surface to-transparent" />
-              <div className="h-full overflow-y-auto overscroll-contain">
-                {todayDeals.length > 0 && (
-                  <div className="divide-y divide-black/[0.06] dark:divide-separator">
-                    {(discretion.enabled
-                      ? todayDeals.slice(0, discretion.listCap)
-                      : todayDeals
-                    ).map((d) => {
-                      const a = d.analysis;
-                      const t = d.triage;
-                      const tickerLabel = d.ticker.replace(/\.L$/, "");
-                      const companyLabel = d.company.replace(/\s*\([^)]*\)\s*$/, "");
-                      const suggested = isSuggestedDealing(d);
-                      const displayIso = d.disclosed_date || d.trade_date;
-                      const triageLabel =
-                        t?.verdict === "skip"
-                          ? "Skipped"
-                          : t?.verdict === "maybe"
-                            ? "Maybe"
-                            : t?.verdict === "promising"
-                              ? "Promising"
-                              : "—";
-                      const showSkippedRail =
-                        !suggested && !(t?.verdict === "skip" && !a);
-                      return (
-                        <button
-                          key={d.id}
-                          className={`w-full text-left px-4 py-3.5 transition-colors ${
-                            selected?.id === d.id
-                              ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]"
-                              : "hover:bg-black/[0.03] dark:hover:bg-white/5"
-                          } ${!a ? "opacity-60" : ""}`}
-                          onClick={() => selectDealing(d)}
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary shrink-0">
-                                  {tickerLabel}
-                                </span>
-                                <span className="text-sm font-medium truncate">{companyLabel}</span>
-                              </div>
-                              <div className="text-xs text-muted truncate">{d.director.name}</div>
-                              <div className="text-[10px] text-muted/90 tabular-nums mt-1">
-                                {formatDisclosedCompact(displayIso)}
-                              </div>
-                            </div>
-                            <div className="shrink-0 flex flex-col items-end gap-1 text-right">
-                              <span className="text-sm font-medium tabular-nums leading-tight">
-                                {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(d.value_gbp)}
-                              </span>
-                              {suggested && a && (
-                                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                                  a.rating === "significant" ? "bg-[#8b4513]/18 text-[#6b2f0a] border-[#8b4513]/40 dark:bg-[#d4845a]/15 dark:text-[#e8a878] dark:border-[#d4845a]/35" :
-                                  a.rating === "noteworthy"  ? "bg-[#6b5038]/14 text-[#4a3520] border-[#6b5038]/35 dark:bg-[#b8956e]/12 dark:text-[#c4a882] dark:border-[#b8956e]/30" :
-                                  a.rating === "minor"       ? "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40" :
-                                                               "bg-transparent text-[#b0a898] border-[#d8d0c6]/60"
-                                }`}>
-                                  {a.rating.charAt(0).toUpperCase() + a.rating.slice(1)}
-                                </span>
-                              )}
-                              {!suggested && (
-                                <>
-                                  {showSkippedRail && (
-                                    <span className="text-[10px] font-semibold text-amber-900/85 dark:text-amber-200/75 leading-none">
-                                      Skipped
-                                    </span>
-                                  )}
-                                  {a ? (
-                                    <RatingBadge rating={a.rating} className="!w-auto min-w-0 scale-[0.85] origin-right" />
-                                  ) : (
-                                    <span className="inline-flex items-center rounded-md border border-[#d0c8be]/50 bg-[#d0c8be]/10 px-2 py-0.5 text-[10px] font-semibold text-[#7a7068]">
-                                      {triageLabel}
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                    {discretion.enabled && (
-                      <DayMoreInApp
-                        variant="compact"
-                        count={Math.max(0, todayDeals.length - discretion.listCap)}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* Monitoring indicator */}
-                <div className="py-4">
-                  <div className="text-center px-3">
-                    {marketOpen ? (
-                      <>
-                        <div className="flex items-center justify-center gap-2 text-xs text-muted/60">
-                          <span className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#b0a898] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
-                          </span>
-                          Monitoring for new disclosures
-                        </div>
-                        {lastChecked && (
-                          <div className="text-[10px] text-muted/40 mt-1">
-                            Last checked {lastChecked.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-xs text-muted/50">Markets are closed</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom half — UK market news */}
-          <div className="flex-1 min-h-0 flex flex-col">
-            <div className="relative flex-1 min-h-0">
-              <div className="absolute inset-x-0 top-0 h-4 pointer-events-none z-[1] bg-gradient-to-b from-[#faf7f2] dark:from-surface to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 h-4 pointer-events-none z-[1] bg-gradient-to-t from-[#faf7f2] dark:from-surface to-transparent" />
-              <div className="h-full overflow-y-auto overscroll-contain">
-                {ukTodayNewsStrip}
-              </div>
-            </div>
-          </div>
-        </aside>
-      )}
+      <TodayDrawer />
 
       <DealingDetailPanel
         dealing={selected}
