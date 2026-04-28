@@ -69,13 +69,11 @@ function tint(value: number, vs: number, hasData: boolean): Tint {
 function tintClass(t: Tint): string {
   switch (t) {
     case "pos":
-      return "text-green-500";
-    case "neg":
-      return "text-red-500";
     case "pos-muted":
-      return "text-green-500";
+      return "text-[#1e6b18] dark:text-[#5cd84a]";
+    case "neg":
     case "neg-muted":
-      return "text-red-500";
+      return "text-[#8b2020] dark:text-[#e84d4d]";
     default:
       return "";
   }
@@ -131,7 +129,7 @@ export function HeroCard(props: Props) {
         <div className="text-xs text-muted">As of {props.scrubDate}</div>
       )}
 
-      <div className="space-y-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
         <CriteriaCard
           hint={
             hasData
@@ -142,30 +140,26 @@ export function HeroCard(props: Props) {
           value={UNIVERSES[config.universe].displayName}
           onClick={() => onOpenCriterion("universe")}
         />
-        <div className="grid grid-cols-2 gap-1.5">
-          <CriteriaCard
-            label="Window"
-            value={TIME_WINDOWS[config.timeWindow].displayName}
-            onClick={() => onOpenCriterion("window")}
-          />
-          <CriteriaCard
-            label="Hold"
-            value={EXIT_RULES[config.exitRule].displayName}
-            onClick={() => onOpenCriterion("exit")}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <CriteriaCard
-            label="Benchmark"
-            value={benchmarkName}
-            onClick={() => onOpenCriterion("benchmark")}
-          />
-          <CriteriaCard
-            label="Per deal"
-            value={AMOUNTS[config.amount].displayName}
-            onClick={() => onOpenCriterion("amount")}
-          />
-        </div>
+        <CriteriaCard
+          label="Window"
+          value={TIME_WINDOWS[config.timeWindow].displayName}
+          onClick={() => onOpenCriterion("window")}
+        />
+        <CriteriaCard
+          label="Hold"
+          value={EXIT_RULES[config.exitRule].displayName}
+          onClick={() => onOpenCriterion("exit")}
+        />
+        <CriteriaCard
+          label="Benchmark"
+          value={benchmarkName}
+          onClick={() => onOpenCriterion("benchmark")}
+        />
+        <CriteriaCard
+          label="Per deal"
+          value={AMOUNTS[config.amount].displayName}
+          onClick={() => onOpenCriterion("amount")}
+        />
       </div>
 
       <StrategySentence

@@ -20,8 +20,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const STRAT_COLOR = "#6b5038"; // brand brown, matches the active-link tint
 const BENCH_COLOR = "#a1a1aa"; // muted grey
-const POS_COLOR = "#4ade80"; // green-400
-const NEG_COLOR = "#ef4444"; // red-500
+// Match the site's canonical positive/negative palette (see dealing-detail-panel,
+// evidence-table, hero-card). Light/dark variants are picked at render time.
+const POS_LIGHT = "#1e6b18";
+const POS_DARK = "#5cd84a";
+const NEG_LIGHT = "#8b2020";
+const NEG_DARK = "#e84d4d";
 const ZERO_COLOR = "#a1a1aa";
 
 const HEIGHT = 220;
@@ -235,7 +239,17 @@ export function PerformanceChart({ result, viewMode, onScrub }: Props) {
 
   // vs Market signed area fill
   const alphaEnd = series.alpha.values[n - 1] ?? 0;
-  const alphaColor = alphaEnd >= 0 ? POS_COLOR : NEG_COLOR;
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark");
+  const alphaColor =
+    alphaEnd >= 0
+      ? isDark
+        ? POS_DARK
+        : POS_LIGHT
+      : isDark
+        ? NEG_DARK
+        : NEG_LIGHT;
   const zeroY = yFor(0);
   const fillPath =
     `M ${xFor(0).toFixed(2)} ${zeroY.toFixed(2)} ` +

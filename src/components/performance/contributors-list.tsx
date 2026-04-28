@@ -94,7 +94,7 @@ export function ContributorsList({
                 </div>
                 <div className="text-right">
                   <div
-                    className={`text-sm font-semibold ${positive ? "text-green-500" : "text-red-500"}`}
+                    className={`text-sm font-semibold ${positive ? "text-[#1e6b18] dark:text-[#5cd84a]" : "text-[#8b2020] dark:text-[#e84d4d]"}`}
                   >
                     {formatPct(row.returnPct)}
                   </div>

@@ -1,13 +1,17 @@
 import type { Analysis } from "../db/types";
+import {
+  getAccessToken,
+  refreshAccessToken,
+  type TwitterAuthEnv,
+} from "./twitter-auth";
 
 const TWEET_URL = "https://api.twitter.com/2/tweets";
 const SITE_BASE = "https://ddbx.uk";
 
-// X OAuth 2.0 User Context Bearer token with `tweet.write` scope.
-// Tokens expire after 2h; refresh logic lives in twitter-auth.ts (added next step).
-export interface TwitterCreds {
-  TWITTER_OAUTH2_ACCESS_TOKEN: string;
-}
+// Tweets are posted as the authorising X user via OAuth 2.0 user-context
+// bearer tokens. The tokens themselves live in D1 (kv table); the auth module
+// handles caching + refresh. See worker/pipeline/twitter-auth.ts.
+export type TwitterCreds = TwitterAuthEnv;
 
 const RATING_EMOJI: Record<string, string> = {
   significant: "🟢",
@@ -61,20 +65,33 @@ export async function postTweet(env: TwitterCreds, p: {
   await sendTweet(env, text);
 }
 
-export async function sendTweet(creds: TwitterCreds, text: string): Promise<void> {
-  const res = await fetch(TWEET_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${creds.TWITTER_OAUTH2_ACCESS_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ text }),
-  });
+export async function sendTweet(env: TwitterCreds, text: string): Promise<void> {
+  let token = await getAccessToken(env);
+  let res = await postTweetRequest(token, text);
+
+  // The cached access token can be revoked or invalidated mid-window
+  // (e.g. user revoked app, X-side rotation). On 401, force one refresh
+  // and retry — but only once, to avoid thrashing on a permanent failure.
+  if (res.status === 401) {
+    token = await refreshAccessToken(env);
+    res = await postTweetRequest(token, text);
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`Twitter ${res.status}: ${detail}`);
   }
+}
+
+async function postTweetRequest(token: string, text: string): Promise<Response> {
+  return fetch(TWEET_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text }),
+  });
 }
 
 // ---- Daily heartbeat summary ---------------------------------------------

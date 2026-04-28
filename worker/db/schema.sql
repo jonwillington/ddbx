@@ -192,3 +192,29 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 -- Migration 006 (2026-04-21): per-device digest_enabled preference
 -- Run once against existing databases:
 --   wrangler d1 execute director-dealings --command "ALTER TABLE device_tokens ADD COLUMN digest_enabled INTEGER NOT NULL DEFAULT 1;"
+
+-- Migration 007 (2026-04-28): generic key/value store for rotating secrets
+-- (Twitter OAuth 2.0 access/refresh tokens, PKCE state) and other small
+-- pieces of mutable worker state that don't justify their own table.
+-- Apply with:
+--   wrangler d1 execute director-dealings --command "CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')));"
+CREATE TABLE IF NOT EXISTS kv (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Migration 008 (2026-04-28): per-device dedup for APNs registrations.
+-- A single physical device gets a different APNs token for each build flavor
+-- (sandbox for DEBUG/Xcode, production for TestFlight/App Store). Without a
+-- stable per-device identifier we accumulate orphan rows when the user
+-- switches builds, and pushes fan out to obsolete tokens that silently die.
+-- Clients now send `device_id` (UIDevice.identifierForVendor); the POST
+-- handler deactivates any prior tokens sharing the same device_id before
+-- upserting the new one. Existing rows have device_id NULL and are left
+-- untouched — APNs feedback will retire them naturally on first push.
+-- Apply with:
+--   wrangler d1 execute director-dealings --command "ALTER TABLE device_tokens ADD COLUMN device_id TEXT;"
+--   wrangler d1 execute director-dealings --command "CREATE INDEX IF NOT EXISTS idx_device_tokens_device_id ON device_tokens(device_id);"
+ALTER TABLE device_tokens ADD COLUMN device_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_device_tokens_device_id ON device_tokens(device_id);

@@ -17,6 +17,7 @@ import {
   type DailySummaryDealing,
   type Session,
 } from "./pipeline/twitter";
+import { buildAuthorizeUrl, handleAuthCallback } from "./pipeline/twitter-auth";
 import { sendDigestPush } from "./pipeline/apns";
 import { FIXTURES } from "./fixtures";
 
@@ -29,8 +30,12 @@ export interface Env {
   APNS_TEAM_ID: string;
   APNS_PRIVATE_KEY: string;
   APNS_BUNDLE_ID?: string; // defaults to "uk.ddbx.app"
-  // X OAuth 2.0 User Context Bearer token (set via `wrangler secret put`)
-  TWITTER_OAUTH2_ACCESS_TOKEN: string;
+  // X OAuth 2.0 confidential-client credentials. The user-context access +
+  // refresh tokens are stored in D1 (kv table) and rotated by twitter-auth.ts.
+  // To bootstrap (or re-bootstrap if the refresh chain breaks) visit
+  // /__twitter-auth/start in a browser.
+  TWITTER_CLIENT_ID: string;
+  TWITTER_CLIENT_SECRET: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -311,6 +316,7 @@ app.post("/api/devices", async (c) => {
   const body = await c.req.json<{
     token: string;
     environment?: string;
+    device_id?: string;
     timezone?: string;
     notify_level?: string;
     digest_enabled?: boolean;
@@ -321,6 +327,10 @@ app.post("/api/devices", async (c) => {
   }
 
   const env = body.environment === "production" ? "production" : "sandbox";
+  const deviceId =
+    typeof body.device_id === "string" && body.device_id.length > 0
+      ? body.device_id
+      : null;
   const tz = body.timezone ?? "Europe/London";
   const notifyLevel =
     body.notify_level === "none" || body.notify_level === "all"
@@ -328,18 +338,32 @@ app.post("/api/devices", async (c) => {
       : "noteworthy";
   const digestEnabled = body.digest_enabled === false ? 0 : 1;
 
+  // Deactivate any prior tokens for this physical device. Each build flavor
+  // (sandbox/production) gets its own APNs token, so without this the
+  // previous build's token lingers as an orphan that silently fails delivery.
+  // Skipped when device_id is absent so older clients keep working.
+  if (deviceId) {
+    await c.env.DB.prepare(
+      `UPDATE device_tokens SET active = 0
+        WHERE device_id = ?1 AND token != ?2`,
+    )
+      .bind(deviceId, body.token)
+      .run();
+  }
+
   await c.env.DB.prepare(
-    `INSERT INTO device_tokens (token, environment, timezone, notify_level, digest_enabled, active, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, 1, datetime('now'))
+    `INSERT INTO device_tokens (token, environment, device_id, timezone, notify_level, digest_enabled, active, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, datetime('now'))
      ON CONFLICT(token) DO UPDATE SET
        environment = excluded.environment,
+       device_id = excluded.device_id,
        timezone = excluded.timezone,
        notify_level = excluded.notify_level,
        digest_enabled = excluded.digest_enabled,
        active = 1,
        updated_at = datetime('now')`,
   )
-    .bind(body.token, env, tz, notifyLevel, digestEnabled)
+    .bind(body.token, env, deviceId, tz, notifyLevel, digestEnabled)
     .run();
 
   return c.json({ ok: true });
@@ -385,6 +409,40 @@ app.post("/__cron/daily", async (c) => {
   const result = await runDailySummary(c.env, date, session, { skipPush });
 
   return c.json(result);
+});
+
+// One-time (re-)bootstrap of the X OAuth 2.0 user-context tokens.
+// Visit /__twitter-auth/start in a browser while signed into the X account
+// you want to tweet from. X redirects back to /__twitter-auth/callback with
+// `code` + `state`, we exchange them for an access+refresh pair and persist
+// to D1. After this, sendTweet rotates tokens itself indefinitely.
+app.get("/__twitter-auth/start", async (c) => {
+  const redirectUri = new URL(
+    "/__twitter-auth/callback",
+    new URL(c.req.url).origin,
+  ).toString();
+  const url = await buildAuthorizeUrl(c.env, redirectUri);
+  return c.redirect(url);
+});
+
+app.get("/__twitter-auth/callback", async (c) => {
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  const error = c.req.query("error");
+  if (error) {
+    return c.text(`X returned an error: ${error}`, 400);
+  }
+  if (!code || !state) {
+    return c.text("missing code or state", 400);
+  }
+  try {
+    const result = await handleAuthCallback(c.env, code, state);
+    return c.text(
+      `Twitter auth bootstrapped successfully. Scopes: ${result.scope ?? "(none returned)"}\n\nYou can close this tab.`,
+    );
+  } catch (err) {
+    return c.text(`bootstrap failed: ${(err as Error).message}`, 500);
+  }
 });
 
 // Tweet-only smoke test — verifies OAuth credentials without sending pushes.

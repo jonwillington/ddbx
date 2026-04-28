@@ -125,7 +125,7 @@ export default function PerformancePage() {
   return (
     <DefaultLayout>
       <section className="py-8 space-y-6 animate-content-in">
-        <h1 className={title({ size: "sm" })}>Performance</h1>
+        <h1 className={`${title({ size: "sm" })} mb-10`}>Performance</h1>
 
         {dealings == null ? (
           <PerformanceSkeleton />
@@ -246,12 +246,10 @@ function PerformanceSkeleton() {
             <Skeleton className="ml-auto h-9 w-24" />
           </div>
         </div>
-        <Skeleton className="h-12 w-full rounded-md" />
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
           <Skeleton className="h-12 w-full rounded-md" />
           <Skeleton className="h-12 w-full rounded-md" />
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
+          <Skeleton className="h-12 w-full rounded-md" />
           <Skeleton className="h-12 w-full rounded-md" />
           <Skeleton className="h-12 w-full rounded-md" />
         </div>
