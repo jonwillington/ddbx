@@ -227,10 +227,17 @@ export default function DashboardPage() {
     if (!filteredDealings) return [];
     const buckets: MonthBucket[] = [];
     for (const d of filteredDealings) {
-      // Exclude today's deals — they get their own section
-      if ((d.disclosed_date ?? d.trade_date).slice(0, 10) === todayKey) continue;
+      // Bucket by DISCLOSED date so the day labels and cluster headers (which
+      // also render the disclosed date) align with the actual grouping.
+      // Bucketing by trade_date previously produced duplicate day groups
+      // when several trade_dates shared a disclosed_date.
+      const disclosedIso = d.disclosed_date || d.trade_date;
+      const dayKey = disclosedIso.slice(0, 10);
 
-      const date = new Date(d.trade_date);
+      // Exclude today's deals — they get their own section
+      if (dayKey === todayKey) continue;
+
+      const date = new Date(disclosedIso);
       const monthLabel = date.toLocaleString("en-GB", { month: "long" });
       const year = date.getFullYear();
       const monthKey = `${monthLabel}-${year}`;
@@ -240,7 +247,6 @@ export default function DashboardPage() {
         buckets.push(bucket);
       }
 
-      const dayKey = d.trade_date.slice(0, 10);
       let day = bucket.days.find((db) => db.key === dayKey);
       if (!day) {
         const weekday = date.toLocaleString("en-GB", { weekday: "short" }).toUpperCase();
