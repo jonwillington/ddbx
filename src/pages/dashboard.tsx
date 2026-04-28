@@ -13,6 +13,7 @@ import { compareDealingsNewestFirst, formatDisclosedCompact, formatDisclosedPart
 import { useDataVersion } from "@/lib/use-data-version";
 import { useDiscretion } from "@/lib/discretion";
 import { DayMoreInApp } from "@/components/discretion/day-more-in-app";
+import { BlurredDealingRow } from "@/components/discretion/blurred-dealing-row";
 import {
   ChevronDownIcon,
   CalendarDaysIcon,
@@ -858,11 +859,18 @@ export default function DashboardPage() {
                         hideDate
                       />
                     ))}
-                    {discretion.enabled && (
-                      <DayMoreInApp
-                        count={Math.max(0, todayDeals.length - discretion.listCap)}
-                      />
-                    )}
+                    {discretion.enabled &&
+                      Array.from({
+                        length: Math.max(0, todayDeals.length - discretion.listCap),
+                      }).map((_, i) => (
+                        <BlurredDealingRow
+                          key={`today-blur-${i}`}
+                          seed="today"
+                          index={i}
+                          isoDate={todayKey}
+                          hideDate
+                        />
+                      ))}
                   </div>
                 ) : (
                   <div className="px-5 py-4 text-sm text-muted">
@@ -919,11 +927,18 @@ export default function DashboardPage() {
                         onSelect={selectDealing}
                       />
                     ))}
-                    {discretion.enabled && (
-                      <DayMoreInApp
-                        count={Math.max(0, byGain.length - discretion.listCap)}
-                      />
-                    )}
+                    {discretion.enabled &&
+                      Array.from({
+                        length: Math.max(0, byGain.length - discretion.listCap),
+                      }).map((_, i) => (
+                        <BlurredDealingRow
+                          key={`bygain-blur-${i}`}
+                          seed="bygain"
+                          index={i}
+                          isoDate={new Date().toISOString().slice(0, 10)}
+                          showVsFtse
+                        />
+                      ))}
                   </div>
                 </div>
               )
@@ -1056,9 +1071,16 @@ export default function DashboardPage() {
                                     </div>
                                   );
                                 })}
-                                {discretion.enabled && moreCount > 0 && (
-                                  <DayMoreInApp count={moreCount} />
-                                )}
+                                {discretion.enabled &&
+                                  Array.from({ length: moreCount }).map((_, i) => (
+                                    <BlurredDealingRow
+                                      key={`${day.key}-blur-${i}`}
+                                      seed={day.key}
+                                      index={i}
+                                      isoDate={day.key}
+                                      showVsFtse
+                                    />
+                                  ))}
                               </Fragment>
                             );
                           })}
