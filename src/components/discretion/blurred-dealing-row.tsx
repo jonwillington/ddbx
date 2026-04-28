@@ -1,11 +1,6 @@
-import { LockClosedIcon } from "@heroicons/react/24/outline";
-
 import type { Dealing } from "@/lib/api";
 import type { Rating } from "../../../worker/db/types";
 import { DealingRow } from "@/components/dealing-row";
-
-const APP_STORE_URL =
-  "https://apps.apple.com/us/app/ddbx-uk/id6762196330?itscg=30200&itsct=apps_box_badge&mttnsubad=6762196330";
 
 interface Placeholder {
   ticker: string;
@@ -102,34 +97,20 @@ export function BlurredDealingRow({
   const ftseCurrentPence = Math.round(ftseEntryPence * 1.012);
 
   return (
-    <div className="relative">
-      <div
-        aria-hidden
-        className="pointer-events-none select-none"
-        style={{ filter: "blur(4px)" }}
-      >
-        <DealingRow
-          dealing={dealing}
-          currentPricePence={currentPricePence}
-          ftseEntryPence={ftseEntryPence}
-          ftseCurrentPence={ftseCurrentPence}
-          showVsFtse={showVsFtse}
-          hideDate={hideDate}
-          onSelect={() => {}}
-        />
-      </div>
-      <a
-        aria-label="See full data in the iOS app"
-        className="absolute inset-0 flex items-center justify-end pr-4 md:pr-6 group"
-        href={APP_STORE_URL}
-        rel="noopener noreferrer"
-        target="_blank"
-      >
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted bg-[#faf7f2]/90 dark:bg-surface/90 backdrop-blur-sm border border-[#e8e0d5] dark:border-separator rounded-full px-2.5 py-1 group-hover:text-[#6b5038] group-hover:border-[#6b5038]/40 transition-colors">
-          <LockClosedIcon className="w-3 h-3" />
-          See in app
-        </span>
-      </a>
+    <div
+      aria-hidden
+      className="pointer-events-none select-none"
+      style={{ filter: "blur(4px)" }}
+    >
+      <DealingRow
+        dealing={dealing}
+        currentPricePence={currentPricePence}
+        ftseEntryPence={ftseEntryPence}
+        ftseCurrentPence={ftseCurrentPence}
+        showVsFtse={showVsFtse}
+        hideDate={hideDate}
+        onSelect={() => {}}
+      />
     </div>
   );
 }

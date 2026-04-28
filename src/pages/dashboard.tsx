@@ -364,7 +364,12 @@ export default function DashboardPage() {
     setSkippedVisible((prev) => ({ ...prev, [clusterKey]: (prev[clusterKey] ?? 5) + 5 }));
   };
 
-  const renderSkippedCluster = (deals: Dealing[], clusterKey: string, forceOpen = false) => {
+  const renderSkippedCluster = (
+    deals: Dealing[],
+    clusterKey: string,
+    forceOpen = false,
+    unblurredCount: number = Number.POSITIVE_INFINITY,
+  ) => {
     const isOpen = forceOpen || openSkipped.has(clusterKey);
     const newest = deals[0];
     const { dateLabel } = formatDisclosedParts(newest.disclosed_date || newest.trade_date);
@@ -431,20 +436,31 @@ export default function DashboardPage() {
         {/* Expanded rows */}
         {isOpen && (
           <div className="divide-y divide-black/[0.06] dark:divide-separator">
-            {visible.map((d) => (
-              <DealingRow
-                key={d.id}
-                dealing={d}
-                currentPricePence={prices[d.ticker]}
-                ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
-                ftseCurrentPence={prices["^FTAS"]}
-                showVsFtse
-                selected={selected?.id === d.id}
-                onSelect={selectDealing}
-                hideDate
-                suppressSkippedLabel
-              />
-            ))}
+            {visible.map((d, i) =>
+              i < unblurredCount ? (
+                <DealingRow
+                  key={d.id}
+                  dealing={d}
+                  currentPricePence={prices[d.ticker]}
+                  ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
+                  ftseCurrentPence={prices["^FTAS"]}
+                  showVsFtse
+                  selected={selected?.id === d.id}
+                  onSelect={selectDealing}
+                  hideDate
+                  suppressSkippedLabel
+                />
+              ) : (
+                <BlurredDealingRow
+                  key={`${clusterKey}-blur-${i}`}
+                  seed={clusterKey}
+                  index={i}
+                  isoDate={d.trade_date.slice(0, 10)}
+                  showVsFtse
+                  hideDate
+                />
+              ),
+            )}
             {remaining > 0 && (
               <div className="px-6 py-4">
                 <button
@@ -1029,58 +1045,69 @@ export default function DashboardPage() {
                           <DealingRowHeader showVsFtse />
                           <div className="divide-y divide-black/[0.06] dark:divide-separator">
                           {days.map((day) => {
-                            const allSegments = buildSegments(day.all, day.key);
-                            const segments = discretion.enabled
-                              ? allSegments.slice(0, discretion.listCap)
-                              : allSegments;
-                            const visibleDealsCount = segments.reduce(
-                              (sum, seg) =>
-                                sum + (seg.type === "analysed" ? 1 : seg.deals.length),
-                              0,
-                            );
-                            const moreCount = day.all.length - visibleDealsCount;
+                            const segments = buildSegments(day.all, day.key);
+                            // Per-day allowance of unblurred trade rows when discretion is on.
+                            // Analysed segments take 1 each; inside an open cluster, the first
+                            // `allowance` visible trades render real and the rest are blurred.
+                            let realRemaining = discretion.enabled
+                              ? discretion.listCap
+                              : Number.POSITIVE_INFINITY;
 
                             return (
                               <Fragment key={day.key}>
                                 {segments.map((seg) => {
                                   if (noteworthyOnly && seg.type === "skipped") return null;
                                   if (seg.type === "analysed") {
+                                    if (realRemaining > 0) {
+                                      realRemaining--;
+                                      return (
+                                        <DealingRow
+                                          key={seg.deal.id}
+                                          dealing={seg.deal}
+                                          currentPricePence={prices[seg.deal.ticker]}
+                                          ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
+                                          ftseCurrentPence={prices["^FTAS"]}
+                                          showVsFtse
+                                          selected={selected?.id === seg.deal.id}
+                                          onSelect={selectDealing}
+                                        />
+                                      );
+                                    }
                                     return (
-                                      <DealingRow
-                                        key={seg.deal.id}
-                                        dealing={seg.deal}
-                                        currentPricePence={prices[seg.deal.ticker]}
-                                        ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
-                                        ftseCurrentPence={prices["^FTAS"]}
+                                      <BlurredDealingRow
+                                        key={`${seg.deal.id}-blur`}
+                                        seed={seg.deal.id}
+                                        index={0}
+                                        isoDate={seg.deal.trade_date.slice(0, 10)}
                                         showVsFtse
-                                        selected={selected?.id === seg.deal.id}
-                                        onSelect={selectDealing}
                                       />
                                     );
                                   }
-                                  if (expandAll) {
-                                    return (
-                                      <div key={seg.clusterKey}>
-                                        {renderSkippedCluster(seg.deals, seg.clusterKey, true)}
-                                      </div>
+                                  // skipped cluster
+                                  const allowance = realRemaining;
+                                  const isOpen =
+                                    expandAll || openSkipped.has(seg.clusterKey);
+                                  if (isOpen && discretion.enabled) {
+                                    const visibleN = Math.min(
+                                      seg.deals.length,
+                                      skippedVisible[seg.clusterKey] ?? 5,
+                                    );
+                                    realRemaining = Math.max(
+                                      0,
+                                      realRemaining - Math.min(allowance, visibleN),
                                     );
                                   }
                                   return (
                                     <div key={seg.clusterKey}>
-                                      {renderSkippedCluster(seg.deals, seg.clusterKey)}
+                                      {renderSkippedCluster(
+                                        seg.deals,
+                                        seg.clusterKey,
+                                        expandAll,
+                                        allowance,
+                                      )}
                                     </div>
                                   );
                                 })}
-                                {discretion.enabled &&
-                                  Array.from({ length: moreCount }).map((_, i) => (
-                                    <BlurredDealingRow
-                                      key={`${day.key}-blur-${i}`}
-                                      seed={day.key}
-                                      index={i}
-                                      isoDate={day.key}
-                                      showVsFtse
-                                    />
-                                  ))}
                               </Fragment>
                             );
                           })}
