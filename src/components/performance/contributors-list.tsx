@@ -5,6 +5,7 @@
 import type { ContributorRow, StrategyConfig } from "@/lib/performance/types";
 
 import { Link } from "react-router-dom";
+import { useDiscretion } from "@/lib/discretion";
 
 interface Props {
   rows: ContributorRow[];
@@ -13,6 +14,27 @@ interface Props {
   onExclude: (dealId: string) => void;
   onResetExclusions: () => void;
 }
+
+/** Number of contributor rows that stay unblurred when discretion mode is on. */
+const UNBLURRED_CONTRIBUTORS = 2;
+
+const PLACEHOLDER_TICKERS = [
+  "GSK", "BARC", "RR", "VOD", "BP", "TSCO", "AZN", "LLOY", "DGE", "REL",
+];
+const PLACEHOLDER_COMPANIES = [
+  "GlaxoSmithKline plc",
+  "Barclays plc",
+  "Rolls-Royce Holdings plc",
+  "Vodafone Group plc",
+  "BP plc",
+  "Tesco plc",
+  "AstraZeneca plc",
+  "Lloyds Banking Group plc",
+  "Diageo plc",
+  "RELX plc",
+];
+const PLACEHOLDER_RETURNS = [0.087, -0.041, 0.121, -0.012, 0.034, 0.059, -0.024, 0.018, 0.073, -0.035];
+const PLACEHOLDER_PNLS = [142, -38, 240, -8, 47, 92, -22, 24, 118, -54];
 
 function formatPct(value: number): string {
   const x = value * 100;
@@ -37,6 +59,7 @@ export function ContributorsList({
   onExclude,
   onResetExclusions,
 }: Props) {
+  const discretion = useDiscretion();
   if (rows.length === 0) return null;
 
   return (
@@ -64,7 +87,48 @@ export function ContributorsList({
       <ul className="rounded-lg border border-separator overflow-hidden">
         {rows.map((row, idx) => {
           const pnl = row.currentValue - row.deployed;
-          const positive = row.returnPct >= 0;
+          const blurred = discretion.enabled && idx >= UNBLURRED_CONTRIBUTORS;
+          const ticker = blurred
+            ? PLACEHOLDER_TICKERS[idx % PLACEHOLDER_TICKERS.length]
+            : row.ticker.replace(/\.L$/, "");
+          const company = blurred
+            ? PLACEHOLDER_COMPANIES[idx % PLACEHOLDER_COMPANIES.length]
+            : row.company;
+          const displayReturn = blurred
+            ? PLACEHOLDER_RETURNS[idx % PLACEHOLDER_RETURNS.length]
+            : row.returnPct;
+          const displayPnl = blurred
+            ? PLACEHOLDER_PNLS[idx % PLACEHOLDER_PNLS.length]
+            : pnl;
+          const displayPositive = displayReturn >= 0;
+
+          const inner = (
+            <>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-semibold">
+                    {ticker}
+                  </span>
+                  {!blurred && row.state === "open" && (
+                    <span className="rounded-full bg-surface/60 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-muted">
+                      Open
+                    </span>
+                  )}
+                </div>
+                <div className="truncate text-xs text-muted">{company}</div>
+              </div>
+              <div className="text-right">
+                <div
+                  className={`text-sm font-semibold ${displayPositive ? "text-[#1e6b18] dark:text-[#5cd84a]" : "text-[#8b2020] dark:text-[#e84d4d]"}`}
+                >
+                  {formatPct(displayReturn)}
+                </div>
+                <div className="text-[11px] text-muted">
+                  {formatSignedGbp(displayPnl)}
+                </div>
+              </div>
+            </>
+          );
 
           return (
             <li
@@ -73,58 +137,46 @@ export function ContributorsList({
                 idx > 0 ? "border-t border-separator/60" : ""
               }`}
             >
-              <Link
-                className="flex flex-1 items-center gap-3 min-w-0 hover:bg-surface/40 -mx-3 px-3 py-1 rounded-md"
-                to={`/dealings/${row.dealId}`}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-semibold">
-                      {row.ticker.replace(/\.L$/, "")}
-                    </span>
-                    {row.state === "open" && (
-                      <span className="rounded-full bg-surface/60 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-muted">
-                        Open
-                      </span>
-                    )}
-                  </div>
-                  <div className="truncate text-xs text-muted">
-                    {row.company}
-                  </div>
+              {blurred ? (
+                <div
+                  aria-hidden
+                  className="flex flex-1 items-center gap-3 min-w-0 -mx-3 px-3 py-1 rounded-md pointer-events-none select-none"
+                  style={{ filter: "blur(4px)" }}
+                >
+                  {inner}
                 </div>
-                <div className="text-right">
-                  <div
-                    className={`text-sm font-semibold ${positive ? "text-[#1e6b18] dark:text-[#5cd84a]" : "text-[#8b2020] dark:text-[#e84d4d]"}`}
-                  >
-                    {formatPct(row.returnPct)}
-                  </div>
-                  <div className="text-[11px] text-muted">
-                    {formatSignedGbp(pnl)}
-                  </div>
-                </div>
-              </Link>
-              <button
-                aria-label="Exclude from backtest"
-                className="rounded-md p-1.5 text-muted/70 hover:bg-surface/60 hover:text-muted"
-                type="button"
-                onClick={() => onExclude(row.dealId)}
-              >
-                <svg fill="none" height="16" viewBox="0 0 24 24" width="16">
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                  <path
-                    d="M9 9l6 6M9 15l6-6"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-              </button>
+              ) : (
+                <Link
+                  className="flex flex-1 items-center gap-3 min-w-0 hover:bg-surface/40 -mx-3 px-3 py-1 rounded-md"
+                  to={`/dealings/${row.dealId}`}
+                >
+                  {inner}
+                </Link>
+              )}
+              {!blurred && (
+                <button
+                  aria-label="Exclude from backtest"
+                  className="rounded-md p-1.5 text-muted/70 hover:bg-surface/60 hover:text-muted"
+                  type="button"
+                  onClick={() => onExclude(row.dealId)}
+                >
+                  <svg fill="none" height="16" viewBox="0 0 24 24" width="16">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="9"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
+                    <path
+                      d="M9 9l6 6M9 15l6-6"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeWidth="1.5"
+                    />
+                  </svg>
+                </button>
+              )}
             </li>
           );
         })}
