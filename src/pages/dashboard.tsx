@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import DefaultLayout from "@/layouts/default";
@@ -6,7 +6,7 @@ import { title } from "@/components/primitives";
 import { DealingRow, DealingRowHeader } from "@/components/dealing-row";
 import { DealingDetailPanel } from "@/components/dealing-detail-panel";
 import { Skeleton } from "@/components/skeleton";
-import { api, type Dealing, type UkNewsItem } from "@/lib/api";
+import { api, type Dealing } from "@/lib/api";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
 import { compareDealingsNewestFirst, formatDisclosedParts } from "@/lib/dealing-dates";
 import { useDataVersion } from "@/lib/use-data-version";
@@ -18,9 +18,6 @@ import {
   PlayIcon,
   TrashIcon,
   ArrowTrendingUpIcon,
-  NewspaperIcon,
-  ArrowTopRightOnSquareIcon,
-  ArrowsUpDownIcon,
 } from "@heroicons/react/24/outline";
 
 type ViewMode = "chronological" | "by-gain";
@@ -95,14 +92,6 @@ function ordinal(n: number): string {
   return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
 }
 
-function hostnameFromUrl(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "";
-  }
-}
-
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { id: routeId } = useParams<{ id: string }>();
@@ -119,34 +108,11 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const discretion = useDiscretion();
-  const [ukNews, setUkNews] = useState<{
-    items: UkNewsItem[];
-    fetched_at: string | null;
-  } | null>(null);
-  const prevNewsUrlsRef = useRef<Set<string> | null>(null);
-  const [newNewsUrls, setNewNewsUrls] = useState<Set<string>>(new Set());
 
   const isTradingDay = useMemo(() => {
     const dow = new Date().getDay();
     return dow >= 1 && dow <= 5;
   }, []);
-
-  // Track which news items are new after a refresh
-  useEffect(() => {
-    if (!ukNews || ukNews.items.length === 0) return;
-    const currentUrls = new Set(ukNews.items.map((n) => n.url));
-    if (prevNewsUrlsRef.current === null) {
-      // First load — nothing is "new"
-      prevNewsUrlsRef.current = currentUrls;
-    } else {
-      const fresh = new Set<string>();
-      for (const url of currentUrls) {
-        if (!prevNewsUrlsRef.current.has(url)) fresh.add(url);
-      }
-      if (fresh.size > 0) setNewNewsUrls(fresh);
-      prevNewsUrlsRef.current = currentUrls;
-    }
-  }, [ukNews]);
 
   const selected = useMemo(
     () => (routeId && dealings ? dealings.find((d) => d.id === routeId) ?? null : null),
@@ -160,10 +126,7 @@ export default function DashboardPage() {
 
   const loadDealings = useCallback(() => {
     api.dealings().then(setDealings).catch((e) => setErr((e as Error).message));
-    if (isTradingDay) {
-      api.ukNews().then(setUkNews).catch(() => {});
-    }
-  }, [isTradingDay]);
+  }, []);
 
   useEffect(() => { loadDealings(); }, [loadDealings]);
 
@@ -491,82 +454,6 @@ export default function DashboardPage() {
     );
   };
 
-  const ukTodayNewsStrip = (
-    <div className="border-b border-[#e8e0d5] dark:border-separator px-5 lg:px-4 py-3">
-      <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted mb-3">
-        <span className="inline-flex items-center gap-2">
-        <NewspaperIcon className="w-3.5 h-3.5" />
-          UK market news
-        </span>
-        <span className="inline-flex items-center gap-1 text-[9px] text-muted/70">
-          <ArrowsUpDownIcon className="w-3 h-3" />
-          Scroll
-        </span>
-      </div>
-      {ukNews === null ? (
-        <ul className="space-y-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <li key={i} className="pb-0.5 flex items-start gap-2">
-              <Skeleton className="w-3.5 h-3.5 rounded-sm shrink-0 mt-0.5" />
-              <span className="flex-1 min-w-0 space-y-1.5">
-                <Skeleton className="h-2.5 w-16" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-3/4" />
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : ukNews.items.length === 0 ? (
-        <p className="text-xs text-muted">No headlines available right now.</p>
-      ) : (
-        <ul className="space-y-4">
-          {ukNews.items.slice(0, 12).map((n, i) => (
-            <li key={`${n.url}-${i}`} className="pb-0.5" style={{ animation: `fade-in-up 0.4s ease-out ${i * 0.04}s both` }}>
-              <a
-                href={n.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-start gap-2 group"
-              >
-                <img
-                  src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostnameFromUrl(n.url))}&sz=32`}
-                  alt=""
-                  className="w-3.5 h-3.5 mt-0.5 rounded-sm shrink-0"
-                  loading="lazy"
-                />
-                <span className="min-w-0">
-                  <span className="flex items-center gap-1.5 text-[10px] font-mono leading-none text-[#6b5038]/90 dark:text-[#c4a882] mb-1">
-                    {newNewsUrls.has(n.url) && (
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-[#7c5cbf] animate-[fade-in-up_0.3s_ease-out]" />
-                    )}
-                    {n.source}
-                  </span>
-                  <span className="inline-flex items-start gap-1.5 text-xs text-foreground/90 leading-snug line-clamp-3 group-hover:text-[#6b5038] transition-colors">
-                    <span>{n.title}</span>
-                    <ArrowTopRightOnSquareIcon className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-60 group-hover:opacity-100" />
-                  </span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-      {ukNews?.fetched_at && (
-        <p className="text-[10px] text-muted/50 mt-2">
-          Refreshed{" "}
-          {new Date(ukNews.fetched_at).toLocaleString("en-GB", {
-            timeZone: "Europe/London",
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}
-        </p>
-      )}
-      <p className="text-[10px] text-muted/45 mt-2 leading-relaxed">
-        Third-party headlines (BBC, Guardian, City AM, This is Money); opens in a new tab.
-      </p>
-    </div>
-  );
-
   const tickerEl = heroStats && heroStats.topPicks.length > 0 ? (
     <div className="flex items-stretch">
       <div className="shrink-0 flex items-center py-2.5 pr-4 border-r border-separator/40 text-[9px] font-semibold uppercase tracking-widest text-[#6b5038]/70 whitespace-nowrap">
@@ -872,7 +759,6 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
-                {ukTodayNewsStrip}
                 {todayDeals.length > 0 ? (
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
                     {(discretion.enabled
