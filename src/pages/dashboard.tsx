@@ -12,7 +12,6 @@ import { compareDealingsNewestFirst, formatDisclosedParts } from "@/lib/dealing-
 import { useDataVersion } from "@/lib/use-data-version";
 import { useDiscretion } from "@/lib/discretion";
 import { BlurredDealingRow } from "@/components/discretion/blurred-dealing-row";
-import { TodayDrawer } from "@/components/today-drawer";
 import {
   ChevronDownIcon,
   CalendarDaysIcon,
@@ -1136,8 +1135,6 @@ export default function DashboardPage() {
             )}
           </div>
       </section>
-
-      <TodayDrawer />
 
       <DealingDetailPanel
         dealing={selected}

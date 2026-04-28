@@ -8,7 +8,6 @@ import { useEffect, useMemo, useState } from "react";
 import DefaultLayout from "@/layouts/default";
 import { Skeleton } from "@/components/skeleton";
 import { title } from "@/components/primitives";
-import { TodayDrawer } from "@/components/today-drawer";
 import { api, type Dealing } from "@/lib/api";
 import {
   AMOUNTS,
@@ -234,8 +233,6 @@ export default function PerformancePage() {
         open={activeMetric != null}
         onClose={() => setActiveMetric(null)}
       />
-
-      <TodayDrawer />
     </DefaultLayout>
   );
 }

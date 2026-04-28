@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useMatch, useNavigate } from "react-router-dom";
 import {
   ArrowsUpDownIcon,
   ArrowTopRightOnSquareIcon,
@@ -28,7 +28,10 @@ function hostnameFromUrl(url: string): string {
 // Dashboard and Performance.
 export function TodayDrawer() {
   const navigate = useNavigate();
-  const { id: routeId } = useParams<{ id: string }>();
+  // Use useMatch instead of useParams so this works when mounted above the
+  // Routes tree (e.g. at App level, where there's no matched route context).
+  const dealingMatch = useMatch("/dealings/:id");
+  const routeId = dealingMatch?.params.id;
   const discretion = useDiscretion();
 
   const [dealings, setDealings] = useState<Dealing[] | null>(null);
