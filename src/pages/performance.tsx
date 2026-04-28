@@ -131,7 +131,7 @@ export default function PerformancePage() {
   return (
     <DefaultLayout drawerRight={isTradingDay}>
       <section className="py-8 space-y-6 animate-content-in">
-        <h1 className={`${title({ size: "sm" })} mb-8`}>Performance</h1>
+        <h1 className={`${title({ size: "sm" })} block mb-8`}>Performance</h1>
 
         {dealings == null ? (
           <PerformanceSkeleton />
