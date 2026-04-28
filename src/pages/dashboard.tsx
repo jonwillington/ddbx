@@ -9,8 +9,10 @@ import { DealingDetailPanel } from "@/components/dealing-detail-panel";
 import { Skeleton } from "@/components/skeleton";
 import { api, type Dealing, type UkNewsItem } from "@/lib/api";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
-import { compareDealingsNewestFirst, formatDisclosedCompact } from "@/lib/dealing-dates";
+import { compareDealingsNewestFirst, formatDisclosedCompact, formatDisclosedParts } from "@/lib/dealing-dates";
 import { useDataVersion } from "@/lib/use-data-version";
+import { useDiscretion } from "@/lib/discretion";
+import { LockedListFooter } from "@/components/discretion/locked-list-footer";
 import {
   ChevronDownIcon,
   CalendarDaysIcon,
@@ -114,6 +116,7 @@ export default function DashboardPage() {
   const [heroFilter, setHeroFilter] = useState<HeroFilter>("significant");
   const [search, setSearch] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const discretion = useDiscretion();
   const [ukNews, setUkNews] = useState<{
     items: UkNewsItem[];
     fetched_at: string | null;
@@ -271,6 +274,22 @@ export default function DashboardPage() {
       .sort((a, b) => b._gainPct - a._gainPct);
   }, [filteredDealings, prices]);
 
+  // Discretion mode: when enabled, the entire list collapses to the top N
+  // suggested deals (newest-first, or top-by-gain depending on the view
+  // toggle). Everything else is hidden behind the LockedListFooter CTA.
+  const gatedSuggested = useMemo((): Dealing[] => {
+    if (!filteredDealings) return [];
+    if (viewMode === "by-gain") return byGain;
+    return [...filteredDealings]
+      .filter(isSuggestedDealing)
+      .sort(compareDealingsNewestFirst);
+  }, [filteredDealings, byGain, viewMode]);
+  const gatedVisible = gatedSuggested.slice(0, discretion.listCap);
+  const gatedHidden = Math.max(
+    0,
+    (filteredDealings?.length ?? 0) - gatedVisible.length,
+  );
+
   // Hero performance stats — computed client-side from dealings + prices + FTSE
   const heroStats = useMemo(() => {
     if (!dealings || Object.keys(prices).length === 0 || Object.keys(ftseEntries).length === 0) return null;
@@ -362,10 +381,7 @@ export default function DashboardPage() {
   const renderSkippedCluster = (deals: Dealing[], clusterKey: string, forceOpen = false) => {
     const isOpen = forceOpen || openSkipped.has(clusterKey);
     const newest = deals[0];
-    const d = new Date(newest.trade_date);
-    const weekday = d.toLocaleString("en-GB", { weekday: "short" });
-    const day = d.getDate();
-    const month = d.toLocaleString("en-GB", { month: "short" });
+    const { dateLabel } = formatDisclosedParts(newest.disclosed_date || newest.trade_date);
     const limit = skippedVisible[clusterKey] ?? 5;
     const visible = deals.slice(0, limit);
     const remaining = deals.length - limit;
@@ -383,7 +399,7 @@ export default function DashboardPage() {
           <div className="md:hidden px-4 py-3.5">
             <div className="flex items-center gap-2 mb-2">
               <TrashIcon className="w-3.5 h-3.5 text-muted/50 shrink-0" />
-              <span className="text-xs text-foreground/50 font-medium">{weekday} {ordinal(day)}, {month}</span>
+              <span className="text-xs text-foreground/50 font-medium">{dateLabel}</span>
               <ChevronDownIcon className={`w-4 h-4 text-muted shrink-0 ml-auto transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -402,11 +418,7 @@ export default function DashboardPage() {
           {/* ── Desktop skipped cluster (md+) ── */}
           <div className="hidden md:flex items-stretch">
             <div className="w-40 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-sm text-foreground/50 font-medium">{weekday}</span>
-                <span className="text-base font-medium leading-tight">{ordinal(day)},</span>
-                <span className="text-sm text-foreground/50 font-medium">{month}</span>
-              </div>
+              <div className="text-sm text-foreground/90 font-medium leading-tight">{dateLabel}</div>
             </div>
             <div className="w-[4.5rem] shrink-0 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
               <TrashIcon className="w-4 h-4 text-muted/50" />
@@ -561,7 +573,7 @@ export default function DashboardPage() {
   ) : null;
 
   return (
-    <DefaultLayout drawerRight={isTradingDay} ticker={tickerEl}>
+    <DefaultLayout drawerRight={isTradingDay && !discretion.enabled} ticker={tickerEl}>
       <section className="pb-8 space-y-8">
         {/* Full-bleed hero — breaks out of container */}
         <div className="relative -mx-4 md:-mx-6 overflow-hidden">
@@ -835,7 +847,7 @@ export default function DashboardPage() {
 
         <div className="space-y-6">
             {/* Mobile-only today section */}
-            {isTradingDay && (
+            {isTradingDay && !discretion.enabled && (
               <div className="lg:hidden bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
                   <div className="text-sm font-semibold flex items-center gap-2"><PlayIcon className="w-4 h-4" />Today</div>
@@ -871,6 +883,55 @@ export default function DashboardPage() {
 
             {!dealings ? (
               <DashboardSkeleton />
+            ) : discretion.enabled ? (
+              <div className="space-y-4 animate-content-in">
+                <div className="bg-[#faf7f2] dark:bg-surface rounded-xl">
+                  <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[#e8e0d5]/50 dark:border-separator/30">
+                    <div className="flex gap-2">
+                      {(["chronological", "by-gain"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                            viewMode === mode
+                              ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
+                              : "border-separator text-muted hover:border-[#6b5038]/50"
+                          }`}
+                          onClick={() => setViewMode(mode)}
+                        >
+                          {mode === "chronological" ? "Latest" : "Top gains"}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="ml-auto text-[11px] text-muted">
+                      Showing today&apos;s pick of {discretion.listCap}
+                    </span>
+                  </div>
+                  {gatedVisible.length === 0 ? (
+                    <div className="px-5 py-8 text-sm text-muted text-center">
+                      No suggested deals to show right now.
+                    </div>
+                  ) : (
+                    <>
+                      <DealingRowHeader showVsFtse />
+                      <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
+                        {gatedVisible.map((d) => (
+                          <DealingRow
+                            key={d.id}
+                            dealing={d}
+                            currentPricePence={prices[d.ticker]}
+                            ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
+                            ftseCurrentPence={prices["^FTAS"]}
+                            showVsFtse
+                            selected={selected?.id === d.id}
+                            onSelect={selectDealing}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <LockedListFooter hiddenCount={gatedHidden} />
+              </div>
             ) : viewMode === "by-gain" ? (
               byGain.length === 0 ? (
                 <div className="text-sm text-muted">No dealings with current prices available.</div>
@@ -1049,7 +1110,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Today drawer — fixed full-height panel on right edge (desktop only) */}
-      {isTradingDay && (
+      {isTradingDay && !discretion.enabled && (
         <aside className="hidden lg:flex fixed top-0 right-0 bottom-0 w-80 flex-col border-l border-[#e8e0d5] dark:border-separator bg-[#faf7f2] dark:bg-surface z-20">
           {/* Header — matches navbar h-16 */}
           <div className="h-16 px-5 flex items-center border-b border-[#e8e0d5] dark:border-separator shrink-0">

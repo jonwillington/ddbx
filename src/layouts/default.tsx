@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/navbar";
+import { AppStoreBadge } from "@/components/app-store-badge";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 
 type LegalPage = "privacy" | "cookies" | "terms" | "contact" | null;
@@ -372,19 +373,7 @@ export default function DefaultLayout({
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.736-8.861L1.254 2.25H8.08l4.257 5.625zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                 </svg>
               </a>
-              <a
-                href="https://apps.apple.com/us/app/ddbx-uk/id6762196330?itscg=30200&itsct=apps_box_badge&mttnsubad=6762196330"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Download on the App Store"
-                className="inline-block opacity-70 hover:opacity-100 transition-opacity"
-              >
-                <img
-                  src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1776643200"
-                  alt="Download on the App Store"
-                  style={{ width: "85px", height: "28px", verticalAlign: "middle", objectFit: "contain" }}
-                />
-              </a>
+              <AppStoreBadge size="sm" />
             </div>
           </div>
         </div>

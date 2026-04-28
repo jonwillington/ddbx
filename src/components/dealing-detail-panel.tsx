@@ -9,6 +9,9 @@ import { InformationCircleIcon } from "@heroicons/react/20/solid";
 import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "@/components/skeleton";
 import { api } from "@/lib/api";
+import { useDiscretion } from "@/lib/discretion";
+import { DUMMY_ANALYSIS } from "@/components/discretion/dummy-analysis";
+import { BlurredAnalysisOverlay } from "@/components/discretion/blurred-analysis-overlay";
 
 const CHECKLIST_LABELS: { key: keyof RatingChecklist; label: string; tooltip: string }[] = [
   {
@@ -419,6 +422,18 @@ export function DealingDetailPanel({
   const company = dealing?.company.replace(/\s*\([^)]*\)\s*$/, "") ?? "";
   const ticker = dealing?.ticker.replace(/\.L$/, "") ?? "";
 
+  const discretion = useDiscretion();
+  const gated =
+    discretion.enabled && dealing != null && !discretion.hasFullAccess(dealing.id);
+  const display = gated ? DUMMY_ANALYSIS : a;
+
+  // Record this drawer-open against today's quota so the freebie locks in
+  // on the first deal opened — whether reached by click or by deep link.
+  useEffect(() => {
+    if (!dealing || !discretion.enabled) return;
+    discretion.recordView(dealing.id);
+  }, [dealing?.id, discretion.enabled, discretion.recordView]);
+
   // Escape key
   useEffect(() => {
     if (!dealing) return;
@@ -508,14 +523,6 @@ export function DealingDetailPanel({
               <div className="p-5 md:p-8 space-y-6">
                 <h1 className="text-3xl font-bold leading-tight tracking-tight">{company}</h1>
 
-                {a?.summary && (
-                  <p className="text-xl font-semibold leading-snug text-foreground/90">
-                    {a.summary}
-                  </p>
-                )}
-
-                {!a && <TriageOnlyAnalysisNotice triage={t} />}
-
                 <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 py-4 border-y border-black/10 dark:border-white/10">
                   <div>
                     <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Buyer</dt>
@@ -529,20 +536,9 @@ export function DealingDetailPanel({
                     <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Amount</dt>
                     <dd className="text-sm font-medium">{fmtGbp(dealing.value_gbp)}</dd>
                   </div>
-                  {a && (
-                    <>
-                      <div>
-                        <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Confidence</dt>
-                        <dd className="text-sm font-medium">{(a.confidence * 100).toFixed(0)}%</dd>
-                      </div>
-                      <div>
-                        <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Catalyst</dt>
-                        <dd className="text-sm font-medium">{a.catalyst_window}</dd>
-                      </div>
-                    </>
-                  )}
                 </dl>
 
+                {/* Performance — always visible, even when the analysis below is gated. */}
                 {currentPricePence != null && (
                   <PositionCard
                     entry={dealing.price_pence}
@@ -554,67 +550,96 @@ export function DealingDetailPanel({
                   />
                 )}
 
-                {a && (
-                  <>
-                    {a.checklist && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
-                        <RatingChecklistView checklist={a.checklist} />
-                        <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] p-4 flex flex-col">
-                          <MiniPriceChart
-                            ticker={dealing.ticker}
-                            tradeDate={dealing.trade_date.slice(0, 10)}
-                            entryPricePence={dealing.price_pence}
-                          />
+                <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] p-4 h-72">
+                  <MiniPriceChart
+                    ticker={dealing.ticker}
+                    tradeDate={dealing.trade_date.slice(0, 10)}
+                    entryPricePence={dealing.price_pence}
+                  />
+                </div>
+
+                {/* Analysis — gated when the user has spent today's free drawer. */}
+                {!display ? (
+                  <TriageOnlyAnalysisNotice triage={t} />
+                ) : (
+                  <div className={gated ? "relative" : ""}>
+                    <div
+                      className={
+                        gated
+                          ? "space-y-6 blur-md select-none pointer-events-none"
+                          : "space-y-6"
+                      }
+                      aria-hidden={gated || undefined}
+                    >
+                      {display.summary && (
+                        <p className="text-xl font-semibold leading-snug text-foreground/90">
+                          {display.summary}
+                        </p>
+                      )}
+
+                      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 py-4 border-y border-black/10 dark:border-white/10">
+                        <div>
+                          <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Confidence</dt>
+                          <dd className="text-sm font-medium">{(display.confidence * 100).toFixed(0)}%</dd>
                         </div>
-                      </div>
-                    )}
-
-                    {a.thesis_points.length > 0 && (
-                      <div>
-                        <h3 className="text-sm font-semibold mb-2">Thesis</h3>
-                        <div className="space-y-3">
-                          {a.thesis_points.map((p, i) => (
-                            <p key={i} className="text-sm text-foreground/90 leading-relaxed">
-                              {p}
-                            </p>
-                          ))}
+                        <div>
+                          <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Catalyst</dt>
+                          <dd className="text-sm font-medium">{display.catalyst_window}</dd>
                         </div>
+                      </dl>
+
+                      {display.checklist && (
+                        <RatingChecklistView checklist={display.checklist} />
+                      )}
+
+                      {display.thesis_points.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold mb-2">Thesis</h3>
+                          <div className="space-y-3">
+                            {display.thesis_points.map((p, i) => (
+                              <p key={i} className="text-sm text-foreground/90 leading-relaxed">
+                                {p}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-8">
+                        <EvidenceTable
+                          points={display.evidence_for}
+                          title="Why this is interesting"
+                          tone="for"
+                        />
+                        <EvidenceTable
+                          points={display.evidence_against}
+                          title="Why it might not be"
+                          tone="against"
+                        />
                       </div>
-                    )}
 
-                    <div className="space-y-8">
-                      <EvidenceTable
-                        points={a.evidence_for}
-                        title="Why this is interesting"
-                        tone="for"
-                      />
-                      <EvidenceTable
-                        points={a.evidence_against}
-                        title="Why it might not be"
-                        tone="against"
-                      />
-                    </div>
+                      {display.key_risks.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold mb-1">Key risks</h4>
+                          <ul className="text-sm list-disc pl-5 text-foreground/90 space-y-1">
+                            {display.key_risks.map((r, i) => (
+                              <li key={i}>{r}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-                    {a.key_risks.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-1">Key risks</h4>
-                        <ul className="text-sm list-disc pl-5 text-foreground/90 space-y-1">
-                          {a.key_risks.map((r, i) => (
-                            <li key={i}>{r}</li>
-                          ))}
-                        </ul>
+                      <div className="text-xs pb-6">
+                        <Link
+                          className="text-[#6b5038] hover:underline"
+                          to={`/directors/${dealing.director.id}`}
+                        >
+                          View {dealing.director.name}'s track record →
+                        </Link>
                       </div>
-                    )}
-
-                    <div className="text-xs pb-6">
-                      <Link
-                        className="text-[#6b5038] hover:underline"
-                        to={`/directors/${dealing.director.id}`}
-                      >
-                        View {dealing.director.name}'s track record →
-                      </Link>
                     </div>
-                  </>
+                    {gated && <BlurredAnalysisOverlay />}
+                  </div>
                 )}
               </div>
             </div>
