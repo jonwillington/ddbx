@@ -78,7 +78,7 @@ The public website intentionally shows only a sliver of the data so the iOS
 app remains the canonical surface. Toggle with `VITE_DISCRETION_MODE` —
 default is `on`; set to `off` to expose the full unblurred UX.
 
-- **List cap**: 3 suggested deals (newest-first, or top-3-by-gain in by-gain mode). Everything else is hidden behind `LockedListFooter` with an App Store CTA.
-- **Drawer cap**: the **first** deal opened today shows full analysis; the 2nd and 3rd render dummy text (`src/components/discretion/dummy-analysis.ts`) under a CSS blur with a CTA overlay. Position card and price chart stay unblurred.
+- **List cap**: each day shows at most 3 trade rows (segments). When more exist on a day, a `DayMoreInApp` row links to the App Store ("+ N more trades on this day · See them in the iOS app"). Applies to today's section (mobile + desktop right drawer), per-day groupings in chronological view, and globally in by-gain view.
+- **Drawer cap**: the **first** deal opened today shows full analysis; subsequent drawers render dummy text (`src/components/discretion/dummy-analysis.ts`) under a CSS blur with a CTA overlay. Position card and price chart stay unblurred.
 - **Storage**: `localStorage` key `ddbx.discretion.viewState` shaped `{ date: "YYYY-MM-DD", viewedDealIds: string[] }`. Resets at UK midnight (Europe/London).
 - **Module**: all logic lives in `src/lib/discretion.ts` (`useDiscretion` hook, `recordView`, `hasFullAccess`, `LIST_CAP`).

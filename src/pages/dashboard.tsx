@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import DefaultLayout from "@/layouts/default";
@@ -12,7 +12,7 @@ import { isSuggestedDealing } from "@/lib/dealing-classify";
 import { compareDealingsNewestFirst, formatDisclosedCompact, formatDisclosedParts } from "@/lib/dealing-dates";
 import { useDataVersion } from "@/lib/use-data-version";
 import { useDiscretion } from "@/lib/discretion";
-import { LockedListFooter } from "@/components/discretion/locked-list-footer";
+import { DayMoreInApp } from "@/components/discretion/day-more-in-app";
 import {
   ChevronDownIcon,
   CalendarDaysIcon,
@@ -274,21 +274,6 @@ export default function DashboardPage() {
       .sort((a, b) => b._gainPct - a._gainPct);
   }, [filteredDealings, prices]);
 
-  // Discretion mode: when enabled, the entire list collapses to the top N
-  // suggested deals (newest-first, or top-by-gain depending on the view
-  // toggle). Everything else is hidden behind the LockedListFooter CTA.
-  const gatedSuggested = useMemo((): Dealing[] => {
-    if (!filteredDealings) return [];
-    if (viewMode === "by-gain") return byGain;
-    return [...filteredDealings]
-      .filter(isSuggestedDealing)
-      .sort(compareDealingsNewestFirst);
-  }, [filteredDealings, byGain, viewMode]);
-  const gatedVisible = gatedSuggested.slice(0, discretion.listCap);
-  const gatedHidden = Math.max(
-    0,
-    (filteredDealings?.length ?? 0) - gatedVisible.length,
-  );
 
   // Hero performance stats — computed client-side from dealings + prices + FTSE
   const heroStats = useMemo(() => {
@@ -573,7 +558,7 @@ export default function DashboardPage() {
   ) : null;
 
   return (
-    <DefaultLayout drawerRight={isTradingDay && !discretion.enabled} ticker={tickerEl}>
+    <DefaultLayout drawerRight={isTradingDay} ticker={tickerEl}>
       <section className="pb-8 space-y-8">
         {/* Full-bleed hero — breaks out of container */}
         <div className="relative -mx-4 md:-mx-6 overflow-hidden">
@@ -847,7 +832,7 @@ export default function DashboardPage() {
 
         <div className="space-y-6">
             {/* Mobile-only today section */}
-            {isTradingDay && !discretion.enabled && (
+            {isTradingDay && (
               <div className="lg:hidden bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
                   <div className="text-sm font-semibold flex items-center gap-2"><PlayIcon className="w-4 h-4" />Today</div>
@@ -860,7 +845,10 @@ export default function DashboardPage() {
                 {ukTodayNewsStrip}
                 {todayDeals.length > 0 ? (
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
-                    {todayDeals.map((d) => (
+                    {(discretion.enabled
+                      ? todayDeals.slice(0, discretion.listCap)
+                      : todayDeals
+                    ).map((d) => (
                       <DealingRow
                         key={d.id}
                         dealing={d}
@@ -870,6 +858,11 @@ export default function DashboardPage() {
                         hideDate
                       />
                     ))}
+                    {discretion.enabled && (
+                      <DayMoreInApp
+                        count={Math.max(0, todayDeals.length - discretion.listCap)}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="px-5 py-4 text-sm text-muted">
@@ -883,55 +876,6 @@ export default function DashboardPage() {
 
             {!dealings ? (
               <DashboardSkeleton />
-            ) : discretion.enabled ? (
-              <div className="space-y-4 animate-content-in">
-                <div className="bg-[#faf7f2] dark:bg-surface rounded-xl">
-                  <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[#e8e0d5]/50 dark:border-separator/30">
-                    <div className="flex gap-2">
-                      {(["chronological", "by-gain"] as const).map((mode) => (
-                        <button
-                          key={mode}
-                          className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                            viewMode === mode
-                              ? "border-[#6b5038] bg-[#6b5038]/10 text-[#6b5038]"
-                              : "border-separator text-muted hover:border-[#6b5038]/50"
-                          }`}
-                          onClick={() => setViewMode(mode)}
-                        >
-                          {mode === "chronological" ? "Latest" : "Top gains"}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="ml-auto text-[11px] text-muted">
-                      Showing today&apos;s pick of {discretion.listCap}
-                    </span>
-                  </div>
-                  {gatedVisible.length === 0 ? (
-                    <div className="px-5 py-8 text-sm text-muted text-center">
-                      No suggested deals to show right now.
-                    </div>
-                  ) : (
-                    <>
-                      <DealingRowHeader showVsFtse />
-                      <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
-                        {gatedVisible.map((d) => (
-                          <DealingRow
-                            key={d.id}
-                            dealing={d}
-                            currentPricePence={prices[d.ticker]}
-                            ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
-                            ftseCurrentPence={prices["^FTAS"]}
-                            showVsFtse
-                            selected={selected?.id === d.id}
-                            onSelect={selectDealing}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-                <LockedListFooter hiddenCount={gatedHidden} />
-              </div>
             ) : viewMode === "by-gain" ? (
               byGain.length === 0 ? (
                 <div className="text-sm text-muted">No dealings with current prices available.</div>
@@ -963,7 +907,7 @@ export default function DashboardPage() {
                   </div>
                   <DealingRowHeader showVsFtse />
                   <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
-                    {byGain.map((d) => (
+                    {(discretion.enabled ? byGain.slice(0, discretion.listCap) : byGain).map((d) => (
                       <DealingRow
                         key={d.id}
                         dealing={d}
@@ -975,6 +919,11 @@ export default function DashboardPage() {
                         onSelect={selectDealing}
                       />
                     ))}
+                    {discretion.enabled && (
+                      <DayMoreInApp
+                        count={Math.max(0, byGain.length - discretion.listCap)}
+                      />
+                    )}
                   </div>
                 </div>
               )
@@ -1065,37 +1014,53 @@ export default function DashboardPage() {
                           <DealingRowHeader showVsFtse />
                           <div className="divide-y divide-black/[0.06] dark:divide-separator">
                           {days.map((day) => {
-                            const segments = buildSegments(day.all, day.key);
+                            const allSegments = buildSegments(day.all, day.key);
+                            const segments = discretion.enabled
+                              ? allSegments.slice(0, discretion.listCap)
+                              : allSegments;
+                            const visibleDealsCount = segments.reduce(
+                              (sum, seg) =>
+                                sum + (seg.type === "analysed" ? 1 : seg.deals.length),
+                              0,
+                            );
+                            const moreCount = day.all.length - visibleDealsCount;
 
-                            return segments.map((seg) => {
-                              if (noteworthyOnly && seg.type === "skipped") return null;
-                              if (seg.type === "analysed") {
-                                return (
-                                <DealingRow
-                                  key={seg.deal.id}
-                                  dealing={seg.deal}
-                                  currentPricePence={prices[seg.deal.ticker]}
-                                  ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
-                                  ftseCurrentPence={prices["^FTAS"]}
-                                  showVsFtse
-                                  selected={selected?.id === seg.deal.id}
-                                  onSelect={selectDealing}
-                                />
-                                );
-                              }
-                              if (expandAll) {
-                                return (
-                                  <div key={seg.clusterKey}>
-                                    {renderSkippedCluster(seg.deals, seg.clusterKey, true)}
-                                  </div>
-                                );
-                              }
-                              return (
-                                <div key={seg.clusterKey}>
-                                  {renderSkippedCluster(seg.deals, seg.clusterKey)}
-                                </div>
-                              );
-                            });
+                            return (
+                              <Fragment key={day.key}>
+                                {segments.map((seg) => {
+                                  if (noteworthyOnly && seg.type === "skipped") return null;
+                                  if (seg.type === "analysed") {
+                                    return (
+                                      <DealingRow
+                                        key={seg.deal.id}
+                                        dealing={seg.deal}
+                                        currentPricePence={prices[seg.deal.ticker]}
+                                        ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
+                                        ftseCurrentPence={prices["^FTAS"]}
+                                        showVsFtse
+                                        selected={selected?.id === seg.deal.id}
+                                        onSelect={selectDealing}
+                                      />
+                                    );
+                                  }
+                                  if (expandAll) {
+                                    return (
+                                      <div key={seg.clusterKey}>
+                                        {renderSkippedCluster(seg.deals, seg.clusterKey, true)}
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div key={seg.clusterKey}>
+                                      {renderSkippedCluster(seg.deals, seg.clusterKey)}
+                                    </div>
+                                  );
+                                })}
+                                {discretion.enabled && moreCount > 0 && (
+                                  <DayMoreInApp count={moreCount} />
+                                )}
+                              </Fragment>
+                            );
                           })}
                           </div>
                         </div>
@@ -1110,7 +1075,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Today drawer — fixed full-height panel on right edge (desktop only) */}
-      {isTradingDay && !discretion.enabled && (
+      {isTradingDay && (
         <aside className="hidden lg:flex fixed top-0 right-0 bottom-0 w-80 flex-col border-l border-[#e8e0d5] dark:border-separator bg-[#faf7f2] dark:bg-surface z-20">
           {/* Header — matches navbar h-16 */}
           <div className="h-16 px-5 flex items-center border-b border-[#e8e0d5] dark:border-separator shrink-0">
@@ -1142,7 +1107,10 @@ export default function DashboardPage() {
               <div className="h-full overflow-y-auto overscroll-contain">
                 {todayDeals.length > 0 && (
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
-                    {todayDeals.map((d) => {
+                    {(discretion.enabled
+                      ? todayDeals.slice(0, discretion.listCap)
+                      : todayDeals
+                    ).map((d) => {
                       const a = d.analysis;
                       const t = d.triage;
                       const tickerLabel = d.ticker.replace(/\.L$/, "");
@@ -1217,6 +1185,12 @@ export default function DashboardPage() {
                         </button>
                       );
                     })}
+                    {discretion.enabled && (
+                      <DayMoreInApp
+                        variant="compact"
+                        count={Math.max(0, todayDeals.length - discretion.listCap)}
+                      />
+                    )}
                   </div>
                 )}
 
