@@ -125,9 +125,10 @@ export function HeroCard(props: Props) {
         />
       </div>
 
-      {props.scrubDate != null && (
-        <div className="text-xs text-muted">As of {props.scrubDate}</div>
-      )}
+      {/* Always render so the layout doesn't jump when scrubbing starts. */}
+      <div className="text-xs text-muted">
+        As of {props.scrubDate ?? "today"}
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
         <CriteriaCard
