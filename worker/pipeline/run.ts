@@ -6,6 +6,7 @@ import { analyzeDealing } from "./analyze";
 import { ensureDirectorProfile } from "./profile";
 import { ensureCompanyProfile } from "./company-profile";
 import { refreshPerformance } from "./performance";
+import { backfillSectorNormalized } from "./backfill-sector-normalized";
 import { postTweet } from "./twitter";
 import { sendPushNotifications } from "./apns";
 import {
@@ -140,6 +141,15 @@ export async function runPipeline(env: Env): Promise<PipelineResult> {
         errors.push(`analyze-pending ${row.id}: ${(err as Error).message}`);
       }
     }
+
+    // Classify any tickers that arrived this run (or earlier runs that
+    // pre-dated the classifier) so the iOS By Industry leaderboard sums
+    // to the same count as the universe header. Bounded to 50 to keep
+    // pipeline runtime predictable; it's idempotent so any leftover gets
+    // picked up on the next run.
+    await backfillSectorNormalized(env, { limit: 50 }).catch((err: Error) =>
+      errors.push(`backfill-sectors: ${err.message}`),
+    );
 
     const perf = await refreshPerformance(env);
     result.performance_updated = perf.updated;
