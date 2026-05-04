@@ -332,7 +332,24 @@ function PositionCard({
 }) {
   const stockPct = (current - entry) / entry;
   const up = stockPct >= 0;
-  const currentValue = (shares * current) / 100;
+  // When shares × entry disagrees with originalValue the row is internally
+  // inconsistent — either shares is wrong or value_gbp is. Without an
+  // independent signal, pick whichever side produces a plausible director-
+  // RNS trade size (≥ £5k disclosure threshold, ≤ £10M). Otherwise fall
+  // back to the reported share count rather than guess.
+  const computedFromShares = (shares * entry) / 100;
+  const sharesRatio = computedFromShares > 0 && originalValue > 0
+    ? Math.max(computedFromShares, originalValue) /
+      Math.min(computedFromShares, originalValue)
+    : 1;
+  const plausible = (v: number) => v >= 5_000 && v <= 10_000_000;
+  const effectiveShares =
+    sharesRatio < 1.05 || entry <= 0 || originalValue <= 0
+      ? shares
+      : plausible(originalValue) && !plausible(computedFromShares)
+        ? (originalValue * 100) / entry
+        : shares;
+  const currentValue = (effectiveShares * current) / 100;
   const gainLoss = currentValue - originalValue;
   const gainSign = gainLoss >= 0 ? "+" : "";
 

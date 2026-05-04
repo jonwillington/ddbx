@@ -16,6 +16,9 @@ dist-ssr
 .dev.vars
 .wrangler
 
+# D1 backups
+backups
+
 # Editor directories and files
 !.vscode/extensions.json
 .idea

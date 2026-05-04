@@ -4,6 +4,8 @@ import { cors } from "hono/cors";
 import { runPipeline } from "./pipeline/run";
 import { backfillDays } from "./pipeline/backfill";
 import { backfillSectorNormalized } from "./pipeline/backfill-sector-normalized";
+import { applyDealingCorrection, reconcileBackfill } from "./pipeline/reconcile-backfill";
+import { findRnsUrls } from "./pipeline/find-rns";
 import { analyzeDealing } from "./pipeline/analyze";
 import { insertAnalysis } from "./db/writes";
 import { getDealings, getDealingById } from "./db/queries";
@@ -154,7 +156,7 @@ app.get("/api/prices/history", async (c) => {
 
     const now = Math.floor(Date.now() / 1000);
     const from = now - days * 24 * 3600;
-    const bars = await fetchDailyBars(ticker, from, now);
+    const bars = await fetchDailyBars(c.env, ticker, from, now);
 
     await cacheBars(c.env, ticker, bars);
 
@@ -243,7 +245,7 @@ app.get("/api/prices/latest", async (c) => {
   await Promise.allSettled(
     missing.map(async (ticker) => {
       try {
-        const bars = await fetchDailyBars(ticker, weekAgo, now);
+        const bars = await fetchDailyBars(c.env, ticker, weekAgo, now);
 
         if (bars.length === 0) return;
         await cacheBars(c.env, ticker, bars);
@@ -527,6 +529,116 @@ app.post("/__fix-price", async (c) => {
 app.post("/__backfill-sectors", async (c) => {
   const limit = Math.max(1, Math.min(500, Number(c.req.query("limit") ?? 200)));
   const result = await backfillSectorNormalized(c.env, { limit });
+  return c.json(result);
+});
+
+// Re-run the trade-fields reconciler against every existing dealing and
+// rewrite rows whose stored shares/price/value disagree with current market
+// data. DRY-RUN by default: the response shows what would change. Pass
+// ?apply=1 to actually write.
+//
+// When the corrected (shares, price_pence) hash to a different id, the FKs
+// in triage/analyses/performance are migrated atomically per row. The
+// performance rows for affected dealings are dropped — re-run /__cron/run
+// (or wait for nightly) to recompute them.
+//
+// Triage/analysis text is left untouched even though it references the old
+// figures (e.g. "£60.75k routine top-up"). Rows where this matters are
+// flagged as `needs_reanalysis` so you can spot-check and re-trigger via
+// /__reanalyze if needed.
+//
+// POST /__reconcile-backfill                       -> dry-run all, up to 5000
+// POST /__reconcile-backfill?apply=1                -> applies all
+// POST /__reconcile-backfill?limit=100              -> caps scan
+// POST /__reconcile-backfill?ids=d-aaa,d-bbb        -> scope to specific rows
+// Wipe and re-fetch a ticker's price bars from Yahoo. Used after a
+// price-ingest fix (e.g. wiring up EUR FX) so the cache reflects the new
+// conversion logic without waiting for the next scheduled refresh.
+// POST /__refresh-prices?ticker=KYGA.L&days=365
+app.post("/__refresh-prices", async (c) => {
+  const ticker = c.req.query("ticker");
+  const days = Math.max(1, Math.min(2000, Number(c.req.query("days") ?? 365)));
+  if (!ticker) return c.json({ error: "ticker required" }, 400);
+  await c.env.DB.prepare(`DELETE FROM prices WHERE ticker = ?1`)
+    .bind(ticker)
+    .run();
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - days * 24 * 3600;
+  try {
+    const bars = await fetchDailyBars(c.env, ticker, from, now);
+    await cacheBars(c.env, ticker, bars);
+    const last = bars[bars.length - 1];
+    return c.json({ ticker, bars: bars.length, last });
+  } catch (err) {
+    return c.json({ ticker, error: (err as Error).message }, 500);
+  }
+});
+
+// Drop all stored prices for one or more tickers. Used to clear out
+// corrupted bars after fixing a price-ingest bug (e.g. EUR-denominated
+// dual listings being stored as if quoted in pence).
+// POST /__purge-prices?tickers=KYGA.L,MTLN.L
+app.post("/__purge-prices", async (c) => {
+  const csv = c.req.query("tickers") ?? "";
+  const tickers = csv.split(",").map((s) => s.trim()).filter(Boolean);
+  if (tickers.length === 0) return c.json({ error: "tickers required" }, 400);
+  const placeholders = tickers.map((_, i) => `?${i + 1}`).join(",");
+  const result = await c.env.DB.prepare(
+    `DELETE FROM prices WHERE ticker IN (${placeholders})`,
+  )
+    .bind(...tickers)
+    .run();
+  return c.json({ deleted: result.meta.changes ?? 0, tickers });
+});
+
+// Manual correction for a single dealing where reconcile heuristics can't
+// decide which field is wrong (typically ambiguous 10×/100× errors). The
+// operator sources the right values from the original RNS and passes them
+// in. Recomputes hash + migrates FKs if shares/price changed.
+// POST /__fix-dealing?id=d-abc&shares=123&price_pence=45.6&value_gbp=789
+app.post("/__fix-dealing", async (c) => {
+  const id = c.req.query("id");
+  const shares = Number(c.req.query("shares"));
+  const price_pence = Number(c.req.query("price_pence"));
+  const value_gbp = Number(c.req.query("value_gbp"));
+  if (!id || !Number.isFinite(shares) || !Number.isFinite(price_pence) || !Number.isFinite(value_gbp)) {
+    return c.json(
+      { error: "id, shares, price_pence, value_gbp all required" },
+      400,
+    );
+  }
+  try {
+    const result = await applyDealingCorrection(c.env, {
+      id,
+      shares,
+      price_pence,
+      value_gbp,
+    });
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
+// Look up the announcement URL(s) for one or more dealings by joining the
+// extractions cache on (director_id, trade_date). Returns multiple urls per
+// id when the director made several trades on the same day — caller picks.
+// POST /__find-rns?ids=d-aaa,d-bbb
+app.post("/__find-rns", async (c) => {
+  const idsParam = c.req.query("ids") ?? "";
+  const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) return c.json({ error: "ids required" }, 400);
+  const result = await findRnsUrls(c.env, ids);
+  return c.json(result);
+});
+
+app.post("/__reconcile-backfill", async (c) => {
+  const apply = c.req.query("apply") === "1";
+  const limitParam = c.req.query("limit");
+  const limit = limitParam ? Number(limitParam) : undefined;
+  const idsParam = c.req.query("ids");
+  const ids = idsParam ? idsParam.split(",").map((s) => s.trim()) : undefined;
+  const result = await reconcileBackfill(c.env, { apply, limit, ids });
   return c.json(result);
 });
 

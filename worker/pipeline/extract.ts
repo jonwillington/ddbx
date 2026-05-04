@@ -51,33 +51,17 @@ export async function extractDealing(
   ) {
     return null;
   }
-  let price_pence: number = parsed.price_pence;
-  const value_gbp: number =
-    typeof parsed.value_gbp === "number" ? parsed.value_gbp : 0;
-
-  // Cross-check: if value_gbp and shares are both known, the implied price
-  // should equal price_pence. Detect and fix ~100x unit errors in either
-  // direction — the LLM sometimes returns GBP as pence or vice-versa.
-  if (value_gbp > 0 && parsed.shares > 0 && price_pence > 0) {
-    const impliedPence = (value_gbp * 100) / parsed.shares;
-    const ratio = impliedPence / price_pence;
-    if (ratio > 0.005 && ratio < 0.05) {
-      // price_pence is ~100x too high — divide down.
-      price_pence = price_pence / 100;
-    } else if (ratio > 20 && ratio < 200) {
-      // price_pence is ~100x too low — LLM returned GBP instead of pence.
-      price_pence = price_pence * 100;
-    }
-  }
-
+  // Numeric reconciliation (price/shares unit errors) lives in
+  // reconcile.ts and runs in scrape.ts where market data is available.
   return {
     director_name: parsed.director_name,
     role: typeof parsed.role === "string" ? parsed.role : "",
     trade_date: parsed.trade_date,
     transaction_type: normalizeType(parsed.transaction_type),
     shares: parsed.shares,
-    price_pence,
-    value_gbp,
+    price_pence: parsed.price_pence,
+    value_gbp:
+      typeof parsed.value_gbp === "number" ? parsed.value_gbp : 0,
     is_open_market_buy: !!parsed.is_open_market_buy,
   };
 }

@@ -13,6 +13,7 @@
     "worker:deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute director-dealings --remote --file=worker/db/schema.sql",
     "db:init:local": "wrangler d1 execute director-dealings --local --file=worker/db/schema.sql",
+    "db:backup": "scripts/backup-d1.sh",
     "pipeline:run": "curl -X POST http://localhost:8787/__cron/run"
   },
   "dependencies": {

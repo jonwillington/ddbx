@@ -75,6 +75,15 @@ CREATE TABLE IF NOT EXISTS fx_rates (
   gbp_per_usd  REAL NOT NULL
 );
 
+-- Daily GBP-per-EUR FX rates (Frankfurter / ECB). Used to translate
+-- EUR-quoted Yahoo bars (KYGA, MTLN — dual-listed Irish/Greek issues) into
+-- pence at price-ingest time. Kept separate from fx_rates so the existing
+-- gbp_per_usd NOT NULL contract there doesn't need to be relaxed.
+CREATE TABLE IF NOT EXISTS fx_rates_eur (
+  date         TEXT PRIMARY KEY,
+  gbp_per_eur  REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS performance (
   dealing_id   TEXT NOT NULL REFERENCES dealings(id),
   horizon_days INTEGER NOT NULL,       -- 90 / 180 / 365 / 730

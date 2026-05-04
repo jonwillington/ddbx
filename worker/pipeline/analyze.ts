@@ -32,12 +32,96 @@ function buildSignalContext(dealing: Dealing): string {
   return `Pre-analysis signals:\n${signals.map((s) => `- ${s}`).join("\n")}\n\nUse these facts to ground your judgment on the checklist items.`;
 }
 
+interface PriorRow {
+  trade_date: string;
+  ticker: string;
+  tx_type: string;
+  shares: number;
+  price_pence: number;
+  value_gbp: number;
+  rating: string | null;
+  dir_name: string | null;
+  dir_role: string | null;
+}
+
+function fmtRow(r: PriorRow, opts: { includeDirector: boolean; includeTicker: boolean }): string {
+  const rating = r.rating ? ` [${r.rating}]` : "";
+  const value = `£${Math.round(r.value_gbp).toLocaleString()}`;
+  const who = opts.includeDirector
+    ? ` ${r.dir_name}${r.dir_role ? ` (${r.dir_role})` : ""}`
+    : "";
+  const tk = opts.includeTicker ? ` ${r.ticker}` : "";
+  return `- ${r.trade_date}${who}${tk} ${r.tx_type} ${r.shares.toLocaleString()} sh @ ${r.price_pence}p = ${value}${rating}`;
+}
+
+// Pull what we already know about this director and this ticker from D1 so
+// Opus doesn't have to rediscover it via web_search. Two slices:
+//  1. Same director, last 24 months, any ticker — pattern of behaviour.
+//  2. Same ticker, last 90 days, OTHER directors — cluster / coordinated buys.
+// The current dealing has already been inserted by run.ts so we exclude it by id.
+async function loadPriorContext(env: Env, dealing: Dealing): Promise<string> {
+  const [directorPrior, tickerRecent] = await Promise.all([
+    env.DB.prepare(
+      `SELECT d.trade_date, d.ticker, d.tx_type, d.shares, d.price_pence, d.value_gbp,
+              a.rating, NULL AS dir_name, NULL AS dir_role
+         FROM dealings d
+         LEFT JOIN analyses a ON a.dealing_id = d.id
+        WHERE d.director_id = ?1
+          AND d.id != ?2
+          AND d.trade_date >= date('now', '-24 months')
+        ORDER BY d.trade_date DESC
+        LIMIT 10`,
+    ).bind(dealing.director.id, dealing.id).all<PriorRow>(),
+    env.DB.prepare(
+      `SELECT d.trade_date, d.ticker, d.tx_type, d.shares, d.price_pence, d.value_gbp,
+              a.rating, dir.name AS dir_name, dir.role AS dir_role
+         FROM dealings d
+         JOIN directors dir ON dir.id = d.director_id
+         LEFT JOIN analyses a ON a.dealing_id = d.id
+        WHERE d.ticker = ?1
+          AND d.id != ?2
+          AND d.director_id != ?3
+          AND d.trade_date >= date('now', '-90 days')
+        ORDER BY d.trade_date DESC
+        LIMIT 10`,
+    ).bind(dealing.ticker, dealing.id, dealing.director.id).all<PriorRow>(),
+  ]);
+
+  const lines: string[] = [];
+
+  lines.push(`Prior trades by ${dealing.director.name} in our records (last 24 months):`);
+  if (directorPrior.results.length === 0) {
+    lines.push("- none");
+  } else {
+    for (const r of directorPrior.results) {
+      lines.push(fmtRow(r, { includeDirector: false, includeTicker: true }));
+    }
+  }
+  lines.push("");
+
+  lines.push(`Other directors trading ${dealing.ticker} in our records (last 90 days):`);
+  if (tickerRecent.results.length === 0) {
+    lines.push("- none");
+  } else {
+    for (const r of tickerRecent.results) {
+      lines.push(fmtRow(r, { includeDirector: true, includeTicker: false }));
+    }
+  }
+
+  return `Prior context from our records (authoritative for trade history; do not re-search for these specific trades):\n${lines.join("\n")}`;
+}
+
 export async function analyzeDealing(
   env: Env,
   dealing: Dealing,
 ): Promise<AnalyzeResult> {
   const signalContext = buildSignalContext(dealing);
-  const userMsg = `${signalContext}\n\n${JSON.stringify({ dealing })}`;
+  const priorContext = await loadPriorContext(env, dealing).catch(() => "");
+  const userMsg = [
+    signalContext,
+    priorContext,
+    JSON.stringify({ dealing }),
+  ].filter(Boolean).join("\n\n");
 
   const resp = await callAnthropic(env, {
     model: "claude-opus-4-6",

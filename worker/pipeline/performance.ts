@@ -41,7 +41,7 @@ export async function refreshPerformance(env: Env): Promise<{ updated: number }>
     const toUnix = Math.floor(now.getTime() / 1000);
 
     try {
-      const bars = await fetchDailyBars(ticker, fromUnix, toUnix);
+      const bars = await fetchDailyBars(env, ticker, fromUnix, toUnix);
       await cacheBars(env, ticker, bars);
     } catch (err) {
       // Log & skip — one bad ticker shouldn't sink the whole refresh.
@@ -88,6 +88,7 @@ export async function refreshPerformance(env: Env): Promise<{ updated: number }>
     from.setDate(from.getDate() - 10);
     try {
       const bars = await fetchDailyBars(
+        env,
         "^FTAS",
         Math.floor(from.getTime() / 1000),
         Math.floor(now.getTime() / 1000),
