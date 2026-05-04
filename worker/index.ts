@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 
 import { runPipeline } from "./pipeline/run";
 import { backfillDays } from "./pipeline/backfill";
+import { backfillSectorNormalized } from "./pipeline/backfill-sector-normalized";
 import { analyzeDealing } from "./pipeline/analyze";
 import { insertAnalysis } from "./db/writes";
 import { getDealings, getDealingById } from "./db/queries";
@@ -36,6 +37,12 @@ export interface Env {
   // /__twitter-auth/start in a browser.
   TWITTER_CLIENT_ID: string;
   TWITTER_CLIENT_SECRET: string;
+  // Companies House API key (free, register at
+  // developer.company-information.service.gov.uk). Used to look up SIC 2007
+  // codes during company-profile extraction so we can map deals to ICB
+  // industry buckets. Optional — when unset, the LLM fallback path supplies
+  // sector_normalized instead.
+  COMPANIES_HOUSE_API_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -511,6 +518,16 @@ app.post("/__fix-price", async (c) => {
     .run();
 
   return c.json({ ok: true, id, price_pence: pence });
+});
+
+// One-shot backfill for sic_codes + sector_normalized on tickers.
+// Companies House first, Opus second. Idempotent — re-runnable while there
+// are still rows with sector_normalized IS NULL.
+// POST /__backfill-sectors?limit=200
+app.post("/__backfill-sectors", async (c) => {
+  const limit = Math.max(1, Math.min(500, Number(c.req.query("limit") ?? 200)));
+  const result = await backfillSectorNormalized(c.env, { limit });
+  return c.json(result);
 });
 
 app.get("/", (c) => c.text("director-dealings worker. See /api/dealings."));

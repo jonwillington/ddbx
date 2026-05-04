@@ -1,5 +1,5 @@
 import type { Env } from "../index";
-import type { Analysis, Dealing, TriageVerdict } from "./types";
+import type { Analysis, Dealing, SectorNormalized, TriageVerdict } from "./types";
 
 // ---- ID + hash helpers ----------------------------------------------------
 
@@ -154,6 +154,8 @@ export async function updateCompanyProfile(
   profile: {
     description: string;
     sector: string;
+    sector_normalized?: SectorNormalized | null;
+    sic_codes?: string[] | null;
     website?: string;
     key_facts: string[];
   },
@@ -164,6 +166,8 @@ export async function updateCompanyProfile(
             sector = ?3,
             website = ?4,
             profile_json = ?5,
+            sector_normalized = ?6,
+            sic_codes = ?7,
             profile_updated_at = datetime('now')
       WHERE ticker = ?1`,
   )
@@ -173,6 +177,10 @@ export async function updateCompanyProfile(
       profile.sector,
       profile.website ?? null,
       JSON.stringify(profile),
+      profile.sector_normalized ?? null,
+      profile.sic_codes && profile.sic_codes.length > 0
+        ? JSON.stringify(profile.sic_codes)
+        : null,
     )
     .run();
 }

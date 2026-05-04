@@ -5,8 +5,10 @@ import type {
   PerformanceRow,
   Rating,
   RatingChecklist,
+  SectorNormalized,
   TriageVerdict,
 } from "./types";
+import { isSectorNormalized } from "./types";
 
 // ---- Row shapes straight out of D1 ---------------------------------------
 
@@ -40,6 +42,9 @@ interface JoinedRow {
   catalyst_window: string | null;
   checklist_json: string | null;
   rating_rationale: string | null;
+  ticker_sector: string | null;
+  ticker_sector_normalized: string | null;
+  ticker_sic_codes: string | null;
 }
 
 const BASE_SELECT = `
@@ -52,11 +57,15 @@ const BASE_SELECT = `
     t.verdict AS triage_verdict, t.reason AS triage_reason,
     a.rating, a.confidence, a.summary, a.thesis, a.thesis_points_json,
     a.evidence_for_json, a.evidence_against_json, a.risks_json,
-    a.catalyst_window, a.checklist_json, a.rating_rationale
+    a.catalyst_window, a.checklist_json, a.rating_rationale,
+    tk.sector AS ticker_sector,
+    tk.sector_normalized AS ticker_sector_normalized,
+    tk.sic_codes AS ticker_sic_codes
   FROM dealings d
   JOIN directors dir ON dir.id = d.director_id
   LEFT JOIN triage t ON t.dealing_id = d.id
   LEFT JOIN analyses a ON a.dealing_id = d.id
+  LEFT JOIN tickers tk ON tk.ticker = d.ticker
 `;
 
 function jsonArray<T>(raw: string | null): T[] {
@@ -109,6 +118,26 @@ function hydrate(r: JoinedRow, perf: PerformanceRow[] = []): Dealing {
       }
     : undefined;
 
+  const sectorNormalized: SectorNormalized | null = isSectorNormalized(
+    r.ticker_sector_normalized,
+  )
+    ? r.ticker_sector_normalized
+    : null;
+  let sicCodes: string[] | null = null;
+  if (r.ticker_sic_codes) {
+    try {
+      const parsed = JSON.parse(r.ticker_sic_codes);
+      if (Array.isArray(parsed)) {
+        sicCodes = parsed.filter(
+          (c): c is string => typeof c === "string" && c.trim().length > 0,
+        );
+        if (sicCodes.length === 0) sicCodes = null;
+      }
+    } catch {
+      /* ignore malformed sic_codes json */
+    }
+  }
+
   return {
     id: r.id,
     trade_date: r.trade_date,
@@ -136,6 +165,9 @@ function hydrate(r: JoinedRow, perf: PerformanceRow[] = []): Dealing {
       : undefined,
     analysis,
     performance: perf,
+    sector: r.ticker_sector ?? null,
+    sector_normalized: sectorNormalized,
+    sic_codes: sicCodes,
   };
 }
 

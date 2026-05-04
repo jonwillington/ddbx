@@ -7,6 +7,40 @@ export type Rating =
   | "minor"
   | "routine";
 
+// ICB top-level industries (FTSE Russell). Used to group dealings by
+// industry in the iOS Performance tab. Sourced from Companies House SIC
+// 2007 codes via worker/lib/sic-to-icb.ts; LLM fallback emits one of these.
+export type SectorNormalized =
+  | "Technology"
+  | "Telecommunications"
+  | "Health Care"
+  | "Financials"
+  | "Real Estate"
+  | "Consumer Discretionary"
+  | "Consumer Staples"
+  | "Industrials"
+  | "Basic Materials"
+  | "Energy"
+  | "Utilities";
+
+export const SECTOR_NORMALIZED_VALUES: readonly SectorNormalized[] = [
+  "Technology",
+  "Telecommunications",
+  "Health Care",
+  "Financials",
+  "Real Estate",
+  "Consumer Discretionary",
+  "Consumer Staples",
+  "Industrials",
+  "Basic Materials",
+  "Energy",
+  "Utilities",
+] as const;
+
+export function isSectorNormalized(v: unknown): v is SectorNormalized {
+  return typeof v === "string" && (SECTOR_NORMALIZED_VALUES as readonly string[]).includes(v);
+}
+
 export interface RatingChecklist {
   open_market_buy: boolean;
   senior_insider: boolean;
@@ -65,6 +99,9 @@ export interface Dealing {
   triage?: { verdict: TriageVerdict; reason: string };
   analysis?: Analysis;
   performance?: PerformanceRow[];
+  sector?: string | null;
+  sector_normalized?: SectorNormalized | null;
+  sic_codes?: string[] | null;
 }
 
 export interface PerformanceRow {
@@ -114,6 +151,8 @@ export interface FinancialYear {
 export interface CompanyProfile {
   description: string;
   sector: string;
+  sector_normalized?: SectorNormalized | null;
+  sic_codes?: string[] | null;
   website?: string;
   key_facts: string[];
 }
@@ -125,6 +164,8 @@ export interface Ticker {
   first_seen_at: string;
   last_seen_at: string;
   sector?: string | null;
+  sector_normalized?: SectorNormalized | null;
+  sic_codes?: string[] | null;
   description?: string | null;
   website?: string | null;
   profile?: CompanyProfile;

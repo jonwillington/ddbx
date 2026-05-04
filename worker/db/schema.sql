@@ -217,4 +217,22 @@ CREATE TABLE IF NOT EXISTS kv (
 --   wrangler d1 execute director-dealings --command "ALTER TABLE device_tokens ADD COLUMN device_id TEXT;"
 --   wrangler d1 execute director-dealings --command "CREATE INDEX IF NOT EXISTS idx_device_tokens_device_id ON device_tokens(device_id);"
 ALTER TABLE device_tokens ADD COLUMN device_id TEXT;
+
+-- Migration 009 (2026-05-04): industry classification on tickers.
+-- Adds raw Companies House SIC 2007 codes (JSON array of 5-digit strings)
+-- and a normalized ICB top-level industry label used to group dealings in
+-- the iOS Performance tab's "By Industry" mode. Existing free-form
+-- tickers.sector is kept for descriptive use; sector_normalized is purely
+-- for grouping and is constrained at write time to one of:
+--   Technology, Telecommunications, Health Care, Financials, Real Estate,
+--   Consumer Discretionary, Consumer Staples, Industrials,
+--   Basic Materials, Energy, Utilities.
+-- Source-of-truth precedence at extraction time:
+--   1. Companies House SIC → ICB lookup (deterministic)
+--   2. Opus fallback for non-matches (ADRs, foreign listings)
+-- Apply with:
+--   wrangler d1 execute director-dealings --command "ALTER TABLE tickers ADD COLUMN sic_codes TEXT;"
+--   wrangler d1 execute director-dealings --command "ALTER TABLE tickers ADD COLUMN sector_normalized TEXT;"
+ALTER TABLE tickers ADD COLUMN sic_codes TEXT;
+ALTER TABLE tickers ADD COLUMN sector_normalized TEXT;
 CREATE INDEX IF NOT EXISTS idx_device_tokens_device_id ON device_tokens(device_id);
