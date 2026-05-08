@@ -2,6 +2,8 @@ import type { Env } from "../index";
 import { callAnthropic } from "../llm/anthropic";
 import { EXTRACT_PROMPT } from "../llm/prompts";
 
+export type DealingCurrency = "GBP" | "EUR" | "USD";
+
 export interface ExtractedDealing {
   director_name: string;
   role: string;
@@ -13,7 +15,20 @@ export interface ExtractedDealing {
     | "sell"
     | "other";
   shares: number;
+  /**
+   * Currency token from the RNS. Defaults to "GBP" when the LLM omits the
+   * field — keeps cached extractions written before Migration 010 readable.
+   */
+  currency: DealingCurrency;
+  /**
+   * Price per share in the native major unit (£, €, $). Always populated;
+   * for GBP rows this is price_pence/100 so downstream code can index off
+   * (currency, price_native) without a special-case for legacy rows.
+   */
+  price_native: number;
+  /** Price per share in pence (GBX). Only meaningful when currency = "GBP". */
   price_pence: number;
+  /** Total consideration in GBP. Only meaningful when currency = "GBP". */
   value_gbp: number;
   is_open_market_buy: boolean;
 }
@@ -51,7 +66,21 @@ export async function extractDealing(
   ) {
     return null;
   }
-  // Numeric reconciliation (price/shares unit errors) lives in
+  const currency = normalizeCurrency(parsed.currency);
+  const price_pence = typeof parsed.price_pence === "number" ? parsed.price_pence : 0;
+  const price_native_raw =
+    typeof parsed.price_native === "number" ? parsed.price_native : null;
+  // Back-compat: cached extractions from before this prompt change have no
+  // price_native. For GBP rows we can derive it from price_pence; for non-GBP
+  // rows we have no choice but to fall back to whatever's there (FX in
+  // reconcile.ts will skip if price_native is 0).
+  const price_native =
+    price_native_raw !== null
+      ? price_native_raw
+      : currency === "GBP"
+        ? price_pence / 100
+        : 0;
+  // Numeric reconciliation (price/shares unit errors, FX) lives in
   // reconcile.ts and runs in scrape.ts where market data is available.
   return {
     director_name: parsed.director_name,
@@ -59,11 +88,22 @@ export async function extractDealing(
     trade_date: parsed.trade_date,
     transaction_type: normalizeType(parsed.transaction_type),
     shares: parsed.shares,
-    price_pence: parsed.price_pence,
+    currency,
+    price_native,
+    price_pence,
     value_gbp:
       typeof parsed.value_gbp === "number" ? parsed.value_gbp : 0,
     is_open_market_buy: !!parsed.is_open_market_buy,
   };
+}
+
+function normalizeCurrency(c: unknown): DealingCurrency {
+  if (typeof c !== "string") return "GBP";
+  const s = c.trim().toUpperCase();
+  if (s === "EUR" || s === "€") return "EUR";
+  if (s === "USD" || s === "$") return "USD";
+  // "GBP", "GBp", "GBX", "£", absent — all collapse to GBP.
+  return "GBP";
 }
 
 function normalizeType(t: unknown): ExtractedDealing["transaction_type"] {

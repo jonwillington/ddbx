@@ -1,6 +1,7 @@
 import type {
   Analysis,
   Dealing,
+  DealingCurrency,
   EvidencePoint,
   PerformanceRow,
   Rating,
@@ -23,6 +24,8 @@ interface JoinedRow {
   shares: number;
   price_pence: number;
   value_gbp: number;
+  currency: string | null;
+  price_native: number | null;
   dir_id: string;
   dir_name: string;
   dir_role: string | null;
@@ -50,7 +53,7 @@ interface JoinedRow {
 const BASE_SELECT = `
   SELECT
     d.id, d.trade_date, d.disclosed_date, d.ticker, d.company, d.tx_type,
-    d.shares, d.price_pence, d.value_gbp, d.created_at,
+    d.shares, d.price_pence, d.value_gbp, d.currency, d.price_native, d.created_at,
     dir.id AS dir_id, dir.name AS dir_name, dir.role AS dir_role,
     dir.company_primary AS dir_company, dir.age_band AS dir_age_band,
     dir.tenure_years AS dir_tenure_years,
@@ -138,6 +141,16 @@ function hydrate(r: JoinedRow, perf: PerformanceRow[] = []): Dealing {
     }
   }
 
+  // Migration 010 made currency NOT NULL DEFAULT 'GBP', so legacy rows read
+  // back as 'GBP'. Belt-and-braces against rows written by transient code
+  // paths that bypass the default.
+  const currency: DealingCurrency =
+    r.currency === "EUR" || r.currency === "USD" ? r.currency : "GBP";
+  // For GBP rows, price_native mirrors price_pence/100 — convenient for iOS
+  // detail-view rendering that branches on (currency, price_native).
+  const priceNative =
+    r.price_native != null ? r.price_native : r.price_pence / 100;
+
   return {
     id: r.id,
     trade_date: r.trade_date,
@@ -157,6 +170,8 @@ function hydrate(r: JoinedRow, perf: PerformanceRow[] = []): Dealing {
     shares: r.shares,
     price_pence: r.price_pence,
     value_gbp: r.value_gbp,
+    currency,
+    price_native: priceNative,
     triage: r.triage_verdict
       ? {
           verdict: r.triage_verdict as TriageVerdict,

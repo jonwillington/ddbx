@@ -245,3 +245,22 @@ ALTER TABLE device_tokens ADD COLUMN device_id TEXT;
 ALTER TABLE tickers ADD COLUMN sic_codes TEXT;
 ALTER TABLE tickers ADD COLUMN sector_normalized TEXT;
 CREATE INDEX IF NOT EXISTS idx_device_tokens_device_id ON device_tokens(device_id);
+
+-- Migration 010 (2026-05-08): currency-aware dealings.
+-- Capture the original RNS currency + native-unit price so non-GBP rows
+-- (Greek/Irish dual-listings like MTLN/KYGA, US-domiciled names like IPC) can
+-- be FX-converted at extraction time rather than stored with euro-cents
+-- mislabelled as pence. price_pence and value_gbp remain the canonical
+-- GBP-equivalent fields; currency + price_native are observability and feed
+-- the iOS detail-view native-amount display.
+--
+-- currency is NOT NULL DEFAULT 'GBP' so legacy rows backfill automatically
+-- and `WHERE currency = 'GBP'` / `WHERE currency != 'GBP'` work without
+-- IS NULL ceremony. price_native stays nullable since it's unused for GBP
+-- rows (queries.ts hydrates it as price_pence/100 for those).
+--
+-- Apply with:
+--   wrangler d1 execute director-dealings --command "ALTER TABLE dealings ADD COLUMN currency TEXT NOT NULL DEFAULT 'GBP';"
+--   wrangler d1 execute director-dealings --command "ALTER TABLE dealings ADD COLUMN price_native REAL;"
+ALTER TABLE dealings ADD COLUMN currency TEXT NOT NULL DEFAULT 'GBP';
+ALTER TABLE dealings ADD COLUMN price_native REAL;

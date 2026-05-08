@@ -109,6 +109,7 @@ export async function runPipeline(env: Env): Promise<PipelineResult> {
     const pending = await env.DB.prepare(
       `SELECT d.id, d.trade_date, d.disclosed_date, d.ticker, d.company,
               d.tx_type, d.shares, d.price_pence, d.value_gbp,
+              d.currency, d.price_native,
               dir.id AS dir_id, dir.name AS dir_name, dir.role AS dir_role,
               dir.company_primary AS dir_company
          FROM dealings d
@@ -123,15 +124,22 @@ export async function runPipeline(env: Env): Promise<PipelineResult> {
       id: string; trade_date: string; disclosed_date: string;
       ticker: string; company: string; tx_type: string;
       shares: number; price_pence: number; value_gbp: number;
+      currency: string | null; price_native: number | null;
       dir_id: string; dir_name: string; dir_role: string | null; dir_company: string | null;
     }>();
 
     for (const row of pending.results) {
       try {
+        const currency: "GBP" | "EUR" | "USD" =
+          row.currency === "EUR" || row.currency === "USD"
+            ? row.currency
+            : "GBP";
         const d = {
           id: row.id, trade_date: row.trade_date, disclosed_date: row.disclosed_date,
           ticker: row.ticker, company: row.company, tx_type: row.tx_type as "buy" | "sell",
           shares: row.shares, price_pence: row.price_pence, value_gbp: row.value_gbp,
+          currency,
+          price_native: row.price_native ?? row.price_pence / 100,
           director: { id: row.dir_id, name: row.dir_name, role: row.dir_role ?? "Director", company: row.dir_company ?? row.company },
         };
         const analyzed = await analyzeDealing(env, d);

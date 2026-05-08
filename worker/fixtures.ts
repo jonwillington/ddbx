@@ -27,6 +27,8 @@ const dealings: Dealing[] = [
     shares: 50_000,
     price_pence: 248.5,
     value_gbp: 124_250,
+    currency: "GBP",
+    price_native: 2.485,
     triage: {
       verdict: "promising",
       reason: "Meaningful size vs prior trades; stock in 35% drawdown.",
@@ -109,6 +111,8 @@ const dealings: Dealing[] = [
     shares: 400,
     price_pence: 2_240,
     value_gbp: 8_960,
+    currency: "GBP",
+    price_native: 22.4,
     triage: {
       verdict: "maybe",
       reason:
@@ -176,6 +180,8 @@ const dealings: Dealing[] = [
     shares: 75_000,
     price_pence: 152.3,
     value_gbp: 114_225,
+    currency: "GBP",
+    price_native: 1.523,
     triage: {
       verdict: "promising",
       reason: "CFO buying post-results after strong cash generation guidance.",
@@ -242,6 +248,8 @@ const dealings: Dealing[] = [
     shares: 120_000,
     price_pence: 52.1,
     value_gbp: 62_520,
+    currency: "GBP",
+    price_native: 0.521,
     triage: {
       verdict: "maybe",
       reason: "Chair top-up; history of small regular buys regardless of price.",
@@ -303,6 +311,8 @@ const dealings: Dealing[] = [
     shares: 8_000,
     price_pence: 780,
     value_gbp: 62_400,
+    currency: "GBP",
+    price_native: 7.8,
     triage: {
       verdict: "skip",
       reason: "Routine scheme-adjacent purchase; director has weak track record.",
@@ -331,6 +341,8 @@ const historicalDealings: Dealing[] = [
     shares: 10_000,
     price_pence: 210,
     value_gbp: 21_000,
+    currency: "GBP",
+    price_native: 2.1,
     triage: { verdict: "promising", reason: "Prior conviction buy" },
     analysis: {
       rating: "noteworthy",
@@ -367,6 +379,8 @@ const historicalDealings: Dealing[] = [
     shares: 50_000,
     price_pence: 140,
     value_gbp: 70_000,
+    currency: "GBP",
+    price_native: 1.4,
     triage: { verdict: "promising", reason: "" },
     analysis: {
       rating: "noteworthy",

@@ -48,6 +48,14 @@ export async function applyDealingCorrection(
     shares: number;
     price_pence: number;
     value_gbp: number;
+    /** Optional. Defaults to leaving the existing row's currency unchanged
+     *  on UPDATE, or "GBP" on INSERT (via the column default). Pass "EUR" or
+     *  "USD" when manually correcting a non-GBP row (Migration 010+). */
+    currency?: "GBP" | "EUR" | "USD";
+    /** Native-unit price per share (£/€/$). Optional; recommended whenever
+     *  currency is also passed so the iOS detail view can render the
+     *  original RNS figure. */
+    price_native?: number;
   },
 ): Promise<{
   old_id: string;
@@ -72,6 +80,8 @@ export async function applyDealingCorrection(
   });
   const newId = `d-${newHash.slice(0, 16)}`;
   const idChanged = newId !== row.id;
+  const currency = args.currency ?? null;
+  const priceNative = args.price_native ?? null;
 
   if (idChanged) {
     const collision = await env.DB.prepare(
@@ -82,21 +92,29 @@ export async function applyDealingCorrection(
     if (collision)
       throw new Error(`target id ${newId} already exists; refusing overwrite`);
 
+    // COALESCE on the SELECT side so omitted args fall back to the existing
+    // row's currency/price_native rather than overwriting them with NULL.
+    // (currency is NOT NULL in the schema, so a literal NULL would fail.)
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO dealings
            (id, hash, trade_date, disclosed_date, director_id, ticker,
-            company, tx_type, shares, price_pence, value_gbp, raw_json,
-            created_at)
+            company, tx_type, shares, price_pence, value_gbp, currency,
+            price_native, raw_json, created_at)
          SELECT ?1, ?2, trade_date, disclosed_date, director_id, ticker,
-                company, tx_type, ?3, ?4, ?5, raw_json, created_at
-           FROM dealings WHERE id = ?6`,
+                company, tx_type, ?3, ?4, ?5,
+                COALESCE(?6, currency),
+                COALESCE(?7, price_native),
+                raw_json, created_at
+           FROM dealings WHERE id = ?8`,
       ).bind(
         newId,
         newHash,
         args.shares,
         args.price_pence,
         args.value_gbp,
+        currency,
+        priceNative,
         row.id,
       ),
       env.DB.prepare(
@@ -113,10 +131,19 @@ export async function applyDealingCorrection(
   } else {
     await env.DB.prepare(
       `UPDATE dealings
-          SET shares = ?1, price_pence = ?2, value_gbp = ?3
-        WHERE id = ?4`,
+          SET shares = ?1, price_pence = ?2, value_gbp = ?3,
+              currency = COALESCE(?4, currency),
+              price_native = COALESCE(?5, price_native)
+        WHERE id = ?6`,
     )
-      .bind(args.shares, args.price_pence, args.value_gbp, row.id)
+      .bind(
+        args.shares,
+        args.price_pence,
+        args.value_gbp,
+        currency,
+        priceNative,
+        row.id,
+      )
       .run();
   }
 

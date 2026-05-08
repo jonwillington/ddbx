@@ -596,6 +596,13 @@ app.post("/__purge-prices", async (c) => {
 // operator sources the right values from the original RNS and passes them
 // in. Recomputes hash + migrates FKs if shares/price changed.
 // POST /__fix-dealing?id=d-abc&shares=123&price_pence=45.6&value_gbp=789
+//
+// Optional currency + price_native (Migration 010+): pass when correcting a
+// non-GBP row (e.g. MTLN.L EUR, IPC.L USD) so the row gets stamped with the
+// original currency and the iOS detail view can render the native RNS figure.
+// Omit to leave the existing values in place — handy for plain decimal-shift
+// fixes where currency hasn't changed.
+//   ?currency=EUR&price_native=36.7450
 app.post("/__fix-dealing", async (c) => {
   const id = c.req.query("id");
   const shares = Number(c.req.query("shares"));
@@ -607,12 +614,27 @@ app.post("/__fix-dealing", async (c) => {
       400,
     );
   }
+  const currencyParam = c.req.query("currency");
+  const currency =
+    currencyParam === "GBP" || currencyParam === "EUR" || currencyParam === "USD"
+      ? currencyParam
+      : undefined;
+  const priceNativeParam = c.req.query("price_native");
+  const price_native =
+    priceNativeParam !== undefined && priceNativeParam !== ""
+      ? Number(priceNativeParam)
+      : undefined;
+  if (price_native !== undefined && !Number.isFinite(price_native)) {
+    return c.json({ error: "price_native must be a finite number" }, 400);
+  }
   try {
     const result = await applyDealingCorrection(c.env, {
       id,
       shares,
       price_pence,
       value_gbp,
+      currency,
+      price_native,
     });
     return c.json(result);
   } catch (err) {

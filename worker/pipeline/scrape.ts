@@ -7,6 +7,7 @@ import {
   putCachedExtraction,
 } from "../db/writes";
 import { extractDealing, type ExtractedDealing } from "./extract";
+import { getEurGbpRates, getUsdGbpRates, nearestPriorRate } from "./fx";
 import { reconcileTradeFields } from "./reconcile";
 
 const LIST_URL = "https://www.investegate.co.uk/category/directors-dealings";
@@ -80,21 +81,49 @@ export async function processListItem(
   // date (independent ground truth). Handles 10× decimal-shift and 100×
   // pence/pounds errors in either price or shares — both fields are corrected
   // together so they stay internally consistent.
-  const marketRow =
-    extracted.price_pence > 0
-      ? await env.DB.prepare(
-          `SELECT close_pence FROM prices
-            WHERE ticker = ?1 AND date <= ?2
-            ORDER BY date DESC LIMIT 1`,
-        )
-          .bind(item.ticker, extracted.trade_date)
-          .first<{ close_pence: number }>()
-      : null;
+  const currency = extracted.currency ?? "GBP";
+  const hasPriceForMarketLookup =
+    extracted.price_pence > 0 || (currency !== "GBP" && extracted.price_native > 0);
+  const marketRow = hasPriceForMarketLookup
+    ? await env.DB.prepare(
+        `SELECT close_pence FROM prices
+          WHERE ticker = ?1 AND date <= ?2
+          ORDER BY date DESC LIMIT 1`,
+      )
+        .bind(item.ticker, extracted.trade_date)
+        .first<{ close_pence: number }>()
+    : null;
+
+  let fxRate: number | undefined;
+  if (currency !== "GBP" && extracted.price_native > 0) {
+    const dates = [extracted.trade_date];
+    const fxMap =
+      currency === "EUR"
+        ? await getEurGbpRates(env, dates)
+        : await getUsdGbpRates(env, dates);
+    const direct = fxMap.get(extracted.trade_date);
+    const resolved = direct ?? nearestPriorRate(fxMap, extracted.trade_date);
+    if (resolved) {
+      fxRate = resolved;
+      if (direct == null) {
+        console.log(
+          `reconcile ${item.ticker} ${item.announcementUrl}: fx ${currency} fallback to nearest prior rate ${resolved.toFixed(6)}`,
+        );
+      }
+    } else {
+      console.warn(
+        `reconcile ${item.ticker} ${item.announcementUrl}: no ${currency}/GBP rate for ${extracted.trade_date}`,
+      );
+    }
+  }
 
   const reconciled = reconcileTradeFields({
     shares: extracted.shares,
     price_pence: extracted.price_pence,
     value_gbp: extracted.value_gbp,
+    currency,
+    price_native: extracted.price_native,
+    fx_gbp_per_native: fxRate,
     market_price_pence: marketRow?.close_pence,
   });
   for (const change of reconciled.changes) {
@@ -127,6 +156,8 @@ export async function processListItem(
     shares,
     price_pence,
     value_gbp: reconciled.value_gbp || (price_pence * shares) / 100,
+    currency,
+    price_native: extracted.price_native || price_pence / 100,
   };
 }
 

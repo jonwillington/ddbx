@@ -16,6 +16,13 @@ Read the announcement text carefully. Look for:
 - Words like "acquisition", "purchase", "open market", "on-market"
 - vs "release of shares under LTIP", "vesting", "transfer to spouse", "dividend equivalent"
 
+Most PDMR notices are denominated in GBP, but a small minority quote the trade
+in EUR (Greek/Irish dual-listings like MTLN, KYGA) or USD (US-domiciled
+companies with an LSE listing like IPC — International Paper). Look for the
+currency token next to the price ("£", "p", "GBp", "GBX", "€", "EUR", "$",
+"USD"). Capture the currency literally; do NOT silently convert to GBP — we
+apply FX rates downstream from a trade-date-aware source.
+
 Return STRICT JSON only, no prose, matching this exact shape:
 {
   "director_name": "<full name>",
@@ -23,10 +30,16 @@ Return STRICT JSON only, no prose, matching this exact shape:
   "trade_date": "YYYY-MM-DD",
   "transaction_type": "open_market_buy" | "vesting" | "transfer" | "sell" | "other",
   "shares": <integer number of shares in the transaction>,
-  "price_pence": <price per share in pence (GBX). IMPORTANT: if the announcement shows "£0.9308" convert to pence: 0.9308 × 100 = 93.08. If it shows "93.08p" or "93.08 pence" use 93.08 directly. Never return a GBP figure as pence. 0 if nil cost or not disclosed>,
-  "value_gbp": <total consideration in GBP (£), 0 if nil cost>,
+  "currency": "GBP" | "EUR" | "USD",
+  "price_native": <price per share in the native major unit (pounds, euros, or dollars — NOT pence/cents). e.g. for "£0.9308" return 0.9308; for "93.08p" return 0.9308; for "€36.7450" return 36.7450; for "$31.3009" return 31.3009. Always a major-unit figure, never minor units. 0 if nil cost or not disclosed>,
+  "price_pence": <price per share in pence (GBX). ONLY fill this when currency is GBP. IMPORTANT: if the announcement shows "£0.9308" convert to pence: 0.9308 × 100 = 93.08. If it shows "93.08p" or "93.08 pence" use 93.08 directly. Never return a GBP figure as pence. 0 if currency is not GBP, or if nil cost or not disclosed>,
+  "value_gbp": <total consideration in GBP (£). ONLY fill this when currency is GBP. 0 if currency is not GBP, or if nil cost>,
   "is_open_market_buy": <true ONLY if this is a cash purchase on the open market, false for vestings/transfers/scheme releases>
 }
+
+When currency is EUR or USD, leave price_pence and value_gbp at 0 — the
+downstream FX step computes them from price_native and the trade-date rate.
+Never invent an FX rate yourself.
 
 If multiple transactions are reported in one notification, use the largest open-market buy. If there are none, set is_open_market_buy=false and fill in the remaining fields from the largest reported transaction anyway.`;
 
