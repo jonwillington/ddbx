@@ -217,6 +217,8 @@ export async function reconcileBackfill(
       if (reconciled.changes.length === 0) continue;
       result.changed++;
 
+      const newQuarantine = reconciled.quarantine_reason ?? null;
+
       const directorIdRow = await env.DB.prepare(
         `SELECT director_id FROM dealings WHERE id = ?1`,
       )
@@ -277,17 +279,20 @@ export async function reconcileBackfill(
             env.DB.prepare(
               `INSERT INTO dealings
                  (id, hash, trade_date, disclosed_date, director_id, ticker,
-                  company, tx_type, shares, price_pence, value_gbp, raw_json,
-                  created_at)
+                  company, tx_type, shares, price_pence, value_gbp, currency,
+                  price_native, quarantine_reason, raw_json, created_at)
                SELECT ?1, ?2, trade_date, disclosed_date, director_id, ticker,
-                      company, tx_type, ?3, ?4, ?5, raw_json, created_at
-                 FROM dealings WHERE id = ?6`,
+                      company, tx_type, ?3, ?4, ?5,
+                      currency, price_native, ?6,
+                      raw_json, created_at
+                 FROM dealings WHERE id = ?7`,
             ).bind(
               newId,
               newHash,
               reconciled.shares,
               reconciled.price_pence,
               reconciled.value_gbp,
+              newQuarantine,
               row.id,
             ),
             env.DB.prepare(
@@ -304,12 +309,14 @@ export async function reconcileBackfill(
         : [
             env.DB.prepare(
               `UPDATE dealings
-                  SET shares = ?1, price_pence = ?2, value_gbp = ?3
-                WHERE id = ?4`,
+                  SET shares = ?1, price_pence = ?2, value_gbp = ?3,
+                      quarantine_reason = ?4
+                WHERE id = ?5`,
             ).bind(
               reconciled.shares,
               reconciled.price_pence,
               reconciled.value_gbp,
+              newQuarantine,
               row.id,
             ),
           ];

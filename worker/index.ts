@@ -63,10 +63,13 @@ app.get("/api/version", async (c) => {
 
 app.get("/api/dealings", async (c) => {
   const rating = c.req.query("rating");
+  // Ops/audit-only escape hatch. Public clients (web, iOS, Android) never
+  // pass this — they get the curated list with quarantined rows hidden.
+  const includeQuarantined = c.req.query("include_quarantined") === "1";
 
   // Until D1 is wired up, fall back to fixtures so the frontend renders.
   try {
-    const rows = await getDealings(c.env.DB, { rating });
+    const rows = await getDealings(c.env.DB, { rating, includeQuarantined });
 
     return c.json({ dealings: rows });
   } catch {

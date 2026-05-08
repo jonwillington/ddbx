@@ -26,6 +26,7 @@ interface JoinedRow {
   value_gbp: number;
   currency: string | null;
   price_native: number | null;
+  quarantine_reason: string | null;
   dir_id: string;
   dir_name: string;
   dir_role: string | null;
@@ -53,7 +54,8 @@ interface JoinedRow {
 const BASE_SELECT = `
   SELECT
     d.id, d.trade_date, d.disclosed_date, d.ticker, d.company, d.tx_type,
-    d.shares, d.price_pence, d.value_gbp, d.currency, d.price_native, d.created_at,
+    d.shares, d.price_pence, d.value_gbp, d.currency, d.price_native,
+    d.quarantine_reason, d.created_at,
     dir.id AS dir_id, dir.name AS dir_name, dir.role AS dir_role,
     dir.company_primary AS dir_company, dir.age_band AS dir_age_band,
     dir.tenure_years AS dir_tenure_years,
@@ -172,6 +174,7 @@ function hydrate(r: JoinedRow, perf: PerformanceRow[] = []): Dealing {
     value_gbp: r.value_gbp,
     currency,
     price_native: priceNative,
+    quarantine_reason: r.quarantine_reason ?? undefined,
     triage: r.triage_verdict
       ? {
           verdict: r.triage_verdict as TriageVerdict,
@@ -225,12 +228,19 @@ async function loadPerformance(
 
 export async function getDealings(
   db: D1Database,
-  opts: { rating?: string } = {},
+  opts: { rating?: string; includeQuarantined?: boolean } = {},
 ): Promise<Dealing[]> {
+  // Quarantined rows (price >50× off market after FX + snap) are hidden by
+  // default — see Migration 011. Ops/audit tooling passes
+  // includeQuarantined=true to see them.
+  const quarantineClause = opts.includeQuarantined
+    ? ""
+    : "AND d.quarantine_reason IS NULL";
   const rows = await db
     .prepare(
       `${BASE_SELECT}
        WHERE (?1 IS NULL OR a.rating = ?1)
+         ${quarantineClause}
        ORDER BY d.disclosed_date DESC, d.created_at DESC, d.trade_date DESC
        LIMIT 200`,
     )
@@ -244,6 +254,10 @@ export async function getDealings(
   return rows.results.map((r) => hydrate(r, perf.get(r.id) ?? []));
 }
 
+// Detail-view lookup deliberately bypasses the quarantine filter — if a
+// caller has the dealing id they came from somewhere that already vetted
+// the row (analyses table, deep link, ops dashboard). The default-list
+// filter is the boundary that protects the public surface.
 export async function getDealingById(
   db: D1Database,
   id: string,

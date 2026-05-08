@@ -264,3 +264,15 @@ CREATE INDEX IF NOT EXISTS idx_device_tokens_device_id ON device_tokens(device_i
 --   wrangler d1 execute director-dealings --command "ALTER TABLE dealings ADD COLUMN price_native REAL;"
 ALTER TABLE dealings ADD COLUMN currency TEXT NOT NULL DEFAULT 'GBP';
 ALTER TABLE dealings ADD COLUMN price_native REAL;
+
+-- Migration 011 (2026-05-08): quarantine flag for structurally wrong rows.
+-- The reconciler bails when price_pence is so far off market that no clean
+-- ×N snap fits (commonly: a placing at par value misclassified as
+-- open_market_buy — RBD.L 75M shares @ 0.1p against a ~38p market). Rows
+-- still get committed (preserves history + lets us audit) but are flagged
+-- so getDealings can hide them by default. /__include_quarantined=1 is the
+-- ops escape hatch.
+--
+-- Apply with:
+--   wrangler d1 execute director-dealings --command "ALTER TABLE dealings ADD COLUMN quarantine_reason TEXT;"
+ALTER TABLE dealings ADD COLUMN quarantine_reason TEXT;

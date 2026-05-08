@@ -52,8 +52,8 @@ export async function insertDealing(env: Env, d: Dealing): Promise<boolean> {
     `INSERT OR IGNORE INTO dealings
        (id, hash, trade_date, disclosed_date, director_id, ticker, company,
         tx_type, shares, price_pence, value_gbp, currency, price_native,
-        raw_json)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`,
+        quarantine_reason, raw_json)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)`,
   )
     .bind(
       d.id,
@@ -69,6 +69,7 @@ export async function insertDealing(env: Env, d: Dealing): Promise<boolean> {
       d.value_gbp,
       d.currency,
       d.price_native,
+      d.quarantine_reason ?? null,
       JSON.stringify(d),
     )
     .run();

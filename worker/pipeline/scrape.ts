@@ -158,6 +158,7 @@ export async function processListItem(
     value_gbp: reconciled.value_gbp || (price_pence * shares) / 100,
     currency,
     price_native: extracted.price_native || price_pence / 100,
+    quarantine_reason: reconciled.quarantine_reason,
   };
 }
 

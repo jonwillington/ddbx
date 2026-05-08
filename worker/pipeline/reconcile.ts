@@ -41,6 +41,15 @@ export interface ReconcileResult {
   value_gbp: number;
   /** Human-readable log of corrections, for pipeline observability. */
   changes: string[];
+  /**
+   * Set when, after FX + snap, price_pence is still >50× off the market
+   * close on the trade date. Indicates the row is structurally wrong (a
+   * placing at par value, a missed FX rate, an extraction error nothing
+   * else caught) and should be hidden from default API responses. Caller
+   * persists this into dealings.quarantine_reason; getDealings filters
+   * `WHERE quarantine_reason IS NULL` by default.
+   */
+  quarantine_reason?: string;
 }
 
 const SNAP_FACTORS = [0.01, 0.1, 1, 10, 100];
@@ -50,6 +59,12 @@ const SNAP_TRIGGER = 2;
 // Snapped candidate must be within 20% of the anchor to be accepted; if no
 // candidate qualifies, leave the field untouched rather than guess.
 const SNAP_ACCEPT = 1.2;
+// Quarantine threshold — when price_pence after snap is still this far off
+// market, the row is structurally wrong and should be hidden. Real volatility
+// on illiquid micro-caps tops out around 5-10× over short windows; 50×
+// catches placings (RBD-shape) and missed FX without false-positive on
+// anything legitimate. Same threshold as the cacheBars cross-fetch guard.
+const QUARANTINE_RATIO = 50;
 
 export function reconcileTradeFields(input: ReconcileInput): ReconcileResult {
   let { shares, price_pence, value_gbp } = input;
@@ -166,7 +181,21 @@ export function reconcileTradeFields(input: ReconcileInput): ReconcileResult {
     }
   }
 
-  return { shares, price_pence, value_gbp, changes };
+  // Step 4: quarantine check. If we have a market anchor and price_pence
+  // is still wildly off after every snap had a chance to run, the row is
+  // structurally wrong (most commonly: a placing at par value misclassified
+  // as open_market_buy — see RBD.L 75M shares @ 0.1p). Flag it; the API
+  // layer hides flagged rows from default responses.
+  let quarantine_reason: string | undefined;
+  if (market && market > 0 && price_pence > 0) {
+    const r = ratio(price_pence, market);
+    if (r > QUARANTINE_RATIO) {
+      quarantine_reason = `price ${price_pence.toFixed(4)}p is ${r.toFixed(0)}× off market ${market}p — possible placing or extraction error`;
+      changes.push(`quarantine: ${quarantine_reason}`);
+    }
+  }
+
+  return { shares, price_pence, value_gbp, changes, quarantine_reason };
 }
 
 function ratio(a: number, b: number): number {

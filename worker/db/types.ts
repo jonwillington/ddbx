@@ -107,6 +107,13 @@ export interface Dealing {
    *  equals price_pence/100; for non-GBP rows this is the raw RNS figure
    *  surfaced for cross-checking against broker confirmations. */
   price_native: number;
+  /**
+   * Set when the row is structurally wrong (price >50× off market after
+   * FX + snap). Quarantined rows are hidden from default API responses;
+   * /api/dealings?include_quarantined=1 surfaces them for ops/audit.
+   * Always undefined on the wire for non-quarantined rows.
+   */
+  quarantine_reason?: string;
   triage?: { verdict: TriageVerdict; reason: string };
   analysis?: Analysis;
   performance?: PerformanceRow[];
