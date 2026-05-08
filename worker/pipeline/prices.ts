@@ -135,23 +135,82 @@ export async function fetchDailyBars(
 }
 
 // Cache prices in D1 so performance recalculations are cheap.
+//
+// Guard against Yahoo unit-confusion creeping in across fetches. The per-fetch
+// ratio detection in fetchDailyBars normalises bars *within* one response, but
+// the existing DB rows for a ticker may have been ingested at a different
+// scale (observed on RBD.L: bars from late-2025 stored at ~0.05p, bars from
+// May-2026 stored at ~90p — same column, two scales). Reject any incoming bar
+// whose price differs from the most recent stored bar by more than 50× either
+// way. Real stocks don't move 50× overnight without a corporate action; if
+// they do, we'd rather drop the bar and surface it in logs than silently
+// poison future return calculations.
+//
+// Failure mode the guard cannot fix on its own: if the most recent stored bar
+// is itself bad, the anchor is poisoned and every legitimate incoming bar gets
+// rejected. cacheBars is called from many entry points (pipeline run, manual
+// /__refresh-prices, /api/prices/history, /api/prices/latest, performance
+// refresh) so a stuck cache otherwise looks like several unrelated quiet
+// warnings. We log a per-call session id alongside each rejection and emit a
+// loud "anchor possibly poisoned" warning after 5+ consecutive rejections —
+// that aggregates a single incident to one log line and prompts the operator
+// to run /__purge-prices + /__refresh-prices.
+const POISONED_ANCHOR_THRESHOLD = 5;
+
 export async function cacheBars(
   env: Env,
   ticker: string,
   bars: DailyBar[],
 ): Promise<void> {
   if (bars.length === 0) return;
+  const session = Math.random().toString(36).slice(2, 8);
+  const prior = await env.DB.prepare(
+    `SELECT date, close_pence FROM prices
+       WHERE ticker = ?1
+       ORDER BY date DESC LIMIT 1`,
+  )
+    .bind(ticker)
+    .first<{ date: string; close_pence: number }>();
+  let anchor = prior?.close_pence ?? null;
+  const accepted: DailyBar[] = [];
+  let consecutiveRejections = 0;
+  let poisonWarned = false;
+  for (const b of bars.slice().sort((a, c) => a.date.localeCompare(c.date))) {
+    if (anchor != null && anchor > 0 && b.close_pence > 0) {
+      const r = b.close_pence / anchor;
+      if (r > 50 || r < 0.02) {
+        console.warn(
+          `prices: ${ticker} rejecting bar ${b.date} ${b.close_pence}p (anchor ${anchor}p, ratio ${r.toFixed(4)} — likely Yahoo unit confusion) [session ${session}]`,
+        );
+        consecutiveRejections++;
+        if (
+          consecutiveRejections === POISONED_ANCHOR_THRESHOLD &&
+          !poisonWarned
+        ) {
+          console.warn(
+            `prices: ${ticker} anchor possibly poisoned (anchor ${anchor}p, ${consecutiveRejections} consecutive rejections) [session ${session}] — consider /__purge-prices + /__refresh-prices`,
+          );
+          poisonWarned = true;
+        }
+        continue;
+      }
+    }
+    accepted.push(b);
+    anchor = b.close_pence;
+    consecutiveRejections = 0;
+  }
+  if (accepted.length === 0) return;
   const stmt = env.DB.prepare(
     `INSERT OR REPLACE INTO prices (ticker, date, close_pence) VALUES (?1, ?2, ?3)`,
   );
-  const batch = bars.map((b) => stmt.bind(ticker, b.date, b.close_pence));
+  const batch = accepted.map((b) => stmt.bind(ticker, b.date, b.close_pence));
   await env.DB.batch(batch);
 }
 
 interface YahooChartResponse {
   chart?: {
     result?: Array<{
-      meta?: { currency?: string };
+      meta?: { currency?: string; regularMarketPrice?: number };
       timestamp?: number[];
       indicators?: { quote?: Array<{ close?: (number | null)[] }> };
     }>;
