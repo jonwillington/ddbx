@@ -2,7 +2,7 @@
 // DO NOT EDIT — generated copy of ddbx-data/worker/db/types.ts
 //
 // The canonical source lives in the ddbx-data repo. To update this file, run
-// `npm run sync:types` from a checkout of dd-site that has ddbx-data cloned
+// `npm run sync:types` from a checkout of ddbx-site that has ddbx-data cloned
 // alongside it (../ddbx-data). CI runs `npm run check:types` to fail builds
 // if this file drifts from the canonical.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

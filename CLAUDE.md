@@ -28,7 +28,7 @@ npm run sync:types     # copy ddbx-data/worker/db/types.ts -> src/types/ddbx.ts
 npm run check:types    # CI-friendly drift check (exits non-zero if out of sync)
 ```
 
-Both scripts assume `ddbx-data` is cloned alongside `dd-site`. Override with
+Both scripts assume `ddbx-data` is cloned alongside `ddbx-site`. Override with
 `DDBX_DATA_PATH=/path/to/ddbx-data`.
 
 **Workflow**: when you change types in `ddbx-data`, run `npm run sync:types`
