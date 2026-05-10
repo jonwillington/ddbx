@@ -226,9 +226,20 @@ async function loadPerformance(
   return map;
 }
 
+export const DEALINGS_DEFAULT_LIMIT = 200;
+export const DEALINGS_MAX_LIMIT = 1000;
+
 export async function getDealings(
   db: D1Database,
-  opts: { rating?: string; includeQuarantined?: boolean } = {},
+  opts: {
+    rating?: string;
+    includeQuarantined?: boolean;
+    // ISO YYYY-MM-DD. `before` paginates into history (disclosed_date < x);
+    // `since` windows to recent disclosures (disclosed_date >= x).
+    before?: string;
+    since?: string;
+    limit?: number;
+  } = {},
 ): Promise<Dealing[]> {
   // Quarantined rows (price >50× off market after FX + snap) are hidden by
   // default — see Migration 011. Ops/audit tooling passes
@@ -236,15 +247,21 @@ export async function getDealings(
   const quarantineClause = opts.includeQuarantined
     ? ""
     : "AND d.quarantine_reason IS NULL";
+  const limit = Math.max(
+    1,
+    Math.min(DEALINGS_MAX_LIMIT, opts.limit ?? DEALINGS_DEFAULT_LIMIT),
+  );
   const rows = await db
     .prepare(
       `${BASE_SELECT}
        WHERE (?1 IS NULL OR a.rating = ?1)
+         AND (?2 IS NULL OR d.disclosed_date < ?2)
+         AND (?3 IS NULL OR d.disclosed_date >= ?3)
          ${quarantineClause}
        ORDER BY d.disclosed_date DESC, d.created_at DESC, d.trade_date DESC
-       LIMIT 200`,
+       LIMIT ?4`,
     )
-    .bind(opts.rating ?? null)
+    .bind(opts.rating ?? null, opts.before ?? null, opts.since ?? null, limit)
     .all<JoinedRow>();
   if (rows.results.length === 0) return [];
   const perf = await loadPerformance(

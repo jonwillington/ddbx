@@ -67,9 +67,31 @@ app.get("/api/dealings", async (c) => {
   // pass this — they get the curated list with quarantined rows hidden.
   const includeQuarantined = c.req.query("include_quarantined") === "1";
 
+  // Pagination knobs for clients walking back through history. `before` is a
+  // disclosed_date cursor (exclusive); pass the oldest disclosed_date you've
+  // seen to fetch the next page. `since` is a window lower bound. `limit` is
+  // honoured up to DEALINGS_MAX_LIMIT.
+  const isIsoDate = (v: string | undefined): v is string =>
+    typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const beforeRaw = c.req.query("before");
+  const sinceRaw = c.req.query("since");
+  const limitRaw = c.req.query("limit");
+  const before = isIsoDate(beforeRaw) ? beforeRaw : undefined;
+  const since = isIsoDate(sinceRaw) ? sinceRaw : undefined;
+  const limit =
+    limitRaw != null && Number.isFinite(Number(limitRaw))
+      ? Number(limitRaw)
+      : undefined;
+
   // Until D1 is wired up, fall back to fixtures so the frontend renders.
   try {
-    const rows = await getDealings(c.env.DB, { rating, includeQuarantined });
+    const rows = await getDealings(c.env.DB, {
+      rating,
+      includeQuarantined,
+      before,
+      since,
+      limit,
+    });
 
     return c.json({ dealings: rows });
   } catch {
