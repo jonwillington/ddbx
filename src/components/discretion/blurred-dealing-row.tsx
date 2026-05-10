@@ -1,5 +1,5 @@
 import type { Dealing } from "@/lib/api";
-import type { Rating } from "../../../worker/db/types";
+import type { Rating } from "@/types/ddbx";
 import { DealingRow } from "@/components/dealing-row";
 
 interface Placeholder {
@@ -56,6 +56,8 @@ function placeholderDealing(seed: string, index: number, isoDate: string): Deali
     shares: Math.max(1, Math.round((p.valueGbp * 100) / p.pricePence)),
     price_pence: p.pricePence,
     value_gbp: p.valueGbp,
+    currency: "GBP",
+    price_native: p.pricePence / 100,
     triage: isSkipped ? { verdict: "skip", reason: "" } : undefined,
     analysis: isSkipped
       ? undefined

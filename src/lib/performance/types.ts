@@ -1,4 +1,4 @@
-// Performance backtest types — TypeScript port of ddbx-app/PerformanceModels.swift.
+// Performance backtest types — TypeScript port of ddbx-ios-app/PerformanceModels.swift.
 // Kept dependency-free so the pure compute function can import without React.
 
 export type PerformanceUniverse =

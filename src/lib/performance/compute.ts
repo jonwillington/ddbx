@@ -1,4 +1,4 @@
-// Pure backtest compute — TS port of ddbx-app/PerformanceViewModel.swift `computeResult(...)`.
+// Pure backtest compute — TS port of ddbx-ios-app/PerformanceViewModel.swift `computeResult(...)`.
 // No React, no fetch — inputs in, PerformanceResult out.
 
 import type { Dealing } from "@/lib/api";

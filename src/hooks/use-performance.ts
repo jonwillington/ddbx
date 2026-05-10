@@ -1,4 +1,4 @@
-// React port of ddbx-app's PerformanceViewModel. Owns the strategy config,
+// React port of ddbx-ios-app's PerformanceViewModel. Owns the strategy config,
 // price/benchmark/FX caches, and the recompute scheduling. Components consume
 // `result`, `isComputing`, and the setters.
 

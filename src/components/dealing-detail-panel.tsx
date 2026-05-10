@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { Dealing } from "@/lib/api";
-import type { RatingChecklist } from "../../worker/db/types";
+import type { RatingChecklist } from "@/types/ddbx";
 import { RatingBadge } from "@/components/rating-badge";
 import { EvidenceTable } from "@/components/evidence-table";
 import { InformationCircleIcon } from "@heroicons/react/20/solid";

@@ -1,5 +1,12 @@
-// Shared types for API + DB rows. The frontend imports these via worker/db/types.
-// Keep this file dependency-free so both sides can use it.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DO NOT EDIT — generated copy of ddbx-data/worker/db/types.ts
+//
+// The canonical source lives in the ddbx-data repo. To update this file, run
+// `npm run sync:types` from a checkout of ddbx-site that has ddbx-data cloned
+// alongside it (../ddbx-data). CI runs `npm run check:types` to fail builds
+// if this file drifts from the canonical.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 export type Rating =
   | "significant"
@@ -84,6 +91,8 @@ export interface DirectorSummary {
   tenure_years?: number;
 }
 
+export type DealingCurrency = "GBP" | "EUR" | "USD";
+
 export interface Dealing {
   id: string;
   trade_date: string;      // ISO
@@ -94,8 +103,24 @@ export interface Dealing {
   company: string;
   tx_type: "buy" | "sell";
   shares: number;
+  /** Canonical GBP-equivalent price per share, in pence. FX-converted from
+   *  price_native at trade-date rate when currency != "GBP". */
   price_pence: number;
+  /** Canonical GBP-equivalent total consideration. */
   value_gbp: number;
+  /** Currency of the original RNS. Defaults to "GBP" for legacy rows. */
+  currency: DealingCurrency;
+  /** Price per share in the native major unit (£, €, $). For GBP rows this
+   *  equals price_pence/100; for non-GBP rows this is the raw RNS figure
+   *  surfaced for cross-checking against broker confirmations. */
+  price_native: number;
+  /**
+   * Set when the row is structurally wrong (price >50× off market after
+   * FX + snap). Quarantined rows are hidden from default API responses;
+   * /api/dealings?include_quarantined=1 surfaces them for ops/audit.
+   * Always undefined on the wire for non-quarantined rows.
+   */
+  quarantine_reason?: string;
   triage?: { verdict: TriageVerdict; reason: string };
   analysis?: Analysis;
   performance?: PerformanceRow[];

@@ -1,4 +1,4 @@
-import type { EvidencePoint } from "../../worker/db/types";
+import type { EvidencePoint } from "@/types/ddbx";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/16/solid";
 
 export function EvidenceTable({
