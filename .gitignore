@@ -12,12 +12,11 @@ dist
 dist-ssr
 *.local
 
-# Wrangler
+# Worker-side state left over from the pre-split monorepo. The worker now
+# lives in the ddbx-data repo; if you need local worker secrets, move
+# .dev.vars there. Safe to delete locally.
 .dev.vars
 .wrangler
-
-# D1 backups
-backups
 
 # Editor directories and files
 !.vscode/extensions.json

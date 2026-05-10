@@ -1,4 +1,4 @@
-import type { Analysis } from "../../../worker/db/types";
+import type { Analysis } from "@/types/ddbx";
 
 // Static placeholder rendered under a CSS blur when discretion mode gates the
 // drawer. The text is never legible on screen, but stays realistic so the

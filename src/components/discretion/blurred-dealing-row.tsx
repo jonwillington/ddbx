@@ -1,5 +1,5 @@
 import type { Dealing } from "@/lib/api";
-import type { Rating } from "../../../worker/db/types";
+import type { Rating } from "@/types/ddbx";
 import { DealingRow } from "@/components/dealing-row";
 
 interface Placeholder {

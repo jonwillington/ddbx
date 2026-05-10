@@ -5,7 +5,7 @@ import type {
   Portfolio,
   Rating,
   UkNewsItem,
-} from "../../worker/db/types";
+} from "@/types/ddbx";
 
 // In dev, Vite proxies /api to wrangler dev (see vite.config.ts).
 // In prod on Cloudflare Pages, set VITE_API_BASE to the Worker URL, e.g.
