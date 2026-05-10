@@ -4,6 +4,17 @@ This repo is the public website. The data platform (Cloudflare Worker, D1,
 scraping/triage/analysis pipeline) was split out into the `ddbx-data` repo
 on 2026-05-10. If you're looking for `worker/`, it lives there now.
 
+## Sibling repos
+
+Cloned alongside this one in the same parent dir:
+
+- `../ddbx-data/` — backend platform, the canonical source for `Dealing` types
+- `../ddbx-ios-app/` — iOS app consuming the same API; useful for
+  `investigations/multi-market/` strategy docs and as the reference for
+  Performance feature ports (see `src/lib/performance/*`)
+
+See `~/CLAUDE.md` for the system-wide map.
+
 ## URLs
 
 | Purpose | URL |
