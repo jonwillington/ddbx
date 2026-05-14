@@ -11,6 +11,8 @@ import { isSuggestedDealing } from "@/lib/dealing-classify";
 import { compareDealingsNewestFirst, formatDisclosedCompact } from "@/lib/dealing-dates";
 import { useDataVersion } from "@/lib/use-data-version";
 import { useDiscretion } from "@/lib/discretion";
+import { useBankHolidays } from "@/lib/bank-holidays";
+import { lseStatus, reopensPhrase } from "@/lib/market-status";
 import { RatingBadge } from "@/components/rating-badge";
 import { Skeleton } from "@/components/skeleton";
 import { DayMoreInApp } from "@/components/discretion/day-more-in-app";
@@ -42,10 +44,20 @@ export function TodayDrawer() {
   const prevNewsUrlsRef = useRef<Set<string> | null>(null);
   const [newNewsUrls, setNewNewsUrls] = useState<Set<string>>(new Set());
 
-  const isTradingDay = useMemo(() => {
-    const dow = new Date().getDay();
-    return dow >= 1 && dow <= 5;
-  }, []);
+  const holidays = useBankHolidays();
+  const marketStatus = useMemo(() => lseStatus(new Date(), holidays), [holidays]);
+  const isTradingDay = marketStatus.kind !== "closed";
+  const marketOpen = marketStatus.kind === "open";
+  const closedSummary = useMemo(() => {
+    if (marketStatus.kind !== "closed") return null;
+    if (marketStatus.reason.kind === "holiday") {
+      return `Closed for ${marketStatus.reason.name}. Reopens ${reopensPhrase(marketStatus.reopens)}.`;
+    }
+    if (marketStatus.reason.kind === "weekend") {
+      return `Markets closed for the weekend. Reopens ${reopensPhrase(marketStatus.reopens)}.`;
+    }
+    return `After hours. Reopens ${reopensPhrase(marketStatus.reopens)}.`;
+  }, [marketStatus]);
 
   const loadDealings = useCallback(() => {
     api.dealings().then(setDealings).catch(() => {});
@@ -87,27 +99,6 @@ export function TodayDrawer() {
     );
     return [...list].sort(compareDealingsNewestFirst);
   }, [dealings, todayKey]);
-
-  const marketOpen = useMemo(() => {
-    const now = new Date();
-    const dow = now.getDay();
-    if (dow < 1 || dow > 5) return false;
-    const h = parseInt(
-      now.toLocaleString("en-GB", {
-        timeZone: "Europe/London",
-        hour: "2-digit",
-        hour12: false,
-      }),
-    );
-    const m = parseInt(
-      now.toLocaleString("en-GB", {
-        timeZone: "Europe/London",
-        minute: "2-digit",
-      }),
-    );
-    const mins = h * 60 + m;
-    return mins >= 480 && mins < 990;
-  }, []);
 
   if (!isTradingDay) return null;
 
@@ -291,7 +282,9 @@ export function TodayDrawer() {
                     )}
                   </>
                 ) : (
-                  <div className="text-xs text-muted/50">Markets are closed</div>
+                  <div className="text-xs text-muted/50">
+                    {closedSummary ?? "Markets are closed"}
+                  </div>
                 )}
               </div>
             </div>

@@ -18,8 +18,10 @@ import {
   type MarketBenchmark,
   type PerformanceAmount,
   type PerformanceExitRule,
+  type PerformanceMode,
   type PerformanceTimeWindow,
   type PerformanceUniverse,
+  type SectorResult,
 } from "@/lib/performance/types";
 import { usePerformance } from "@/hooks/use-performance";
 import { ContributorsList } from "@/components/performance/contributors-list";
@@ -40,6 +42,8 @@ import {
   pctAtIndex,
 } from "@/components/performance/performance-chart";
 import { ViewModeToggle } from "@/components/performance/view-mode-toggle";
+import { SectorLeaderboard } from "@/components/performance/sector-leaderboard";
+import { SectorDrilldownSheet } from "@/components/performance/sector-drilldown-sheet";
 
 function buildOptions<T extends string>(
   map: Record<
@@ -83,6 +87,9 @@ export default function PerformancePage() {
   );
   const [activeMetric, setActiveMetric] = useState<MetricKind | null>(null);
   const [scrubIdx, setScrubIdx] = useState<number | null>(null);
+  const [drilldownSector, setDrilldownSector] = useState<SectorResult | null>(
+    null,
+  );
 
   const universeOptions = useMemo(
     () => buildOptions<PerformanceUniverse>(UNIVERSES, false),
@@ -148,32 +155,50 @@ export default function PerformancePage() {
               onOpenMetric={setActiveMetric}
             />
 
-            <div className="flex items-center justify-between">
-              <ViewModeToggle
-                value={perf.config.viewMode}
-                onChange={(viewMode) =>
-                  perf.setConfig((prev) => ({ ...prev, viewMode }))
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <ModeToggle
+                value={perf.config.mode}
+                onChange={(mode) =>
+                  perf.setConfig((prev) => ({ ...prev, mode }))
                 }
               />
+              {perf.config.mode === "overall" && (
+                <ViewModeToggle
+                  value={perf.config.viewMode}
+                  onChange={(viewMode) =>
+                    perf.setConfig((prev) => ({ ...prev, viewMode }))
+                  }
+                />
+              )}
             </div>
 
-            <div
-              className={`rounded-xl border border-separator bg-surface/40 p-3 ${perf.isComputing ? "opacity-70" : ""} transition-opacity`}
-            >
-              <PerformanceChart
-                result={perf.result}
-                viewMode={perf.config.viewMode}
-                onScrub={setScrubIdx}
+            {perf.config.mode === "overall" ? (
+              <>
+                <div
+                  className={`rounded-xl border border-separator bg-surface/40 p-3 ${perf.isComputing ? "opacity-70" : ""} transition-opacity`}
+                >
+                  <PerformanceChart
+                    result={perf.result}
+                    viewMode={perf.config.viewMode}
+                    onScrub={setScrubIdx}
+                  />
+                </div>
+
+                <ContributorsList
+                  excludedDealIds={perf.config.excludedDealIds}
+                  isComputing={perf.isComputing}
+                  rows={perf.result.contributors}
+                  onExclude={perf.excludeDeal}
+                  onResetExclusions={perf.resetExclusions}
+                />
+              </>
+            ) : (
+              <SectorLeaderboard
+                rows={perf.sectorResults}
+                isComputing={perf.isComputing}
+                onSelect={setDrilldownSector}
               />
-            </div>
-
-            <ContributorsList
-              excludedDealIds={perf.config.excludedDealIds}
-              isComputing={perf.isComputing}
-              rows={perf.result.contributors}
-              onExclude={perf.excludeDeal}
-              onResetExclusions={perf.resetExclusions}
-            />
+            )}
           </>
         )}
       </section>
@@ -233,7 +258,40 @@ export default function PerformancePage() {
         open={activeMetric != null}
         onClose={() => setActiveMetric(null)}
       />
+
+      <SectorDrilldownSheet
+        sector={drilldownSector}
+        viewMode={perf.config.viewMode}
+        onClose={() => setDrilldownSector(null)}
+      />
     </DefaultLayout>
+  );
+}
+
+function ModeToggle({
+  value,
+  onChange,
+}: {
+  value: PerformanceMode;
+  onChange: (mode: PerformanceMode) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-full border border-separator bg-surface/40 p-0.5 text-xs">
+      {(["overall", "byIndustry"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          className={`px-3 py-1 rounded-full font-medium transition-colors ${
+            value === m
+              ? "bg-[#6b5038]/15 text-[#6b5038] dark:text-[#a8804e]"
+              : "text-muted hover:text-foreground"
+          }`}
+        >
+          {m === "overall" ? "Overall" : "By Industry"}
+        </button>
+      ))}
+    </div>
   );
 }
 

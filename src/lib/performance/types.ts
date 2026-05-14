@@ -1,6 +1,15 @@
 // Performance backtest types — TypeScript port of ddbx-ios-app/PerformanceModels.swift.
 // Kept dependency-free so the pure compute function can import without React.
 
+import type { SectorNormalized } from "@/types/ddbx";
+
+export type PerformanceMode = "overall" | "byIndustry";
+
+export const PERFORMANCE_MODES: Record<PerformanceMode, { displayName: string }> = {
+  overall: { displayName: "Overall" },
+  byIndustry: { displayName: "By Industry" },
+};
+
 export type PerformanceUniverse =
   | "every_buy"
   | "suggested"
@@ -33,7 +42,7 @@ export interface UniverseInfo {
 
 export const UNIVERSES: Record<PerformanceUniverse, UniverseInfo> = {
   every_buy: {
-    displayName: "Every buy",
+    displayName: "Every disclosed buy",
     description: "Every disclosed director buy.",
   },
   suggested: {
@@ -201,6 +210,8 @@ export const VIEW_MODES: Record<PerformanceViewMode, ViewModeInfo> = {
 // MARK: - Config
 
 export interface StrategyConfig {
+  /** Overall backtest vs per-sector leaderboard. */
+  mode: PerformanceMode;
   universe: PerformanceUniverse;
   timeWindow: PerformanceTimeWindow;
   exitRule: PerformanceExitRule;
@@ -212,6 +223,7 @@ export interface StrategyConfig {
 }
 
 export const DEFAULT_CONFIG: StrategyConfig = {
+  mode: "overall",
   universe: "suggested",
   timeWindow: "90d",
   exitRule: "horizon_90",
@@ -291,6 +303,21 @@ export function alphaReturnPct(r: PerformanceResult): number {
 
 export function pnlForRow(r: ContributorRow): number {
   return r.currentValue - r.deployed;
+}
+
+// MARK: - Sector result (per-industry leaderboard row)
+
+export interface SectorResult {
+  sector: SectorNormalized;
+  result: PerformanceResult;
+}
+
+export function sectorResultId(r: SectorResult): string {
+  return r.sector;
+}
+
+export function sectorAlphaPp(r: SectorResult): number {
+  return alphaReturnPct(r.result) * 100;
 }
 
 // MARK: - Price/FX bars

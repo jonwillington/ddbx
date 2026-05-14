@@ -108,9 +108,14 @@ function MiniPriceChart({
     const prices = bars.map((b) => b.close_pence);
     const rawMin = Math.min(...prices);
     const rawMax = Math.max(...prices);
-    const yPad = (rawMax - rawMin) * 0.06 || 5;
-    const yMin = rawMin - yPad;
-    const yMax = rawMax + yPad;
+    // On "since entry", fold the entry price into the Y-bounds so the line's
+    // slope reads as gain/loss against the buy, not just the period's local
+    // low→high. Matches the iOS MiniPriceChart.
+    const minP = period === "since" ? Math.min(rawMin, entryPricePence) : rawMin;
+    const maxP = period === "since" ? Math.max(rawMax, entryPricePence) : rawMax;
+    const yPad = (maxP - minP) * 0.06 || 5;
+    const yMin = minP - yPad;
+    const yMax = maxP + yPad;
     const yRange = yMax - yMin;
     const n = bars.length;
 

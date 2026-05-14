@@ -7,12 +7,14 @@ import {
   BENCHMARKS,
   DEFAULT_CONFIG,
   EXIT_RULES,
+  PERFORMANCE_MODES,
   TIME_WINDOWS,
   UNIVERSES,
   VIEW_MODES,
   type MarketBenchmark,
   type PerformanceAmount,
   type PerformanceExitRule,
+  type PerformanceMode,
   type PerformanceTimeWindow,
   type PerformanceUniverse,
   type PerformanceViewMode,
@@ -44,9 +46,12 @@ const isBenchmark = (s: string): s is MarketBenchmark =>
   Object.prototype.hasOwnProperty.call(BENCHMARKS, s);
 const isViewMode = (s: string): s is PerformanceViewMode =>
   Object.prototype.hasOwnProperty.call(VIEW_MODES, s);
+const isMode = (s: string): s is PerformanceMode =>
+  Object.prototype.hasOwnProperty.call(PERFORMANCE_MODES, s);
 
 export function loadConfig(): StrategyConfig {
   return {
+    mode: read("mode", isMode, DEFAULT_CONFIG.mode),
     universe: read("universe", isUniverse, DEFAULT_CONFIG.universe),
     timeWindow: read("timeWindow", isWindow, DEFAULT_CONFIG.timeWindow),
     exitRule: read("exitRule", isExitRule, DEFAULT_CONFIG.exitRule),
@@ -61,6 +66,7 @@ export function saveConfig(cfg: StrategyConfig): void {
   if (typeof window === "undefined") return;
   const ls = window.localStorage;
 
+  ls.setItem(PREFIX + "mode", cfg.mode);
   ls.setItem(PREFIX + "universe", cfg.universe);
   ls.setItem(PREFIX + "timeWindow", cfg.timeWindow);
   ls.setItem(PREFIX + "exitRule", cfg.exitRule);

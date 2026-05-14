@@ -186,6 +186,21 @@ export function PerformanceChart({ result, viewMode, onScrub }: Props) {
   const dates = result.strategy.map((p) => p.date);
   const n = dates.length;
 
+  // Map each contributor's entry date to its timeline index so we can render a
+  // small triangle at the bottom anchoring the strategy line to actual buys.
+  // Mirrors the iOS PerformanceChart entry-marker pass.
+  const entryMarkerIndexes = useMemo<number[]>(() => {
+    if (n === 0) return [];
+    const idxByDate = new Map<string, number>();
+    dates.forEach((d, i) => { if (!idxByDate.has(d)) idxByDate.set(d, i); });
+    const seen = new Set<number>();
+    for (const c of result.contributors) {
+      const idx = idxByDate.get(c.entryDate);
+      if (idx != null) seen.add(idx);
+    }
+    return [...seen].sort((a, b) => a - b);
+  }, [n, dates, result.contributors]);
+
   const valuesForBounds =
     viewMode === "vs_market"
       ? series.alpha.values
@@ -400,6 +415,23 @@ export function PerformanceChart({ result, viewMode, onScrub }: Props) {
               </g>
             );
           })()}
+
+        {/* Entry-date markers: tiny upward triangles at the bottom of the
+            plot area, one per contributor entry. Anchors the strategy line
+            to the underlying buys. */}
+        {entryMarkerIndexes.map((idx) => {
+          const cx = xFor(idx);
+          const baseY = PAD_TOP + chartH - 1;
+          const topY = baseY - 5;
+          return (
+            <path
+              key={`entry-${idx}`}
+              d={`M ${(cx - 3).toFixed(2)} ${baseY.toFixed(2)} L ${(cx + 3).toFixed(2)} ${baseY.toFixed(2)} L ${cx.toFixed(2)} ${topY.toFixed(2)} Z`}
+              fill={STRAT_COLOR}
+              fillOpacity={0.5}
+            />
+          );
+        })}
 
         {/* X-axis start/end labels */}
         <text

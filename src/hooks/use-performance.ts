@@ -17,10 +17,12 @@ import {
   type MarketBenchmark,
   type PerformanceResult,
   type PriceBar,
+  type SectorResult,
   type StrategyConfig,
 } from "@/lib/performance/types";
 import {
   computeResult,
+  computeSectorResults,
   convertBarsToGbp,
   matchesUniverse,
   windowCutoff,
@@ -37,6 +39,7 @@ const PRICE_HISTORY_DAYS = 730;
 export interface UsePerformance {
   config: StrategyConfig;
   result: PerformanceResult;
+  sectorResults: SectorResult[];
   isComputing: boolean;
   error: string | null;
   setConfig: (
@@ -53,6 +56,7 @@ interface MutRef<T> {
 export function usePerformance(deals: Dealing[] | null): UsePerformance {
   const [config, setConfigState] = useState<StrategyConfig>(loadConfig);
   const [result, setResult] = useState<PerformanceResult>(EMPTY_RESULT);
+  const [sectorResults, setSectorResults] = useState<SectorResult[]>([]);
   const [isComputing, setIsComputing] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,9 +136,11 @@ export function usePerformance(deals: Dealing[] | null): UsePerformance {
       if ("error" in next) {
         setError(next.error);
         setResult(EMPTY_RESULT);
+        setSectorResults([]);
       } else {
         setError(null);
         setResult(next.result);
+        setSectorResults(next.sectorResults);
       }
 
       // Hold the shimmer for at least MIN_VISIBLE_COMPUTE_MS so the
@@ -153,6 +159,7 @@ export function usePerformance(deals: Dealing[] | null): UsePerformance {
   return {
     config,
     result,
+    sectorResults,
     isComputing,
     error,
     setConfig,
@@ -176,7 +183,9 @@ interface ComputeArgs {
   isStale: () => boolean;
 }
 
-type ComputeOutcome = { result: PerformanceResult } | { error: string };
+type ComputeOutcome =
+  | { result: PerformanceResult; sectorResults: SectorResult[] }
+  | { error: string };
 
 async function performCompute(args: ComputeArgs): Promise<ComputeOutcome> {
   const { deals, config, priceCache, benchmarkCache, fxRatesRef, isStale } =
@@ -197,7 +206,7 @@ async function performCompute(args: ComputeArgs): Promise<ComputeOutcome> {
 
   if (filtered.length === 0) {
     // Stable empty state — fewer surprises than EMPTY_RESULT-with-error.
-    return { result: { ...EMPTY_RESULT, dealCount: 0 } };
+    return { result: { ...EMPTY_RESULT, dealCount: 0 }, sectorResults: [] };
   }
 
   const tickers = Array.from(new Set(filtered.map((d) => d.ticker)));
@@ -210,7 +219,7 @@ async function performCompute(args: ComputeArgs): Promise<ComputeOutcome> {
     fxRatesRef,
   });
 
-  if (isStale()) return { result: EMPTY_RESULT };
+  if (isStale()) return { result: EMPTY_RESULT, sectorResults: [] };
 
   const benchBars = benchmarkCache.get(benchmarkInfo.ticker) ?? [];
 
@@ -222,16 +231,21 @@ async function performCompute(args: ComputeArgs): Promise<ComputeOutcome> {
     };
   }
 
-  const result = computeResult({
-    deals: filtered,
+  const sharedArgs = {
     config,
     priceCache,
     benchmarkBars: benchBars,
     amountPounds: AMOUNTS[config.amount].pounds,
     horizonDays: EXIT_RULES[config.exitRule].horizonDays,
-  });
+  };
 
-  return { result };
+  const result = computeResult({ ...sharedArgs, deals: filtered });
+
+  const sectorResults = config.mode === "byIndustry"
+    ? computeSectorResults({ ...sharedArgs, deals: filtered })
+    : [];
+
+  return { result, sectorResults };
 }
 
 interface FetchArgs {

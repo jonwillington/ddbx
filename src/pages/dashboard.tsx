@@ -12,7 +12,10 @@ import { compareDealingsNewestFirst, formatDisclosedParts } from "@/lib/dealing-
 import { useDataVersion } from "@/lib/use-data-version";
 import { useDiscretion } from "@/lib/discretion";
 import { useDashboardMetricMode } from "@/lib/dashboard-metric-mode";
+import { useBankHolidays } from "@/lib/bank-holidays";
+import { lseStatus } from "@/lib/market-status";
 import { MetricModeSheet } from "@/components/metric-mode-sheet";
+import { TodayEmptyState } from "@/components/today-empty-state";
 import { BlurredDealingRow } from "@/components/discretion/blurred-dealing-row";
 import {
   ChevronDownIcon,
@@ -127,6 +130,9 @@ export default function DashboardPage() {
   const [metricSheetOpen, setMetricSheetOpen] = useState(false);
   const discretion = useDiscretion();
   const metricMode = useDashboardMetricMode();
+  const holidays = useBankHolidays();
+  const marketStatus = useMemo(() => lseStatus(new Date(), holidays), [holidays]);
+  const marketClosed = marketStatus.kind === "closed";
 
   // Pick the right FTSE entry close for a deal based on the current anchor:
   // disclosure-day for "since disclosure", trade-day otherwise. The stock-side
@@ -142,10 +148,10 @@ export default function DashboardPage() {
     [ftseEntries, metricMode.anchorsOnDisclosure],
   );
 
-  const isTradingDay = useMemo(() => {
-    const dow = new Date().getDay();
-    return dow >= 1 && dow <= 5;
-  }, []);
+  // "Is the LSE actually open for business today?" — false on weekends and
+  // bank holidays so the desktop today-drawer drops off the layout instead of
+  // showing a permanently-empty pane.
+  const isTradingDay = !marketClosed;
 
   const selected = useMemo(
     () => (routeId && dealings ? dealings.find((d) => d.id === routeId) ?? null : null),
@@ -782,17 +788,16 @@ export default function DashboardPage() {
 
         <div className="space-y-6">
             {/* Mobile-only today section */}
-            {isTradingDay && (
-              <div className="lg:hidden bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
-                  <div className="text-sm font-semibold flex items-center gap-2"><PlayIcon className="w-4 h-4" />Today</div>
-                  {todayDeals.length > 0 && (
-                    <div className="text-xs text-muted mt-0.5">
-                      {todayDeals.filter(isSuggestedDealing).length} analysed · {todayDeals.filter((d) => !isSuggestedDealing(d)).length} skipped
-                    </div>
-                  )}
-                </div>
-                {todayDeals.length > 0 ? (
+            <div className="lg:hidden bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#e8e0d5] dark:border-separator">
+                <div className="text-sm font-semibold flex items-center gap-2"><PlayIcon className="w-4 h-4" />Today</div>
+                {todayDeals.length > 0 && (
+                  <div className="text-xs text-muted mt-0.5">
+                    {todayDeals.filter(isSuggestedDealing).length} analysed · {todayDeals.filter((d) => !isSuggestedDealing(d)).length} skipped
+                  </div>
+                )}
+              </div>
+              {todayDeals.length > 0 ? (
                   <div className="divide-y divide-black/[0.06] dark:divide-separator">
                     {(discretion.enabled
                       ? todayDeals.slice(0, discretion.listCap)
@@ -823,14 +828,11 @@ export default function DashboardPage() {
                           hideDate
                         />
                       ))}
-                  </div>
-                ) : (
-                  <div className="px-5 py-4 text-sm text-muted">
-                    Monitoring for new trades...
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              ) : (
+                <TodayEmptyState status={marketStatus} variant="inline" />
+              )}
+            </div>
 
             {err && <div className="text-sm text-red-400">Error: {err}</div>}
 

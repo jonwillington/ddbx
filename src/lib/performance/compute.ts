@@ -5,14 +5,17 @@ import type { Dealing } from "@/lib/api";
 
 import {
   EMPTY_RESULT,
+  alphaReturnPct,
   type ContributorRow,
   type FxRate,
   type PerformanceResult,
   type PerformanceUniverse,
   type PortfolioPoint,
   type PriceBar,
+  type SectorResult,
   type StrategyConfig,
 } from "./types";
+import type { SectorNormalized } from "@/types/ddbx";
 
 import { isSuggestedDealing } from "@/lib/dealing-classify";
 
@@ -333,4 +336,40 @@ export function computeResult(args: {
     excludedForDataCount: droppedForData,
     dealCount: events.length,
   };
+}
+
+// MARK: - Sector grouping (By Industry mode)
+
+/**
+ * Group `deals` by their `sector_normalized`, run the existing per-deal compute
+ * on each group, return rows sorted by alpha desc. Deals with no sector are
+ * dropped from the leaderboard rather than bucketed under "Unknown" — better
+ * to under-show than mis-classify. Mirrors iOS `computeSectorResults`.
+ */
+export function computeSectorResults(args: {
+  deals: Dealing[];
+  config: StrategyConfig;
+  priceCache: Map<string, PriceBar[]>;
+  benchmarkBars: PriceBar[];
+  amountPounds: number;
+  horizonDays: number | null;
+}): SectorResult[] {
+  const { deals } = args;
+
+  const grouped = new Map<SectorNormalized, Dealing[]>();
+  for (const d of deals) {
+    const s = d.sector_normalized;
+    if (!s) continue;
+    const list = grouped.get(s);
+    if (list) list.push(d);
+    else grouped.set(s, [d]);
+  }
+
+  const rows: SectorResult[] = [];
+  for (const [sector, dealsInSector] of grouped) {
+    const r = computeResult({ ...args, deals: dealsInSector });
+    rows.push({ sector, result: r });
+  }
+  rows.sort((a, b) => alphaReturnPct(b.result) - alphaReturnPct(a.result));
+  return rows;
 }
