@@ -11,6 +11,8 @@ import { isSuggestedDealing } from "@/lib/dealing-classify";
 import { compareDealingsNewestFirst, formatDisclosedParts } from "@/lib/dealing-dates";
 import { useDataVersion } from "@/lib/use-data-version";
 import { useDiscretion } from "@/lib/discretion";
+import { useDashboardMetricMode } from "@/lib/dashboard-metric-mode";
+import { MetricModeSheet } from "@/components/metric-mode-sheet";
 import { BlurredDealingRow } from "@/components/discretion/blurred-dealing-row";
 import {
   ChevronDownIcon,
@@ -92,6 +94,21 @@ function ordinal(n: number): string {
   return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
 }
 
+function MetricChip({ mode, onClick }: { mode: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[#6b5038]/10 px-3 py-1 text-xs font-semibold text-[#6b5038] hover:bg-[#6b5038]/15 transition-colors"
+    >
+      {mode}
+      <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3" aria-hidden="true">
+        <path d="M2 4.5h12M5 8h8m-5 3.5h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { id: routeId } = useParams<{ id: string }>();
@@ -107,7 +124,23 @@ export default function DashboardPage() {
   const [heroFilter, setHeroFilter] = useState<HeroFilter>("significant");
   const [search, setSearch] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [metricSheetOpen, setMetricSheetOpen] = useState(false);
   const discretion = useDiscretion();
+  const metricMode = useDashboardMetricMode();
+
+  // Pick the right FTSE entry close for a deal based on the current anchor:
+  // disclosure-day for "since disclosure", trade-day otherwise. The stock-side
+  // entry stays at trade-day either way until `disclosed_close_pence` ships
+  // (matches the iOS app's graceful fallback).
+  const ftseEntryFor = useCallback(
+    (d: Dealing): number | undefined => {
+      const iso = metricMode.anchorsOnDisclosure
+        ? (d.disclosed_date || d.trade_date)
+        : d.trade_date;
+      return ftseEntries[iso.slice(0, 10)];
+    },
+    [ftseEntries, metricMode.anchorsOnDisclosure],
+  );
 
   const isTradingDay = useMemo(() => {
     const dow = new Date().getDay();
@@ -418,9 +451,9 @@ export default function DashboardPage() {
                   key={d.id}
                   dealing={d}
                   currentPricePence={prices[d.ticker]}
-                  ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
+                  ftseEntryPence={ftseEntryFor(d)}
                   ftseCurrentPence={prices["^FTAS"]}
-                  showVsFtse
+                  metricMode={metricMode.mode}
                   selected={selected?.id === d.id}
                   onSelect={selectDealing}
                   hideDate
@@ -432,7 +465,7 @@ export default function DashboardPage() {
                   seed={clusterKey}
                   index={i}
                   isoDate={d.trade_date.slice(0, 10)}
-                  showVsFtse
+                  metricMode={metricMode.mode}
                   hideDate
                 />
               ),
@@ -769,6 +802,9 @@ export default function DashboardPage() {
                         key={d.id}
                         dealing={d}
                         currentPricePence={prices[d.ticker]}
+                        ftseEntryPence={ftseEntryFor(d)}
+                        ftseCurrentPence={prices["^FTAS"]}
+                        metricMode={metricMode.mode}
                         selected={selected?.id === d.id}
                         onSelect={selectDealing}
                         hideDate
@@ -783,6 +819,7 @@ export default function DashboardPage() {
                           seed="today"
                           index={i}
                           isoDate={todayKey}
+                          metricMode={metricMode.mode}
                           hideDate
                         />
                       ))}
@@ -827,17 +864,18 @@ export default function DashboardPage() {
                       placeholder="Search ticker, company, director..."
                       className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
                     />
+                    <MetricChip mode={metricMode.shortLabel} onClick={() => setMetricSheetOpen(true)} />
                   </div>
-                  <DealingRowHeader showVsFtse />
+                  <DealingRowHeader />
                   <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
                     {(discretion.enabled ? byGain.slice(0, discretion.listCap) : byGain).map((d) => (
                       <DealingRow
                         key={d.id}
                         dealing={d}
                         currentPricePence={prices[d.ticker]}
-                        ftseEntryPence={ftseEntries[d.trade_date.slice(0, 10)]}
+                        ftseEntryPence={ftseEntryFor(d)}
                         ftseCurrentPence={prices["^FTAS"]}
-                        showVsFtse
+                        metricMode={metricMode.mode}
                         selected={selected?.id === d.id}
                         onSelect={selectDealing}
                       />
@@ -851,7 +889,7 @@ export default function DashboardPage() {
                           seed="bygain"
                           index={i}
                           isoDate={new Date().toISOString().slice(0, 10)}
-                          showVsFtse
+                          metricMode={metricMode.mode}
                         />
                       ))}
                   </div>
@@ -890,6 +928,7 @@ export default function DashboardPage() {
                             placeholder="Search ticker, company, director..."
                             className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
                           />
+                          <MetricChip mode={metricMode.shortLabel} onClick={() => setMetricSheetOpen(true)} />
                         </div>
                       )}
                       {/* Month header */}
@@ -941,7 +980,7 @@ export default function DashboardPage() {
 
                         return (
                         <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
-                          <DealingRowHeader showVsFtse />
+                          <DealingRowHeader />
                           <div className="divide-y divide-black/[0.06] dark:divide-separator">
                           {days.map((day) => {
                             const segments = buildSegments(day.all, day.key);
@@ -964,9 +1003,9 @@ export default function DashboardPage() {
                                           key={seg.deal.id}
                                           dealing={seg.deal}
                                           currentPricePence={prices[seg.deal.ticker]}
-                                          ftseEntryPence={ftseEntries[seg.deal.trade_date.slice(0, 10)]}
+                                          ftseEntryPence={ftseEntryFor(seg.deal)}
                                           ftseCurrentPence={prices["^FTAS"]}
-                                          showVsFtse
+                                          metricMode={metricMode.mode}
                                           selected={selected?.id === seg.deal.id}
                                           onSelect={selectDealing}
                                         />
@@ -978,7 +1017,7 @@ export default function DashboardPage() {
                                         seed={seg.deal.id}
                                         index={0}
                                         isoDate={seg.deal.trade_date.slice(0, 10)}
-                                        showVsFtse
+                                        metricMode={metricMode.mode}
                                       />
                                     );
                                   }
@@ -1029,6 +1068,8 @@ export default function DashboardPage() {
         ftseCurrentPence={prices["^FTAS"]}
         onClose={() => selectDealing(null)}
       />
+
+      <MetricModeSheet open={metricSheetOpen} onClose={() => setMetricSheetOpen(false)} />
     </DefaultLayout>
   );
 }

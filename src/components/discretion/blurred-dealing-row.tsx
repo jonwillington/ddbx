@@ -78,14 +78,14 @@ export function BlurredDealingRow({
   seed,
   index,
   isoDate,
-  showVsFtse,
+  metricMode,
   hideDate,
 }: {
   seed: string;
   index: number;
   /** ISO date used for the row's date column. Should match the day this row stands in for. */
   isoDate: string;
-  showVsFtse?: boolean;
+  metricMode?: import("@/lib/dashboard-metric-mode").DashboardMetricMode;
   hideDate?: boolean;
 }) {
   const p = pick(seed, index);
@@ -94,7 +94,7 @@ export function BlurredDealingRow({
     1,
     Math.round(p.pricePence * (1 + p.perfPct / 100)),
   );
-  // Plausible-looking FTSE bracket so the vs-FTSE pill renders.
+  // Plausible-looking FTSE bracket so the alpha pill renders when Market mode is on.
   const ftseEntryPence = 820000;
   const ftseCurrentPence = Math.round(ftseEntryPence * 1.012);
 
@@ -109,7 +109,7 @@ export function BlurredDealingRow({
         currentPricePence={currentPricePence}
         ftseEntryPence={ftseEntryPence}
         ftseCurrentPence={ftseCurrentPence}
-        showVsFtse={showVsFtse}
+        metricMode={metricMode}
         hideDate={hideDate}
         onSelect={() => {}}
       />

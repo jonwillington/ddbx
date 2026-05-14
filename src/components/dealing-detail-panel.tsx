@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import type { Dealing } from "@/lib/api";
 import type { RatingChecklist } from "@/types/ddbx";
 import { RatingBadge } from "@/components/rating-badge";
+import { CompanyLogo } from "@/components/company-logo";
 import { EvidenceTable } from "@/components/evidence-table";
 import { InformationCircleIcon } from "@heroicons/react/20/solid";
 import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicons/react/24/outline";
@@ -512,6 +513,7 @@ export function DealingDetailPanel({
                   : "border-transparent"
                 }`}
             >
+              <CompanyLogo ticker={dealing.ticker} size={32} />
               <span className="font-mono text-xs bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded shrink-0">
                 {ticker}
               </span>
@@ -538,7 +540,10 @@ export function DealingDetailPanel({
               className="flex-1 overflow-y-auto"
             >
               <div className="p-5 md:p-8 space-y-6">
-                <h1 className="text-3xl font-bold leading-tight tracking-tight">{company}</h1>
+                <div className="flex items-center gap-4">
+                  <CompanyLogo ticker={dealing.ticker} size={56} />
+                  <h1 className="text-3xl font-bold leading-tight tracking-tight flex-1 min-w-0">{company}</h1>
+                </div>
 
                 <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 py-4 border-y border-black/10 dark:border-white/10">
                   <div>

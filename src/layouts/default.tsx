@@ -348,6 +348,18 @@ export default function DefaultLayout({
             such offer or solicitation would be unlawful. Investing involves
             risk, including the possible loss of capital.
           </p>
+          <p className="mt-2">
+            Logos provided by{" "}
+            <a
+              href="https://logo.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground/70 transition-colors"
+            >
+              Logo.dev
+            </a>
+            .
+          </p>
           {/* Legal links + social/app links */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 pt-3 border-t border-separator/50">
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">

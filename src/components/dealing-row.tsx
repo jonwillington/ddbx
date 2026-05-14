@@ -1,5 +1,8 @@
 import type { Dealing } from "@/lib/api";
+import type { DashboardMetricMode } from "@/lib/dashboard-metric-mode";
+import { isVsMarket } from "@/lib/dashboard-metric-mode";
 import { RatingBadge } from "@/components/rating-badge";
+import { CompanyLogo } from "@/components/company-logo";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
 import { formatDisclosedCompact, formatDisclosedParts } from "@/lib/dealing-dates";
 
@@ -91,7 +94,7 @@ function AlphaDelta({ stockEntry, stockCurrent, ftseEntry, ftseCurrent }: { stoc
   );
 }
 
-export function DealingRowHeader({ showVsFtse = false }: { showVsFtse?: boolean }) {
+export function DealingRowHeader() {
   return (
     <div className="hidden md:flex items-center text-xs text-muted font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] rounded-t-xl">
       <div className="w-40 shrink-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Disclosed</div>
@@ -99,7 +102,6 @@ export function DealingRowHeader({ showVsFtse = false }: { showVsFtse?: boolean 
       <div className="flex-1 min-w-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">Company</div>
       <div className="w-36 shrink-0 px-4 py-2.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]">Value</div>
       <div className="w-32 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">Performance</div>
-      {showVsFtse && <div className="w-28 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">vs FTSE</div>}
       <div className="w-40 shrink-0 px-4 py-2.5 text-center">Rating</div>
     </div>
   );
@@ -110,7 +112,7 @@ export function DealingRow({
   currentPricePence,
   ftseEntryPence,
   ftseCurrentPence,
-  showVsFtse,
+  metricMode = "performanceSinceDisclosure",
   selected,
   onSelect,
   rowClassName,
@@ -121,7 +123,9 @@ export function DealingRow({
   currentPricePence?: number;
   ftseEntryPence?: number;
   ftseCurrentPence?: number;
-  showVsFtse?: boolean;
+  /** Drives whether the Performance cell shows raw return or alpha. The
+   *  parent picks the FTSE entry close from the right anchor date. */
+  metricMode?: DashboardMetricMode;
   selected?: boolean;
   onSelect: (dealing: Dealing) => void;
   rowClassName?: string;
@@ -129,6 +133,9 @@ export function DealingRow({
   /** Hide the extra "Skipped" hint (e.g. rows inside an expanded skipped cluster). */
   suppressSkippedLabel?: boolean;
 }) {
+  const vsMarket = isVsMarket(metricMode);
+  const canRenderMarket =
+    currentPricePence != null && ftseEntryPence != null && ftseCurrentPence != null;
   const a = dealing.analysis;
   const t = dealing.triage;
   const muted = !a;
@@ -186,6 +193,7 @@ export function DealingRow({
         )}
         {/* Main content: left info + right value / Skipped / rating */}
         <div className="flex items-start gap-3">
+          <CompanyLogo ticker={dealing.ticker} size={36} className="mt-0.5" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary shrink-0">
@@ -221,10 +229,19 @@ export function DealingRow({
             )}
           </div>
         </div>
-        {/* Performance pill on mobile */}
+        {/* Performance pill on mobile — raw or alpha, driven by mode */}
         {currentPricePence != null && (
           <div className="mt-2">
-            <PriceDelta entry={dealing.price_pence} current={currentPricePence} />
+            {vsMarket && canRenderMarket ? (
+              <AlphaDelta
+                stockEntry={dealing.price_pence}
+                stockCurrent={currentPricePence}
+                ftseEntry={ftseEntryPence!}
+                ftseCurrent={ftseCurrentPence!}
+              />
+            ) : (
+              <PriceDelta entry={dealing.price_pence} current={currentPricePence} />
+            )}
           </div>
         )}
       </div>
@@ -274,10 +291,13 @@ export function DealingRow({
         </div>
 
         {/* Company */}
-        <div className="flex-1 min-w-0 px-4 py-4 flex flex-col justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-          <div className="text-base font-medium truncate leading-snug">{companyLabel}</div>
-          <div className="text-sm text-muted truncate mt-0.5">
-            {dealing.director.name} · {dealing.director.role}
+        <div className="flex-1 min-w-0 px-4 py-4 flex items-center gap-3 border-r border-black/[0.06] dark:border-white/[0.06]">
+          <CompanyLogo ticker={dealing.ticker} size={36} />
+          <div className="flex-1 min-w-0">
+            <div className="text-base font-medium truncate leading-snug">{companyLabel}</div>
+            <div className="text-sm text-muted truncate mt-0.5">
+              {dealing.director.name} · {dealing.director.role}
+            </div>
           </div>
         </div>
 
@@ -286,30 +306,27 @@ export function DealingRow({
           <div className="text-xl font-medium tabular-nums">{fmtGbp(dealing.value_gbp)}</div>
         </div>
 
-        {/* Performance */}
+        {/* Performance — raw return or market alpha, driven by metric mode */}
         <div className="w-32 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
           {currentPricePence != null ? (
-            <PriceDelta entry={dealing.price_pence} current={currentPricePence} />
+            vsMarket ? (
+              canRenderMarket ? (
+                <AlphaDelta
+                  stockEntry={dealing.price_pence}
+                  stockCurrent={currentPricePence}
+                  ftseEntry={ftseEntryPence!}
+                  ftseCurrent={ftseCurrentPence!}
+                />
+              ) : (
+                <span className="text-xs text-muted">—</span>
+              )
+            ) : (
+              <PriceDelta entry={dealing.price_pence} current={currentPricePence} />
+            )
           ) : (
             <span className="text-xs text-muted">—</span>
           )}
         </div>
-
-        {/* vs FTSE — alpha over the index */}
-        {showVsFtse && (
-          <div className="w-28 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-            {currentPricePence != null && ftseEntryPence != null && ftseCurrentPence != null ? (
-              <AlphaDelta
-                stockEntry={dealing.price_pence}
-                stockCurrent={currentPricePence}
-                ftseEntry={ftseEntryPence}
-                ftseCurrent={ftseCurrentPence}
-              />
-            ) : (
-              <span className="text-xs text-muted">—</span>
-            )}
-          </div>
-        )}
 
         {/* Rating — Skipped stacks above badge on the right when relevant */}
         <div className="w-40 shrink-0 px-4 py-4 flex flex-col items-end justify-center gap-1">
