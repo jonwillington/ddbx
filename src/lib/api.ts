@@ -10,6 +10,8 @@ import type {
 
 export interface UsDealingsStats {
   total: number;
+  /** Rows passing the `view=interesting` predicate (open-market direct buy, no 10b5-1). */
+  interesting: number;
   by_code: Array<{ code: string; n: number }>;
   latest_disclosed_date: string | null;
 }
@@ -70,11 +72,19 @@ export const api = {
   ukNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/uk"),
   version: () => get<{ latest: string | null; total: number }>("/version"),
-  usDealings: (opts: { limit?: number; code?: string; ticker?: string } = {}) => {
+  usDealings: (
+    opts: {
+      limit?: number;
+      code?: string;
+      ticker?: string;
+      view?: "interesting" | "all";
+    } = {},
+  ) => {
     const qs = new URLSearchParams();
     if (opts.limit != null) qs.set("limit", String(opts.limit));
     if (opts.code) qs.set("code", opts.code);
     if (opts.ticker) qs.set("ticker", opts.ticker);
+    if (opts.view) qs.set("view", opts.view);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return get<{ dealings: UsDealing[]; stats: UsDealingsStats }>(
       `/us-dealings${suffix}`,

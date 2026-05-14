@@ -3,15 +3,24 @@
 // cron in ddbx-data) and renders them in the dashboard's row visual language
 // so we can eyeball signal quality alongside what the UK list looks like.
 //
+// Defaults to view=interesting — the rough open-market-buy-by-real-insider
+// slice — because Form 4 is structurally noisy: most rows are routine grants,
+// option exercises, or 10b5-1 plan trades. The toggle exposes everything for
+// spot-checking the parser.
+//
 // Not linked from any nav. The companion /us route maps to this same page —
-// see src/App.tsx. Background context:
+// see src/App.tsx. Background:
 // ~/ddbx-ios-app/investigations/multi-market/us-preview-handoff.md
+// ~/ddbx-ios-app/investigations/multi-market/form4-mapping.md
 import { useEffect, useMemo, useState } from "react";
 
 import DefaultLayout from "@/layouts/default";
 import { CompanyLogo } from "@/components/company-logo";
 import { api, type IngestResult, type UsDealing, type UsDealingsStats } from "@/lib/api";
-import type { UsTransactionCode } from "@/types/ddbx";
+import type { UsReporter, UsTransactionCode } from "@/types/ddbx";
+
+type Tone = "buy" | "sell" | "plan" | "grant" | "exercise" | "neutral";
+type View = "interesting" | "all";
 
 const CODE_LABELS: Record<UsTransactionCode, string> = {
   P: "Open-market purchase",
@@ -35,16 +44,6 @@ const CODE_LABELS: Record<UsTransactionCode, string> = {
   E: "Short-position expiration",
 };
 
-// Filter presets surfaced in the toolbar. Empty string = no filter.
-const CODE_FILTERS: Array<{ code: string; label: string }> = [
-  { code: "", label: "All" },
-  { code: "P", label: "P · Buys" },
-  { code: "S", label: "S · Sales" },
-  { code: "A", label: "A · Grants" },
-  { code: "M", label: "M · Exercise" },
-  { code: "F", label: "F · Tax" },
-];
-
 function fmtUsd(n: number | null | undefined): string {
   if (n == null) return "—";
   return new Intl.NumberFormat("en-US", {
@@ -57,47 +56,94 @@ function fmtUsd(n: number | null | undefined): string {
 function shortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-  });
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 
-function CodeBadge({ code }: { code: UsTransactionCode }) {
-  const tone =
-    code === "P"
-      ? "bg-emerald-700/15 text-emerald-800 border-emerald-700/35 dark:text-emerald-300 dark:border-emerald-300/30"
-      : code === "S"
-        ? "bg-rose-700/12 text-rose-800 border-rose-700/30 dark:text-rose-300 dark:border-rose-300/30"
-        : "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40";
-  return (
-    <span
-      className={`inline-flex items-center justify-center rounded-md border px-2.5 py-1 text-sm font-semibold font-mono ${tone}`}
-      title={CODE_LABELS[code] ?? code}
-    >
-      {code}
-    </span>
-  );
+// Plain-English action description. The combination of code + acquired/disposed
+// + 10b5-1 + direct/indirect determines both the human label and the visual
+// tone — buys in green, sells in rose, everything else demoted so the rare
+// signal doesn't drown in routine noise.
+function describeAction(row: UsDealing): { label: string; tone: Tone } {
+  const planned = row.aff_10b5_one;
+  const indirect = row.direct_indirect === "I";
+  switch (row.transaction_code) {
+    case "P":
+      if (planned) return { label: "10b5-1 plan purchase", tone: "plan" };
+      return {
+        label: indirect ? "Open-market buy (indirect)" : "Open-market buy",
+        tone: "buy",
+      };
+    case "S":
+      if (planned) return { label: "10b5-1 plan sale", tone: "plan" };
+      return {
+        label: indirect ? "Open-market sale (indirect)" : "Open-market sale",
+        tone: "sell",
+      };
+    case "A":
+      return {
+        label: row.is_derivative ? "Options / RSU grant" : "Stock grant",
+        tone: "grant",
+      };
+    case "M":
+      return { label: "Derivative exercise", tone: "exercise" };
+    case "C":
+      return { label: "Derivative conversion", tone: "exercise" };
+    case "F":
+      return { label: "Tax withholding via shares", tone: "neutral" };
+    case "G":
+      return {
+        label: row.acquired_disposed === "A" ? "Gift received" : "Gift made",
+        tone: "neutral",
+      };
+    case "D":
+      return { label: "Tender / structural", tone: "neutral" };
+    case "J":
+      return { label: "Other (see footnote)", tone: "neutral" };
+    case "X":
+      return { label: "In-the-money exercise", tone: "exercise" };
+    case "K":
+      return { label: "Equity swap", tone: "neutral" };
+    default:
+      return { label: row.transaction_code, tone: "neutral" };
+  }
 }
 
-function FlagChip({
-  children,
-  tone = "muted",
+// "Tim Cook (CEO)" / "John Smith (director)" / "Acme Capital LLC (10% holder)".
+// Reads officer_title first because it's the most informative; falls back to
+// the roles array in priority order (officer > director > 10% holder).
+function describeReporter(r: UsReporter): string {
+  if (r.officer_title) return `${r.name} (${r.officer_title})`;
+  if (r.roles.includes("officer")) return `${r.name} (officer)`;
+  if (r.roles.includes("director")) return `${r.name} (director)`;
+  if (r.roles.includes("ten_percent_owner")) return `${r.name} (10% holder)`;
+  return r.name;
+}
+
+const TONE_STYLES: Record<Tone, string> = {
+  buy: "bg-emerald-700/15 text-emerald-800 border-emerald-700/35 dark:text-emerald-300 dark:border-emerald-300/30 font-semibold",
+  sell: "bg-rose-700/12 text-rose-800 border-rose-700/30 dark:text-rose-300 dark:border-rose-300/30 font-semibold",
+  plan: "bg-amber-200/15 text-amber-900/70 border-amber-400/25 dark:text-amber-200/60 dark:border-amber-300/20",
+  grant: "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40 dark:text-foreground/55",
+  exercise: "bg-[#c0b4a6]/10 text-[#7e766c] border-[#c0b4a6]/40 dark:text-foreground/55",
+  neutral: "bg-transparent text-[#b0a898] border-[#d8d0c6]/60 dark:text-foreground/45",
+};
+
+function ActionChip({
+  label,
+  tone,
+  size = "md",
 }: {
-  children: React.ReactNode;
-  tone?: "muted" | "warn" | "info";
+  label: string;
+  tone: Tone;
+  size?: "md" | "sm";
 }) {
-  const styles =
-    tone === "warn"
-      ? "bg-amber-200/30 text-amber-900 border-amber-400/40 dark:text-amber-200 dark:border-amber-300/30"
-      : tone === "info"
-        ? "bg-blue-200/30 text-blue-900 border-blue-400/40 dark:text-blue-200 dark:border-blue-300/30"
-        : "bg-black/[0.04] text-foreground/55 border-black/[0.08] dark:bg-white/5 dark:text-foreground/70 dark:border-white/10";
+  const sizing =
+    size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-1.5 text-sm";
   return (
     <span
-      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${styles}`}
+      className={`inline-flex items-center justify-center rounded-md border whitespace-nowrap ${sizing} ${TONE_STYLES[tone]}`}
     >
-      {children}
+      {label}
     </span>
   );
 }
@@ -105,22 +151,19 @@ function FlagChip({
 function UsRowHeader() {
   return (
     <div className="hidden md:flex items-center text-xs text-muted font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05]">
-      <div className="w-40 shrink-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">
+      <div className="w-32 shrink-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">
         Disclosed
       </div>
       <div className="w-[4.5rem] shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
         Ticker
       </div>
       <div className="flex-1 min-w-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">
-        Company / Reporter
+        Company / Insider
       </div>
       <div className="w-36 shrink-0 px-4 py-2.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]">
         Value (USD)
       </div>
-      <div className="w-20 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
-        Code
-      </div>
-      <div className="w-48 shrink-0 px-4 py-2.5 text-center">Flags</div>
+      <div className="w-56 shrink-0 px-4 py-2.5 text-center">What happened</div>
     </div>
   );
 }
@@ -134,33 +177,41 @@ function UsDealingRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  // 10b5-1 trades are pre-arranged plans — close to no current-view signal.
-  // Mirror the UK row's "muted when no analysis" pattern.
-  const muted = row.aff_10b5_one;
+  const action = describeAction(row);
+  const reporterLine = describeReporter(row.reporter);
+  // Mute everything that isn't a real buy/sell so the eye lands on the
+  // signal-bearing rows in "All filings" view.
+  const muted = action.tone !== "buy" && action.tone !== "sell";
   const ticker = row.ticker || "—";
   const company = row.company || "—";
-  const role =
-    row.reporter.officer_title ?? (row.reporter.roles.join(", ") || "reporter");
+  const tradeDiffers = row.trade_date !== row.disclosed_date;
+
+  // Suffix the action with structural badges that don't fold into the verb
+  // itself (amendment, late-filing, derivative — when not already implied).
+  const suffixBadges: Array<{ label: string; tone: Tone }> = [];
+  if (row.is_amendment) suffixBadges.push({ label: "Amendment", tone: "neutral" });
+  if (row.is_late) suffixBadges.push({ label: "Late filing", tone: "neutral" });
 
   return (
     <>
       <button
         className={`w-full text-left transition-colors
-          ${muted ? "opacity-60" : ""}
+          ${muted ? "opacity-65" : ""}
           ${expanded ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]" : "hover:bg-black/[0.03] dark:hover:bg-white/5"}`}
         onClick={onToggle}
       >
         {/* ── Mobile (<md) ── */}
         <div className="md:hidden px-4 py-3.5">
-          <div className="mb-2">
+          <div className="mb-2 flex items-baseline justify-between gap-2">
             <span className="text-xs text-foreground/50 font-medium">
               {shortDate(row.disclosed_date)}
+              {tradeDiffers && (
+                <span className="text-[10px] text-muted/70 ml-2">
+                  · trade {shortDate(row.trade_date)}
+                </span>
+              )}
             </span>
-            {row.trade_date !== row.disclosed_date && (
-              <span className="block text-[10px] text-muted/70 mt-0.5">
-                Trade · {shortDate(row.trade_date)}
-              </span>
-            )}
+            <ActionChip label={action.label} tone={action.tone} size="sm" />
           </div>
           <div className="flex items-start gap-3">
             <CompanyLogo ticker={ticker} size={36} className="mt-0.5" />
@@ -172,35 +223,31 @@ function UsDealingRow({
                 <span className="text-sm font-medium truncate">{company}</span>
               </div>
               <div className="text-xs text-muted truncate mt-1">
-                {row.reporter.name} · {role}
+                {reporterLine}
               </div>
             </div>
-            <div className="shrink-0 flex flex-col items-end gap-1">
-              <span className="text-base font-medium tabular-nums leading-tight">
-                {fmtUsd(row.value)}
-              </span>
-              <CodeBadge code={row.transaction_code} />
+            <div className="shrink-0 text-base font-medium tabular-nums leading-tight">
+              {fmtUsd(row.value)}
             </div>
           </div>
-          <div className="flex flex-wrap gap-1 mt-2">
-            <FlagChip>{row.acquired_disposed === "A" ? "Acquired" : "Disposed"}</FlagChip>
-            <FlagChip>{row.direct_indirect === "D" ? "Direct" : "Indirect"}</FlagChip>
-            {row.aff_10b5_one && <FlagChip tone="warn">10b5-1</FlagChip>}
-            {row.is_derivative && <FlagChip tone="info">Derivative</FlagChip>}
-            {row.is_amendment && <FlagChip tone="info">4/A</FlagChip>}
-            {row.is_late && <FlagChip tone="warn">Late</FlagChip>}
-          </div>
+          {suffixBadges.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {suffixBadges.map((b) => (
+                <ActionChip key={b.label} label={b.label} tone={b.tone} size="sm" />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* ── Desktop (md+) — column widths mirror DealingRow ── */}
+        {/* ── Desktop (md+) ── */}
         <div className="hidden md:flex items-stretch">
-          <div className="w-40 shrink-0 px-4 py-4 flex flex-col justify-center border-r border-black/[0.06] dark:border-white/[0.06] min-h-[3.5rem]">
+          <div className="w-32 shrink-0 px-4 py-4 flex flex-col justify-center border-r border-black/[0.06] dark:border-white/[0.06] min-h-[4rem]">
             <div className="text-sm text-foreground/90 font-medium leading-tight">
               {shortDate(row.disclosed_date)}
             </div>
-            {row.trade_date !== row.disclosed_date && (
+            {tradeDiffers && (
               <div className="text-[10px] text-muted/75 mt-1">
-                Trade · {shortDate(row.trade_date)}
+                trade {shortDate(row.trade_date)}
               </div>
             )}
           </div>
@@ -213,9 +260,7 @@ function UsDealingRow({
             <CompanyLogo ticker={ticker} size={36} />
             <div className="flex-1 min-w-0">
               <div className="text-base font-medium truncate leading-snug">{company}</div>
-              <div className="text-sm text-muted truncate mt-0.5">
-                {row.reporter.name} · {role}
-              </div>
+              <div className="text-sm text-muted truncate mt-0.5">{reporterLine}</div>
             </div>
           </div>
           <div className="w-36 shrink-0 px-4 py-4 flex flex-col items-end justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
@@ -224,16 +269,15 @@ function UsDealingRow({
               {row.shares.toLocaleString()} sh
             </div>
           </div>
-          <div className="w-20 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-            <CodeBadge code={row.transaction_code} />
-          </div>
-          <div className="w-48 shrink-0 px-3 py-4 flex flex-wrap items-center justify-center gap-1">
-            <FlagChip>{row.acquired_disposed === "A" ? "A" : "D"}</FlagChip>
-            <FlagChip>{row.direct_indirect === "D" ? "Direct" : "Indirect"}</FlagChip>
-            {row.aff_10b5_one && <FlagChip tone="warn">10b5-1</FlagChip>}
-            {row.is_derivative && <FlagChip tone="info">Deriv</FlagChip>}
-            {row.is_amendment && <FlagChip tone="info">4/A</FlagChip>}
-            {row.is_late && <FlagChip tone="warn">Late</FlagChip>}
+          <div className="w-56 shrink-0 px-3 py-4 flex flex-col items-center justify-center gap-1">
+            <ActionChip label={action.label} tone={action.tone} />
+            {suffixBadges.length > 0 && (
+              <div className="flex flex-wrap gap-1 justify-center">
+                {suffixBadges.map((b) => (
+                  <ActionChip key={b.label} label={b.label} tone={b.tone} size="sm" />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </button>
@@ -246,18 +290,31 @@ function UsRowDetail({ row }: { row: UsDealing }) {
   return (
     <div className="px-4 md:px-6 py-4 bg-black/[0.02] dark:bg-white/[0.02] border-t border-black/[0.06] dark:border-white/[0.06]">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
-        <Field label="Filing" value={row.filing_id} mono />
-        <Field label="Issuer CIK" value={row.issuer_cik} mono />
-        <Field label="Reporter CIK" value={row.reporter.cik} mono />
+        <Field
+          label="Code"
+          value={`${row.transaction_code} — ${CODE_LABELS[row.transaction_code] ?? "?"}`}
+        />
+        <Field
+          label="Direction"
+          value={
+            row.acquired_disposed === "A"
+              ? "Acquired (A)"
+              : "Disposed (D)"
+          }
+        />
+        <Field
+          label="Ownership"
+          value={
+            row.direct_indirect === "D"
+              ? "Direct"
+              : `Indirect${row.nature_of_ownership ? ` — ${row.nature_of_ownership}` : ""}`
+          }
+        />
+        <Field label="10b5-1 plan" value={row.aff_10b5_one ? "Yes" : "No"} />
         <Field label="Security" value={row.security_title} />
         <Field
           label="Shares after"
           value={row.shares_after?.toLocaleString() ?? "—"}
-        />
-        <Field label="Nature" value={row.nature_of_ownership ?? "—"} />
-        <Field
-          label="Code"
-          value={`${row.transaction_code} — ${CODE_LABELS[row.transaction_code] ?? "?"}`}
         />
         <Field
           label="Price"
@@ -265,7 +322,13 @@ function UsRowDetail({ row }: { row: UsDealing }) {
             row.price == null ? "—" : row.price === 0 ? "$0" : `$${row.price}`
           }
         />
-        <Field label="Currency" value={row.currency} />
+        <Field label="Filing" value={row.filing_id} mono />
+        <Field label="Issuer CIK" value={row.issuer_cik} mono />
+        <Field label="Reporter CIK" value={row.reporter.cik} mono />
+        <Field label="Roles" value={row.reporter.roles.join(", ") || "—"} />
+        {row.reporter.officer_title && (
+          <Field label="Officer title" value={row.reporter.officer_title} />
+        )}
       </div>
 
       {row.is_derivative && (
@@ -361,6 +424,7 @@ function Field({
 }
 
 export default function UsPreviewPage() {
+  const [view, setView] = useState<View>("interesting");
   const [rows, setRows] = useState<UsDealing[]>([]);
   const [stats, setStats] = useState<UsDealingsStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -368,16 +432,12 @@ export default function UsPreviewPage() {
   const [err, setErr] = useState<string | null>(null);
   const [lastIngest, setLastIngest] = useState<IngestResult | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [codeFilter, setCodeFilter] = useState<string>("");
 
   async function load() {
     setLoading(true);
     setErr(null);
     try {
-      const r = await api.usDealings({
-        limit: 200,
-        code: codeFilter || undefined,
-      });
+      const r = await api.usDealings({ limit: 200, view });
       setRows(r.dealings);
       setStats(r.stats);
     } catch (e) {
@@ -404,16 +464,20 @@ export default function UsPreviewPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codeFilter]);
+  }, [view]);
 
-  const buyCount = useMemo(
-    () => rows.filter((r) => r.transaction_code === "P").length,
-    [rows],
-  );
-  const planCount = useMemo(
-    () => rows.filter((r) => r.aff_10b5_one).length,
-    [rows],
-  );
+  const interestingCount = stats?.interesting ?? 0;
+  const totalCount = stats?.total ?? 0;
+  const noiseCount = totalCount - interestingCount;
+
+  // Footer breakdown — surfaces what's hiding behind the "Interesting" filter
+  // so the user sees how much noise the curation is suppressing.
+  const codeBreakdown = useMemo(() => {
+    if (!stats) return "";
+    return stats.by_code
+      .map((c) => `${c.code}=${c.n}`)
+      .join(" · ");
+  }, [stats]);
 
   return (
     <DefaultLayout>
@@ -422,33 +486,54 @@ export default function UsPreviewPage() {
           US Form 4 (preview)
         </h1>
         <p className="mt-2 text-sm text-foreground/55 max-w-2xl">
-          Live SEC EDGAR Form 4 ingest — half-hourly cron writes into D1, this
-          page reads from <code>/api/us-dealings</code>. Internal multi-market
-          spike, not part of the public product.
+          SEC EDGAR Form 4 ingest — half-hourly cron writes into D1.{" "}
+          <strong className="text-foreground/75">Interesting</strong> = real
+          open-market buys with direct ownership, outside any 10b5-1 plan. The
+          other ~95% are routine grants, option exercises, gifts, and plan
+          trades — useful to spot-check, not to act on.
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {CODE_FILTERS.map(({ code, label }) => (
-            <button
-              key={code || "all"}
-              onClick={() => setCodeFilter(code)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                codeFilter === code
-                  ? "border-[#6b5038]/60 bg-[#6b5038]/10 text-[#4a3520] dark:text-[#c4a882] font-semibold"
-                  : "border-separator text-muted hover:bg-black/[0.03] dark:hover:bg-white/5"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div
+          role="tablist"
+          className="inline-flex rounded-full border border-separator bg-surface/40 p-1"
+        >
+          <button
+            role="tab"
+            aria-selected={view === "interesting"}
+            onClick={() => setView("interesting")}
+            className={`text-sm px-4 py-1.5 rounded-full transition-colors font-medium ${
+              view === "interesting"
+                ? "bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882]"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            Interesting{" "}
+            <span className="ml-1 text-xs opacity-60 tabular-nums">
+              {interestingCount}
+            </span>
+          </button>
+          <button
+            role="tab"
+            aria-selected={view === "all"}
+            onClick={() => setView("all")}
+            className={`text-sm px-4 py-1.5 rounded-full transition-colors font-medium ${
+              view === "all"
+                ? "bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882]"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            All filings{" "}
+            <span className="ml-1 text-xs opacity-60 tabular-nums">
+              {totalCount}
+            </span>
+          </button>
         </div>
         <div className="ml-auto flex items-center gap-3 text-xs">
-          {stats && (
+          {stats?.latest_disclosed_date && (
             <span className="text-muted hidden sm:inline">
-              {stats.total.toLocaleString()} stored · latest{" "}
-              {stats.latest_disclosed_date ?? "—"}
+              Latest disclosure {stats.latest_disclosed_date}
             </span>
           )}
           <button
@@ -491,9 +576,24 @@ export default function UsPreviewPage() {
             </div>
           ) : rows.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted">
-              No US dealings stored yet. Click{" "}
-              <span className="font-medium text-foreground/70">Fetch latest</span>{" "}
-              to run the first ingest, or wait for the next half-hourly cron.
+              {view === "interesting" ? (
+                <>
+                  No open-market insider buys in the latest scan.{" "}
+                  <button
+                    onClick={() => setView("all")}
+                    className="text-foreground/70 underline underline-offset-2 hover:text-foreground"
+                  >
+                    Show all {totalCount} filings
+                  </button>{" "}
+                  to see the noise.
+                </>
+              ) : (
+                <>
+                  No US dealings stored yet. Click{" "}
+                  <span className="font-medium text-foreground/70">Fetch latest</span>{" "}
+                  to run the first ingest, or wait for the next half-hourly cron.
+                </>
+              )}
             </div>
           ) : (
             rows.map((r) => (
@@ -508,9 +608,19 @@ export default function UsPreviewPage() {
         </div>
       </div>
 
-      <div className="mt-3 mb-8 text-xs text-muted text-center">
-        Showing {rows.length} of {stats?.total.toLocaleString() ?? "?"} ·
-        Open-market buys: {buyCount} · 10b5-1: {planCount}
+      <div className="mt-3 mb-8 text-xs text-muted text-center space-y-1">
+        <div>
+          Showing {rows.length}{" "}
+          {view === "interesting"
+            ? `of ${interestingCount} interesting`
+            : `of ${totalCount} total`}
+          {view === "interesting" && noiseCount > 0 && (
+            <> · {noiseCount} hidden as noise</>
+          )}
+        </div>
+        {stats && view === "all" && (
+          <div className="text-[10px] opacity-70">By code: {codeBreakdown}</div>
+        )}
       </div>
     </DefaultLayout>
   );
