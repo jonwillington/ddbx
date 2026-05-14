@@ -10,6 +10,9 @@ export default defineConfig({
     proxy: {
       // Wrangler dev listens on 8787 by default.
       "/api": "http://localhost:8787",
+      // US scrape preview during the multi-market spike — see
+      // investigations/multi-market/form4-mapping.md.
+      "/__us-": "http://localhost:8787",
     },
   },
 });

@@ -227,3 +227,129 @@ export interface Portfolio {
   picks: PortfolioPick[];
   available_fys: FinancialYear[];
 }
+
+// ============================================================================
+// US wire format — see investigations/multi-market/form4-mapping.md
+// ============================================================================
+// Per the form4-mapping spike, Form 4 is structurally larger than the UK
+// `Dealing` shape — we keep a parallel `UsDealing` row format rather than
+// generalising. Field names mirror Form 4's XML element names where reasonable
+// so the parser stays auditable against the SEC schema (X0609).
+
+/** SEC Form 4 transaction codes. The full set is documented at
+ *  https://www.sec.gov/about/forms/form4.pdf — we carry the raw code so the
+ *  iOS adapter can decide how to surface it (open-market buy/sale, grant,
+ *  exercise, gift, other). */
+export type UsTransactionCode =
+  | "P"  // Open market or private purchase
+  | "S"  // Open market or private sale
+  | "A"  // Grant/award (issuer to insider, free)
+  | "M"  // Exercise/conversion of derivative
+  | "F"  // Payment of exercise price or tax via shares
+  | "G"  // Gift
+  | "C"  // Conversion of derivative
+  | "D"  // Disposition pursuant to tender / Rule 16b-3
+  | "J"  // Other (footnote required)
+  | "V"  // Voluntary reported earlier
+  | "K"  // Equity swap
+  | "X"  // Exercise of in/at-the-money derivative
+  | "U"  // Disposition pursuant to tender
+  | "W"  // Will or laws of descent
+  | "Z"  // Voting trust
+  | "L"  // Small transaction
+  | "H"  // Expiration
+  | "I"  // Discretionary plan
+  | "E"; // Expiration of short position
+
+export interface UsReporter {
+  /** SEC CIK, 10-digit zero-padded. Stable across filings — the right
+   *  primary key for an insider, much better than the free-form RNS name. */
+  cik: string;
+  name: string;
+  /** Multi-checkbox roles. A reporter can be both a director and officer; this
+   *  is a flattened list rather than the single string `Dealing.director.role`. */
+  roles: Array<"director" | "officer" | "ten_percent_owner" | "other">;
+  officer_title?: string;
+  other_text?: string;
+}
+
+export interface UsDealing {
+  /** Deterministic id: `f4-{accession_with_dashes}-{table}-{row}`. */
+  id: string;
+  /** EDGAR accession number with dashes (e.g. `0001213900-26-056175`). Groups
+   *  N transactions emitted by the same Form 4 — same-day multi-leg
+   *  disclosures (M then S) share a filing_id. */
+  filing_id: string;
+  /** Form 4 `periodOfReport` / `transactionDate`. */
+  trade_date: string;          // ISO
+  /** EDGAR file_date from the index. */
+  disclosed_date: string;      // ISO
+  created_at?: string;         // ISO datetime UTC — when ingested
+
+  /** Primary reporter, picked per parser rules (prefer named individuals
+   *  over fund entities; first listed when ambiguous). */
+  reporter: UsReporter;
+  /** Joint filers other than `reporter`, if any. The same transaction can be
+   *  reported by multiple persons (e.g. fund GP + attributed individual). */
+  co_reporters?: UsReporter[];
+
+  /** Form 4 `issuerCik`. Stable company key; ticker can change on M&A. */
+  issuer_cik: string;
+  company: string;             // issuerName
+  ticker: string;              // issuerTradingSymbol (no exchange suffix on US tickers)
+  /** Always "USD" today; field kept for symmetry with `Dealing.currency`. */
+  currency: "USD";
+
+  /** Raw `securityTitle` text. Distinguishes Class A vs Class B for dual-class
+   *  filers (e.g. NPWR). */
+  security_title: string;
+  /** Form 4's `transactionCode` — surfaced verbatim so triage and the iOS
+   *  adapter can categorise. Don't collapse to `buy|sell`. */
+  transaction_code: UsTransactionCode;
+  /** Acquired (A) vs disposed (D). Orthogonal to `transaction_code` — a J
+   *  ("other") row can be either. */
+  acquired_disposed: "A" | "D";
+  shares: number;
+  /** Decimal USD majors. `null` when the filing footnotes the price
+   *  (common for distributions and complex transactions). `0` for grants. */
+  price: number | null;
+  /** shares × price. `null` when price is `null`. */
+  value: number | null;
+  /** Post-transaction holding. Lets the product answer "did they sell out
+   *  entirely?" — a stronger signal than just the transaction size. */
+  shares_after?: number;
+  /** Direct (D) or indirect (I) beneficial ownership. */
+  direct_indirect: "D" | "I";
+  /** Free-text nature when indirect (e.g. "By: NPEH, LLC"). */
+  nature_of_ownership?: string;
+
+  /** The Rule 10b5-1 plan affirmation. A `true` here means the trade ran on
+   *  a pre-arranged plan — approximately zero current-view signal. The single
+   *  most important quality flag in US insider data. */
+  aff_10b5_one: boolean;
+  /** Voluntary filer who's not formally a Section 16 reporter. Edge case. */
+  not_subject_to_section16?: boolean;
+  /** Form 4 `transactionTimeliness = "L"` — filed late (past T+2). Itself a
+   *  governance signal. */
+  is_late?: boolean;
+
+  /** Set when the row comes from Table II (derivative table). */
+  is_derivative: boolean;
+  /** For derivative rows only — title of the security the derivative converts
+   *  into (e.g. "Class A Common Stock" for an option on common stock). */
+  underlying_security_title?: string;
+  underlying_security_shares?: number;
+  conversion_or_exercise_price?: number | null;
+  exercise_date?: string | null;
+  expiration_date?: string | null;
+
+  /** True when documentType is `4/A`. Restate policy TBD — current default is
+   *  to surface alongside the original with the badge. */
+  is_amendment: boolean;
+  /** Form 4 `dateOfOriginalSubmission`, present on amendments only. */
+  original_filing_date?: string;
+
+  /** Footnote map. Many Form 4 fields carry a `<footnoteId>` reference
+   *  instead of an inline value — the footnote text is often the substance. */
+  footnotes?: Record<string, string>;
+}
