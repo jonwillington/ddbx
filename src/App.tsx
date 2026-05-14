@@ -11,7 +11,7 @@ import UsPreviewPage from "@/pages/us-preview";
 // gets it. Mounting the drawer here (above Routes) keeps its data + scroll
 // state across page changes — Performance ↔ Dashboard no longer remounts
 // the drawer's deals/news fetches.
-const HIDE_DRAWER_PREFIXES = ["/directors/", "/us-preview"];
+const HIDE_DRAWER_PREFIXES = ["/directors/", "/us-preview", "/us"];
 
 function App() {
   const { pathname } = useLocation();
@@ -31,6 +31,7 @@ function App() {
         <Route element={<PerformancePage />} path="/performance" />
         <Route element={<DirectorPage />} path="/directors/:id" />
         <Route element={<UsPreviewPage />} path="/us-preview" />
+        <Route element={<UsPreviewPage />} path="/us" />
       </Routes>
       {showDrawer && <TodayDrawer />}
     </>

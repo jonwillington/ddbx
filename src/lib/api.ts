@@ -5,7 +5,29 @@ import type {
   Portfolio,
   Rating,
   UkNewsItem,
+  UsDealing,
 } from "@/types/ddbx";
+
+export interface UsDealingsStats {
+  total: number;
+  by_code: Array<{ code: string; n: number }>;
+  latest_disclosed_date: string | null;
+}
+
+export interface IngestResult {
+  scanned: number;
+  parsed: number;
+  rows: UsDealing[];
+  inserted: number;
+  replaced: number;
+  errors: Array<{ accession: string; message: string }>;
+}
+
+const WORKER_BASE = (() => {
+  // Strip the trailing `/api` so admin routes (`/__us-*`) hit the worker root.
+  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
+  return apiBase.endsWith("/api") ? apiBase.slice(0, -4) : apiBase;
+})();
 
 // In dev, Vite proxies /api to wrangler dev (see vite.config.ts).
 // In prod on Cloudflare Pages, set VITE_API_BASE to the Worker URL, e.g.
@@ -48,6 +70,25 @@ export const api = {
   ukNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/uk"),
   version: () => get<{ latest: string | null; total: number }>("/version"),
+  usDealings: (opts: { limit?: number; code?: string; ticker?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.limit != null) qs.set("limit", String(opts.limit));
+    if (opts.code) qs.set("code", opts.code);
+    if (opts.ticker) qs.set("ticker", opts.ticker);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return get<{ dealings: UsDealing[]; stats: UsDealingsStats }>(
+      `/us-dealings${suffix}`,
+    );
+  },
+  usIngest: async (limit = 50): Promise<IngestResult> => {
+    // Force a fresh scrape + persist. Fires the same code path as the cron;
+    // the /us page's "Fetch latest" button is the manual trigger.
+    const res = await fetch(`${WORKER_BASE}/__us-ingest?limit=${limit}`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error(`/__us-ingest ${res.status}`);
+    return (await res.json()) as IngestResult;
+  },
 };
 
 export type {
@@ -57,4 +98,5 @@ export type {
   Portfolio,
   Rating,
   UkNewsItem,
+  UsDealing,
 };
