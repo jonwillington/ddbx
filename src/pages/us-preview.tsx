@@ -17,10 +17,54 @@ import { useEffect, useMemo, useState } from "react";
 import DefaultLayout from "@/layouts/default";
 import { CompanyLogo } from "@/components/company-logo";
 import { api, type IngestResult, type UsDealing, type UsDealingsStats } from "@/lib/api";
-import type { UsReporter, UsTransactionCode } from "@/types/ddbx";
+import type { UsReporter, UsTransactionCode, UsTriageVerdict } from "@/types/ddbx";
 
 type Tone = "buy" | "sell" | "plan" | "grant" | "exercise" | "neutral";
-type View = "interesting" | "all";
+type View = "signal" | "interesting" | "all";
+
+// One logical filing after collapsing tranche-split rows. A Form 4 that filled
+// at N prices yields N raw UsDealing rows but one purchase event; this is the
+// card-rendering unit. Mirrors UsDealingGroup in worker/db/types.ts but built
+// client-side from the unrolled rows so we don't need a second endpoint.
+interface RowGroup {
+  key: string;                  // filing_id|transaction_code|reporter_cik
+  legs: UsDealing[];
+  primary: UsDealing;           // first leg, used for date/reporter/ticker/code
+  total_shares: number;
+  total_value: number | null;   // null if every leg was footnote-priced
+  leg_count: number;
+  triage_verdict?: UsTriageVerdict;
+  triage_reason?: string;
+}
+
+function groupRows(rows: UsDealing[]): RowGroup[] {
+  const map = new Map<string, RowGroup>();
+  for (const r of rows) {
+    const key = `${r.filing_id}|${r.transaction_code}|${r.reporter.cik}`;
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        legs: [],
+        primary: r,
+        total_shares: 0,
+        total_value: null,
+        leg_count: 0,
+        triage_verdict: r.triage_verdict,
+        triage_reason: r.triage_reason,
+      };
+      map.set(key, g);
+    }
+    g.legs.push(r);
+    g.leg_count++;
+    g.total_shares += r.shares;
+    if (r.value != null) {
+      g.total_value = (g.total_value ?? 0) + r.value;
+    }
+  }
+  // Preserve API order (disclosed_date DESC).
+  return Array.from(map.values());
+}
 
 const CODE_LABELS: Record<UsTransactionCode, string> = {
   P: "Open-market purchase",
@@ -128,6 +172,24 @@ const TONE_STYLES: Record<Tone, string> = {
   neutral: "bg-transparent text-[#b0a898] border-[#d8d0c6]/60 dark:text-foreground/45",
 };
 
+// Triage badge styling — `promising` should pop, `maybe` should sit one notch
+// quieter, `skip` should fade. Kept distinct from the action-tone palette so
+// the eye can read action and verdict independently.
+const VERDICT_STYLES: Record<UsTriageVerdict, string> = {
+  promising:
+    "bg-emerald-700/15 text-emerald-800 border-emerald-700/40 dark:text-emerald-300 dark:border-emerald-300/35 font-semibold",
+  maybe:
+    "bg-amber-600/10 text-amber-800 border-amber-600/30 dark:text-amber-200 dark:border-amber-300/25",
+  skip:
+    "bg-transparent text-[#a89e8c] border-[#d8d0c6]/55 dark:text-foreground/40",
+};
+
+const VERDICT_LABEL: Record<UsTriageVerdict, string> = {
+  promising: "Promising",
+  maybe: "Maybe",
+  skip: "Skip",
+};
+
 function ActionChip({
   label,
   tone,
@@ -169,14 +231,15 @@ function UsRowHeader() {
 }
 
 function UsDealingRow({
-  row,
+  group,
   expanded,
   onToggle,
 }: {
-  row: UsDealing;
+  group: RowGroup;
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const row = group.primary;
   const action = describeAction(row);
   const reporterLine = describeReporter(row.reporter);
   // Mute everything that isn't a real buy/sell so the eye lands on the
@@ -187,7 +250,7 @@ function UsDealingRow({
   const tradeDiffers = row.trade_date !== row.disclosed_date;
 
   // Suffix the action with structural badges that don't fold into the verb
-  // itself (amendment, late-filing, derivative — when not already implied).
+  // itself (amendment, late-filing, tranche split, triage verdict).
   const suffixBadges: Array<{ label: string; tone: Tone }> = [];
   if (row.is_amendment) suffixBadges.push({ label: "Amendment", tone: "neutral" });
   if (row.is_late) suffixBadges.push({ label: "Late filing", tone: "neutral" });
@@ -211,7 +274,10 @@ function UsDealingRow({
                 </span>
               )}
             </span>
-            <ActionChip label={action.label} tone={action.tone} size="sm" />
+            <div className="flex items-center gap-1">
+              {group.triage_verdict && <VerdictChip verdict={group.triage_verdict} size="sm" />}
+              <ActionChip label={action.label} tone={action.tone} size="sm" />
+            </div>
           </div>
           <div className="flex items-start gap-3">
             <CompanyLogo ticker={ticker} size={36} className="mt-0.5" />
@@ -226,10 +292,20 @@ function UsDealingRow({
                 {reporterLine}
               </div>
             </div>
-            <div className="shrink-0 text-base font-medium tabular-nums leading-tight">
-              {fmtUsd(row.value)}
+            <div className="shrink-0 text-base font-medium tabular-nums leading-tight text-right">
+              {fmtUsd(group.total_value)}
+              {group.leg_count > 1 && (
+                <div className="text-[10px] text-muted/80 mt-0.5">
+                  {group.leg_count} fills
+                </div>
+              )}
             </div>
           </div>
+          {group.triage_reason && (
+            <div className="mt-2 text-xs text-foreground/65 leading-snug">
+              {group.triage_reason}
+            </div>
+          )}
           {suffixBadges.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {suffixBadges.map((b) => (
@@ -261,16 +337,27 @@ function UsDealingRow({
             <div className="flex-1 min-w-0">
               <div className="text-base font-medium truncate leading-snug">{company}</div>
               <div className="text-sm text-muted truncate mt-0.5">{reporterLine}</div>
+              {group.triage_reason && (
+                <div className="text-xs text-foreground/65 mt-1.5 line-clamp-2 leading-snug">
+                  {group.triage_reason}
+                </div>
+              )}
             </div>
           </div>
           <div className="w-36 shrink-0 px-4 py-4 flex flex-col items-end justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-            <div className="text-xl font-medium tabular-nums">{fmtUsd(row.value)}</div>
+            <div className="text-xl font-medium tabular-nums">{fmtUsd(group.total_value)}</div>
             <div className="text-xs text-muted tabular-nums mt-0.5">
-              {row.shares.toLocaleString()} sh
+              {group.total_shares.toLocaleString()} sh
+              {group.leg_count > 1 && (
+                <span className="ml-1 opacity-75">· {group.leg_count} fills</span>
+              )}
             </div>
           </div>
           <div className="w-56 shrink-0 px-3 py-4 flex flex-col items-center justify-center gap-1">
             <ActionChip label={action.label} tone={action.tone} />
+            {group.triage_verdict && (
+              <VerdictChip verdict={group.triage_verdict} size="sm" />
+            )}
             {suffixBadges.length > 0 && (
               <div className="flex flex-wrap gap-1 justify-center">
                 {suffixBadges.map((b) => (
@@ -281,14 +368,41 @@ function UsDealingRow({
           </div>
         </div>
       </button>
-      {expanded && <UsRowDetail row={row} />}
+      {expanded && <UsGroupDetail group={group} />}
     </>
   );
 }
 
-function UsRowDetail({ row }: { row: UsDealing }) {
+function VerdictChip({
+  verdict,
+  size = "md",
+}: {
+  verdict: UsTriageVerdict;
+  size?: "md" | "sm";
+}) {
+  const sizing =
+    size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs";
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-md border whitespace-nowrap uppercase tracking-wide ${sizing} ${VERDICT_STYLES[verdict]}`}
+    >
+      {VERDICT_LABEL[verdict]}
+    </span>
+  );
+}
+
+function UsGroupDetail({ group }: { group: RowGroup }) {
+  const row = group.primary;
   return (
     <div className="px-4 md:px-6 py-4 bg-black/[0.02] dark:bg-white/[0.02] border-t border-black/[0.06] dark:border-white/[0.06]">
+      {group.triage_verdict && (
+        <div className="mb-3 flex items-start gap-3 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3">
+          <VerdictChip verdict={group.triage_verdict} />
+          <div className="text-sm text-foreground/80 leading-snug">
+            {group.triage_reason || <span className="italic text-muted">(no reason recorded)</span>}
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
         <Field
           label="Code"
@@ -394,12 +508,40 @@ function UsRowDetail({ row }: { row: UsDealing }) {
         </div>
       )}
 
+      {group.leg_count > 1 && (
+        <div className="mt-3 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3">
+          <div className="text-xs uppercase tracking-wide font-semibold text-muted mb-2">
+            Fills ({group.leg_count})
+          </div>
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted">
+              <tr>
+                <th className="text-left font-normal pb-1">Shares</th>
+                <th className="text-right font-normal pb-1">Price</th>
+                <th className="text-right font-normal pb-1">Value</th>
+              </tr>
+            </thead>
+            <tbody className="tabular-nums">
+              {group.legs.map((leg) => (
+                <tr key={leg.id} className="border-t border-black/[0.04] dark:border-white/[0.06]">
+                  <td className="py-1">{leg.shares.toLocaleString()}</td>
+                  <td className="py-1 text-right">
+                    {leg.price == null ? "—" : `$${leg.price}`}
+                  </td>
+                  <td className="py-1 text-right">{fmtUsd(leg.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <details className="mt-3 text-xs text-muted">
         <summary className="cursor-pointer hover:text-foreground transition-colors">
-          Raw JSON
+          Raw JSON ({group.leg_count} leg{group.leg_count === 1 ? "" : "s"})
         </summary>
         <pre className="mt-2 overflow-x-auto rounded bg-black/85 dark:bg-black/60 p-3 text-[11px] text-slate-100 leading-snug">
-          {JSON.stringify(row, null, 2)}
+          {JSON.stringify(group.legs, null, 2)}
         </pre>
       </details>
     </div>
@@ -424,7 +566,7 @@ function Field({
 }
 
 export default function UsPreviewPage() {
-  const [view, setView] = useState<View>("interesting");
+  const [view, setView] = useState<View>("signal");
   const [rows, setRows] = useState<UsDealing[]>([]);
   const [stats, setStats] = useState<UsDealingsStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -467,8 +609,13 @@ export default function UsPreviewPage() {
   }, [view]);
 
   const interestingCount = stats?.interesting ?? 0;
+  const signalCount = stats?.signal ?? 0;
   const totalCount = stats?.total ?? 0;
   const noiseCount = totalCount - interestingCount;
+
+  // Collapse tranche-split rows into one card per (filing_id, code, reporter).
+  // Stable: groupRows preserves API order, which is disclosed_date DESC.
+  const groups = useMemo(() => groupRows(rows), [rows]);
 
   // Footer breakdown — surfaces what's hiding behind the "Interesting" filter
   // so the user sees how much noise the curation is suppressing.
@@ -486,11 +633,15 @@ export default function UsPreviewPage() {
           US Form 4 (preview)
         </h1>
         <p className="mt-2 text-sm text-foreground/55 max-w-2xl">
-          SEC EDGAR Form 4 ingest — half-hourly cron writes into D1.{" "}
-          <strong className="text-foreground/75">Interesting</strong> = real
-          open-market buys with direct ownership, outside any 10b5-1 plan. The
-          other ~95% are routine grants, option exercises, gifts, and plan
-          trades — useful to spot-check, not to act on.
+          SEC EDGAR Form 4 ingest — half-hourly cron writes into D1, then a
+          Claude Haiku triage pass classifies each filing.{" "}
+          <strong className="text-foreground/75">Signal</strong> = the curated
+          shortlist (open-market buy + Haiku verdict of <em>maybe</em> or{" "}
+          <em>promising</em>).{" "}
+          <strong className="text-foreground/75">Interesting</strong> = the
+          mechanical filter only — open-market direct buys ≥ $50k, outside any
+          10b5-1 plan. <strong className="text-foreground/75">All filings</strong>{" "}
+          shows everything for spot-checking the noise.
         </p>
       </div>
 
@@ -499,6 +650,21 @@ export default function UsPreviewPage() {
           role="tablist"
           className="inline-flex rounded-full border border-separator bg-surface/40 p-1"
         >
+          <button
+            role="tab"
+            aria-selected={view === "signal"}
+            onClick={() => setView("signal")}
+            className={`text-sm px-4 py-1.5 rounded-full transition-colors font-medium ${
+              view === "signal"
+                ? "bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882]"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            Signal{" "}
+            <span className="ml-1 text-xs opacity-60 tabular-nums">
+              {signalCount}
+            </span>
+          </button>
           <button
             role="tab"
             aria-selected={view === "interesting"}
@@ -570,13 +736,25 @@ export default function UsPreviewPage() {
       <div className="rounded-xl border border-separator overflow-hidden bg-surface/40">
         <UsRowHeader />
         <div className="divide-y divide-black/[0.06] dark:divide-separator">
-          {loading && rows.length === 0 ? (
+          {loading && groups.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted">
               Loading…
             </div>
-          ) : rows.length === 0 ? (
+          ) : groups.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted">
-              {view === "interesting" ? (
+              {view === "signal" ? (
+                <>
+                  No signal-grade trades yet — Haiku triage hasn't surfaced
+                  anything <em>maybe</em> or <em>promising</em>.{" "}
+                  <button
+                    onClick={() => setView("interesting")}
+                    className="text-foreground/70 underline underline-offset-2 hover:text-foreground"
+                  >
+                    Show interesting ({interestingCount})
+                  </button>{" "}
+                  to see what's pending triage.
+                </>
+              ) : view === "interesting" ? (
                 <>
                   No open-market insider buys in the latest scan.{" "}
                   <button
@@ -596,12 +774,12 @@ export default function UsPreviewPage() {
               )}
             </div>
           ) : (
-            rows.map((r) => (
+            groups.map((g) => (
               <UsDealingRow
-                key={r.id}
-                row={r}
-                expanded={expanded === r.id}
-                onToggle={() => setExpanded((cur) => (cur === r.id ? null : r.id))}
+                key={g.key}
+                group={g}
+                expanded={expanded === g.key}
+                onToggle={() => setExpanded((cur) => (cur === g.key ? null : g.key))}
               />
             ))
           )}
@@ -610,10 +788,13 @@ export default function UsPreviewPage() {
 
       <div className="mt-3 mb-8 text-xs text-muted text-center space-y-1">
         <div>
-          Showing {rows.length}{" "}
-          {view === "interesting"
-            ? `of ${interestingCount} interesting`
-            : `of ${totalCount} total`}
+          Showing {groups.length} filing{groups.length === 1 ? "" : "s"}{" "}
+          ({rows.length} leg{rows.length === 1 ? "" : "s"}){" "}
+          {view === "signal"
+            ? `of ${signalCount} signal-grade`
+            : view === "interesting"
+              ? `of ${interestingCount} interesting`
+              : `of ${totalCount} total`}
           {view === "interesting" && noiseCount > 0 && (
             <> · {noiseCount} hidden as noise</>
           )}

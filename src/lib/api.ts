@@ -10,8 +10,12 @@ import type {
 
 export interface UsDealingsStats {
   total: number;
-  /** Rows passing the `view=interesting` predicate (open-market direct buy, no 10b5-1). */
+  /** Rows passing the `view=interesting` predicate (open-market direct buy, no 10b5-1, non-derivative, value >= $50k). */
   interesting: number;
+  /** Rows in the `interesting` set that also have a Haiku triage verdict in {maybe, promising}. */
+  signal: number;
+  /** Logical filings (filing_id, transaction_code) that have been triaged at all. */
+  triaged: number;
   by_code: Array<{ code: string; n: number }>;
   latest_disclosed_date: string | null;
 }
@@ -77,7 +81,7 @@ export const api = {
       limit?: number;
       code?: string;
       ticker?: string;
-      view?: "interesting" | "all";
+      view?: "interesting" | "signal" | "all";
     } = {},
   ) => {
     const qs = new URLSearchParams();

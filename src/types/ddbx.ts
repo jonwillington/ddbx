@@ -121,6 +121,13 @@ export interface Dealing {
    * Always undefined on the wire for non-quarantined rows.
    */
   quarantine_reason?: string;
+  /**
+   * Mechanical classification — set by worker/pipeline/classify-trade.ts by
+   * comparing price_pence to the trade-day market close. false ⇒ placing /
+   * subscription / option exercise / vesting (price reflects deal terms,
+   * not market). null ⇒ no price data yet (innocent until proven guilty).
+   */
+  is_open_market_buy?: boolean | null;
   triage?: { verdict: TriageVerdict; reason: string };
   analysis?: Analysis;
   performance?: PerformanceRow[];
@@ -144,6 +151,26 @@ export interface DirectorDetail extends DirectorSummary {
   prior_picks: Dealing[];
   hit_rate_pct: number;
   avg_return_by_horizon: Record<string, number | null>;
+}
+
+/** Close-of-day prose recap, synthesised by Opus from the full tape. */
+export interface DailySummary {
+  date: string;                  // ISO YYYY-MM-DD
+  session: "morning" | "afternoon";
+  headline: string;              // push title, ~50 chars
+  body: string;                  // prose body, ~150-250 words; may contain markdown bold
+  cited_ids: string[];           // dealings.id in narrative order
+  total_count: number;           // dealings considered that day
+  total_value_gbp: number;       // sum of value_gbp across all considered dealings
+  model: string;                 // e.g. "claude-opus-4-6"
+  created_at: string;            // ISO datetime UTC
+}
+
+/** Response shape for GET /api/daily-summary — the summary plus the cited
+ *  dealings hydrated into full Dealing objects, in cited_ids order. */
+export interface DailySummaryResponse {
+  summary: DailySummary;
+  cited: Dealing[];
 }
 
 export interface PortfolioPoint {
@@ -352,4 +379,46 @@ export interface UsDealing {
   /** Footnote map. Many Form 4 fields carry a `<footnoteId>` reference
    *  instead of an inline value — the footnote text is often the substance. */
   footnotes?: Record<string, string>;
+
+  /** Haiku triage verdict for the parent filing+code group. Joined in by
+   *  the read API — not part of the raw Form 4 payload. */
+  triage_verdict?: UsTriageVerdict;
+  triage_reason?: string;
+}
+
+export type UsTriageVerdict = "skip" | "maybe" | "promising";
+
+/** One logical Form 4 trade after collapsing tranche-split rows. Same shape
+ *  the triage runner sees and the iOS / web clients can render as a single
+ *  card instead of N near-duplicate ones. Grouped by
+ *  (filing_id, transaction_code, reporter_cik) — co-reporter filings stay
+ *  separate even when they share a filing_id. */
+export interface UsDealingGroup {
+  filing_id: string;
+  transaction_code: UsTransactionCode;
+  reporter_cik: string;
+  reporter_name: string;
+  issuer_cik: string;
+  ticker: string;
+  company: string;
+  trade_date: string;
+  disclosed_date: string;
+  security_title: string;
+  /** Sum of all leg shares. */
+  shares: number;
+  /** Volume-weighted average price across legs, or `null` if every leg was
+   *  footnote-priced. */
+  price: number | null;
+  /** Sum of all leg `value` fields, treating null as 0. */
+  value: number;
+  acquired_disposed: "A" | "D";
+  direct_indirect: "D" | "I";
+  aff_10b5_one: boolean;
+  is_derivative: boolean;
+  is_amendment: boolean;
+  is_late: boolean | null;
+  /** Number of underlying us_dealings rows that collapsed into this group. */
+  leg_count: number;
+  triage_verdict?: UsTriageVerdict;
+  triage_reason?: string;
 }
