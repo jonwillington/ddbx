@@ -1,28 +1,18 @@
-// Internal viewer for the EU PDMR ingest spike. v1 source is Sweden's
+// Internal viewer for the EU PDMR ingest. v1 source is Sweden's
 // Finansinspektionen (FI) — the only EU NCA with a clean machine-readable
-// feed of Article 19 transactions today. Posts to /__eu-scrape (dry-run, no
-// D1 writes), renders parsed rows in a sortable table so we can eyeball
-// signal quality before committing to schema, persistence, or App Store
-// work for the EU side.
+// feed of Article 19 transactions today. Reads persisted rows from
+// /api/eu-dealings (populated by the hourly :20 cron in ddbx-data) so the
+// page loads instantly without spending a SEC-equivalent network round-trip
+// on every render.
 //
-// Not linked from any nav. Companion route: /eu maps here too. Strategy
+// Not linked from any nav. /eu and /eu-preview both map here. Strategy
 // background: ~/ddbx-ios-app/investigations/multi-market/strategy.md
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import DefaultLayout from "@/layouts/default";
-import { api, type EuDealing, type EuScrapeResult } from "@/lib/api";
+import { api, type EuDealing, type EuDealingsStats } from "@/lib/api";
 
 type SortKey = "disclosed" | "trade" | "issuer" | "value";
-
-// Default to the last 3 days of FI publications. FI publishes throughout the
-// day; 3 days catches a healthy sample without hammering the export endpoint.
-function defaultRange(): { from: string; to: string } {
-  const today = new Date();
-  const from = new Date(today);
-  from.setDate(from.getDate() - 3);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: iso(from), to: iso(today) };
-}
 
 function fmtMoney(n: number | null, ccy: string): string {
   if (n == null) return "—";
@@ -33,7 +23,6 @@ function fmtMoney(n: number | null, ccy: string): string {
       maximumFractionDigits: 0,
     }).format(n);
   } catch {
-    // Fallback for unknown currency codes — render as a plain number.
     return `${ccy} ${Math.round(n).toLocaleString("en-GB")}`;
   }
 }
@@ -59,8 +48,6 @@ function rowValue(d: EuDealing): number | null {
   return d.price * d.volume;
 }
 
-// Localised FI strings → product direction. We carry the raw `nature` through;
-// this is purely for table tone + the headline tally.
 function direction(nature: string): "buy" | "sell" | "grant" | "other" {
   const n = nature.toLowerCase();
 
@@ -70,7 +57,6 @@ function direction(nature: string): "buy" | "sell" | "grant" | "other" {
   return "other";
 }
 
-// Tally helper — counts occurrences of a string key in an array of rows.
 function tally<T extends string>(rows: EuDealing[], pick: (r: EuDealing) => T): Array<{ k: T; n: number }> {
   const map = new Map<T, number>();
 
@@ -85,23 +71,23 @@ function tally<T extends string>(rows: EuDealing[], pick: (r: EuDealing) => T): 
 }
 
 export default function EuPreviewPage() {
-  const initial = defaultRange();
-  const [from, setFrom] = useState(initial.from);
-  const [to, setTo] = useState(initial.to);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<EuScrapeResult | null>(null);
+  const [rows, setRows] = useState<EuDealing[]>([]);
+  const [stats, setStats] = useState<EuDealingsStats | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("disclosed");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
-  async function fetchRange() {
+  async function load() {
     setLoading(true);
     setError(null);
     try {
-      const r = await api.euScrape(from, to);
+      const r = await api.euDealings({ limit: 500 });
 
-      setResult(r);
-      setExpanded(new Set());
+      setRows(r.dealings);
+      setStats(r.stats);
+      setLastFetched(new Date());
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -109,7 +95,9 @@ export default function EuPreviewPage() {
     }
   }
 
-  const rows = result?.rows ?? [];
+  useEffect(() => {
+    load();
+  }, []);
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -183,47 +171,49 @@ export default function EuPreviewPage() {
   return (
     <DefaultLayout>
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <h1 className="text-2xl font-semibold mb-1">EU PDMR preview</h1>
-        <p className="text-sm text-foreground/60 mb-6">
-          Sweden — Finansinspektionen Insynsregister (MAR Article 19). Dry-run scrape, no persistence.
-        </p>
-
-        <div className="flex flex-wrap items-end gap-3 mb-6">
-          <label className="flex flex-col text-xs">
-            <span className="text-foreground/60 mb-1">From</span>
-            <input
-              className="rounded border border-foreground/20 bg-background px-2 py-1 text-sm"
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col text-xs">
-            <span className="text-foreground/60 mb-1">To</span>
-            <input
-              className="rounded border border-foreground/20 bg-background px-2 py-1 text-sm"
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </label>
+        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-1">
+          <h1 className="text-2xl font-semibold">EU PDMR preview</h1>
           <button
-            className="rounded bg-foreground text-background px-4 py-1.5 text-sm font-medium disabled:opacity-50"
+            className="rounded border border-foreground/20 px-3 py-1 text-xs font-medium hover:bg-foreground/5 disabled:opacity-50"
             disabled={loading}
             type="button"
-            onClick={fetchRange}
+            onClick={load}
           >
-            {loading ? "Fetching…" : "Fetch"}
+            {loading ? "Loading…" : "Refresh"}
           </button>
-          {error && <span className="text-xs text-rose-500">{error}</span>}
         </div>
+        <p className="text-sm text-foreground/60 mb-6">
+          Sweden — Finansinspektionen Insynsregister (MAR Article 19).
+          Persisted hourly at :20 UTC.
+          {stats?.latest_disclosed_date && (
+            <>
+              {" "}
+              Latest disclosed{" "}
+              <span className="tabular-nums">{fmtDate(stats.latest_disclosed_date)}</span>.
+            </>
+          )}
+          {lastFetched && (
+            <>
+              {" "}
+              Loaded{" "}
+              <span className="tabular-nums">
+                {lastFetched.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              .
+            </>
+          )}
+        </p>
 
-        {result && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 text-sm">
-            <Stat label="Rows" value={result.parsed} />
-            <Stat label="Total in CSV" value={result.totalRows} />
-            <Stat label="Skipped" value={result.skipped} />
-            <Stat label="Bytes" value={result.fetched_bytes.toLocaleString("en-GB")} />
+        {error && <p className="text-sm text-rose-500 mb-4">{error}</p>}
+
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 text-sm">
+            <Stat label="Persisted rows" value={stats.total.toLocaleString("en-GB")} />
+            <Stat label="Loaded" value={rows.length.toLocaleString("en-GB")} />
+            <Stat
+              label="Markets"
+              value={stats.by_market.map((m) => `${m.market} ${m.n}`).join(" · ") || "—"}
+            />
           </div>
         )}
 
@@ -311,8 +301,11 @@ export default function EuPreviewPage() {
           </div>
         )}
 
-        {result && sorted.length === 0 && !loading && (
-          <p className="text-sm text-foreground/60">No rows in this window.</p>
+        {!loading && sorted.length === 0 && !error && (
+          <p className="text-sm text-foreground/60">
+            No rows persisted yet. The cron runs hourly at :20 UTC; backfill via{" "}
+            <code className="font-mono">POST /__eu-ingest?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code>.
+          </p>
         )}
       </div>
     </DefaultLayout>

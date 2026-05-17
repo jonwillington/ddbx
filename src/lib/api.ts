@@ -118,7 +118,9 @@ export const api = {
   },
   euScrape: async (from: string, to: string): Promise<EuScrapeResult> => {
     // Dry-run EU scrape (currently Sweden FI). Returns parsed rows without
-    // persistence — the /eu-preview page renders whatever comes back.
+    // persistence — kept around for ad-hoc spot-checks of the parser. The
+    // /eu page reads from persisted /api/eu-dealings rather than calling
+    // this each load.
     const qs = new URLSearchParams({ from, to });
     const res = await fetch(`${WORKER_BASE}/__eu-scrape?${qs.toString()}`, {
       method: "POST",
@@ -126,7 +128,23 @@ export const api = {
     if (!res.ok) throw new Error(`/__eu-scrape ${res.status}`);
     return (await res.json()) as EuScrapeResult;
   },
+  euDealings: (opts: { limit?: number; since?: string; market?: "SE" } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.limit != null) qs.set("limit", String(opts.limit));
+    if (opts.since) qs.set("since", opts.since);
+    if (opts.market) qs.set("market", opts.market);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return get<{ dealings: EuDealing[]; stats: EuDealingsStats }>(
+      `/eu-dealings${suffix}`,
+    );
+  },
 };
+
+export interface EuDealingsStats {
+  total: number;
+  latest_disclosed_date: string | null;
+  by_market: Array<{ market: string; n: number }>;
+}
 
 export type {
   Dealing,
