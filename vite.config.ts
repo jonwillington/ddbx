@@ -13,6 +13,8 @@ export default defineConfig({
       // US scrape preview during the multi-market spike — see
       // investigations/multi-market/form4-mapping.md.
       "/__us-": "http://localhost:8787",
+      // EU spike (Sweden FI today) — dry-run preview at /eu-preview.
+      "/__eu-": "http://localhost:8787",
     },
   },
 });

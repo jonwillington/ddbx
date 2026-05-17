@@ -1,12 +1,25 @@
 import type {
   Dealing,
   DirectorDetail,
+  EuDealing,
   LatestPrice,
   Portfolio,
   Rating,
   UkNewsItem,
   UsDealing,
 } from "@/types/ddbx";
+
+export interface EuScrapeResult {
+  source: "FI";
+  from: string;
+  to: string;
+  fetched_bytes: number;
+  totalRows: number;
+  parsed: number;
+  skipped: number;
+  rows: EuDealing[];
+  errors: Array<{ rowIdx: number; message: string }>;
+}
 
 export interface UsDealingsStats {
   total: number;
@@ -103,11 +116,22 @@ export const api = {
     if (!res.ok) throw new Error(`/__us-ingest ${res.status}`);
     return (await res.json()) as IngestResult;
   },
+  euScrape: async (from: string, to: string): Promise<EuScrapeResult> => {
+    // Dry-run EU scrape (currently Sweden FI). Returns parsed rows without
+    // persistence — the /eu-preview page renders whatever comes back.
+    const qs = new URLSearchParams({ from, to });
+    const res = await fetch(`${WORKER_BASE}/__eu-scrape?${qs.toString()}`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error(`/__eu-scrape ${res.status}`);
+    return (await res.json()) as EuScrapeResult;
+  },
 };
 
 export type {
   Dealing,
   DirectorDetail,
+  EuDealing,
   LatestPrice,
   Portfolio,
   Rating,

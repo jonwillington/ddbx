@@ -5,13 +5,14 @@ import { TodayDrawer } from "@/components/today-drawer";
 import DashboardPage from "@/pages/dashboard";
 import PerformancePage from "@/pages/performance";
 import DirectorPage from "@/pages/director";
+import EuPreviewPage from "@/pages/eu-preview";
 import UsPreviewPage from "@/pages/us-preview";
 
 // Routes that should NOT show the right-hand TodayDrawer. Everything else
 // gets it. Mounting the drawer here (above Routes) keeps its data + scroll
 // state across page changes — Performance ↔ Dashboard no longer remounts
 // the drawer's deals/news fetches.
-const HIDE_DRAWER_PREFIXES = ["/directors/", "/us-preview", "/us"];
+const HIDE_DRAWER_PREFIXES = ["/directors/", "/us-preview", "/us", "/eu-preview", "/eu"];
 
 function App() {
   const { pathname } = useLocation();
@@ -32,6 +33,8 @@ function App() {
         <Route element={<DirectorPage />} path="/directors/:id" />
         <Route element={<UsPreviewPage />} path="/us-preview" />
         <Route element={<UsPreviewPage />} path="/us" />
+        <Route element={<EuPreviewPage />} path="/eu-preview" />
+        <Route element={<EuPreviewPage />} path="/eu" />
       </Routes>
       {showDrawer && <TodayDrawer />}
     </>

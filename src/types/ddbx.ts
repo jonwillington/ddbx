@@ -388,6 +388,128 @@ export interface UsDealing {
 
 export type UsTriageVerdict = "skip" | "maybe" | "promising";
 
+// ============================================================================
+// EU wire format — MAR Article 19 PDMR transactions
+// ============================================================================
+// Pan-EU spike. v1 source is Sweden's Finansinspektionen (FI) "Insynsregister"
+// CSV export — the only NCA with a clean machine-readable feed of full Article
+// 19 fields (LEI, ISIN, price, volume, MIC). NL/DE/FR added later via per-market
+// modules; the wire format is designed to fit all of them since MAR mandates
+// a harmonised notification template (Commission Implementing Regulation
+// 2016/523, Annex).
+//
+// Field names use the MAR/MiFID English vocabulary (LEI, ISIN, MIC, PDMR) so
+// the parser stays auditable against the underlying regulation rather than the
+// per-country localisation of the CSV.
+
+/** Source market. ISO 3166-1 alpha-2. Single source today; expected to grow as
+ *  more NCAs come online. */
+export type EuMarket = "SE";
+
+export interface EuReporter {
+  /** Free-form person name (PDMR — "Person discharging managerial
+   *  responsibilities", the EU's equivalent of an SEC "insider"). MAR has no
+   *  cross-border stable identifier for individuals, so this is the join key
+   *  for now. Cross-filing continuity is best-effort by exact name match. */
+  name: string;
+  /** Localised role text (FI: "Styrelseledamot" = board member, "VD" = CEO,
+   *  "Annan ledande befattningshavare" = other senior officer). Carried
+   *  verbatim; the iOS adapter maps to a product-level enum. */
+  role: string;
+  /** True when the filing is by a PCA ("Person closely associated" — family
+   *  member or controlled entity) on behalf of the PDMR. Distinguishes a
+   *  spouse's purchase from the director's own purchase, which matters for
+   *  conviction signal. */
+  is_closely_associated: boolean;
+  /** The reporting entity (FI: Anmälningsskyldig). When the PDMR reports for
+   *  themselves this equals `name`; for a PCA filing it's the PCA's legal
+   *  name. Surfaced verbatim for indirect-ownership chain visibility. */
+  filing_entity?: string;
+}
+
+/** MAR's nature-of-transaction enumerations are localised by each NCA but
+ *  derive from the same Annex template. Carry the raw localised string and
+ *  normalise at the edge.
+ *
+ *  FI strings seen so far: "Förvärv" (acquisition), "Avyttring" (disposal),
+ *  "Tilldelning" (allotment/grant), "Pantsättning" (pledge), "Lån" (lending).
+ *  Direction (acquisition vs disposal) is implicit in the string. */
+export type EuTransactionNature = string;
+
+export interface EuDealing {
+  /** Deterministic id: `mar-{market}-{publication_ts}-{hash}` where hash is
+   *  a short digest of (issuer LEI, reporter name, isin, trade_date, volume,
+   *  price). FI CSV has no native row ID so we synthesise one. */
+  id: string;
+  /** Source market. */
+  market: EuMarket;
+
+  /** Transaktionsdatum — when the trade happened. Date-only; FI publishes
+   *  timestamps but the time component is always 00:00:00. */
+  trade_date: string;          // ISO
+  /** Publiceringsdatum — when the NCA published the notification. Closest
+   *  EU equivalent of EDGAR's file_date. Includes time of day. */
+  disclosed_date: string;      // ISO datetime
+  created_at?: string;         // ISO datetime UTC — when ingested
+
+  /** PDMR or PCA who filed. */
+  reporter: EuReporter;
+
+  /** Issuer name (FI: Emittent). Legal entity name; not the trading name. */
+  company: string;
+  /** Legal Entity Identifier — the MAR-mandated cross-border issuer key.
+   *  20 chars, ISO 17442. Stable across renames, M&A, and ticker changes.
+   *  Use this as the canonical issuer ID, not `company` or `ticker`. */
+  lei: string;
+  /** ISIN — 12-char ISO 6166 security identifier. The cross-border security
+   *  key under MAR; tickers vary by venue (`.ST`, `.AS`, etc.) but ISIN is
+   *  unique. */
+  isin: string;
+
+  /** Free-text instrument name (FI: Instrumentnamn). Sometimes a share class
+   *  ("XYZ AB ser. B"), sometimes a derivative description. */
+  instrument_name: string;
+  /** Instrument type (FI: Instrumenttyp). "Aktie" = share, "Option" = option,
+   *  "Obligation" = bond, "Warrant" = warrant. Surfaced verbatim; the iOS
+   *  adapter decides whether to display. */
+  instrument_type: string;
+
+  /** Nature of transaction (FI: Karaktär). Localised. See EuTransactionNature. */
+  nature: EuTransactionNature;
+  /** Volume of the transaction. Unit is `volume_unit` — usually "Antal" (count
+   *  of shares) but can be a nominal value for bonds. */
+  volume: number;
+  /** Unit of volume (FI: Volymsenhet). Usually "Antal" = share count. */
+  volume_unit: string;
+  /** Price per unit. `null` for grants and some derivative transactions where
+   *  no consideration applies. */
+  price: number | null;
+  /** Currency of `price`. Sweden mostly SEK with some EUR for cross-listed
+   *  issuers; other NCAs will be mostly EUR. */
+  currency: string;
+  /** MIC (Market Identifier Code, ISO 10383) where the trade executed. FI
+   *  publishes the venue name verbatim ("NASDAQ STOCKHOLM AB",
+   *  "Utanför handelsplats" = "Outside trading venue"); we map to MIC code
+   *  where possible and fall back to the raw string. */
+  venue?: string;
+
+  /** True when the notification is a correction of an earlier filing
+   *  (FI: Korrigering = "Ja"). Analogue of Form 4/A. */
+  is_amendment: boolean;
+  /** Free-text reason for the correction (FI: Beskrivning av korrigering).
+   *  Often "Felaktigt pris" (wrong price), "Felaktigt antal" (wrong count). */
+  amendment_reason?: string;
+  /** True when the filing is the PDMR's first-time notification with this
+   *  issuer (FI: Är förstagångsrapportering). MAR-specific concept. */
+  is_first_time_report: boolean;
+  /** True when the transaction is linked to a share/option programme
+   *  (FI: Är kopplad till aktieprogram). Analogue of US transaction codes
+   *  A/M/F — programme-driven trades are weaker conviction signals. */
+  is_share_programme: boolean;
+  /** FI: Status. "Aktuell" = current/active; rows can be retracted. */
+  status: string;
+}
+
 /** One logical Form 4 trade after collapsing tranche-split rows. Same shape
  *  the triage runner sees and the iOS / web clients can render as a single
  *  card instead of N near-duplicate ones. Grouped by
