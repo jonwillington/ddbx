@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { Dealing } from "@/lib/api";
@@ -6,183 +6,26 @@ import { RatingBadge } from "@/components/rating-badge";
 import { CompanyLogo } from "@/components/company-logo";
 import { EvidenceTable } from "@/components/evidence-table";
 import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicons/react/24/outline";
-import { Skeleton } from "@/components/skeleton";
-import { api } from "@/lib/api";
 import { useDiscretion } from "@/lib/discretion";
 import { DUMMY_ANALYSIS } from "@/components/discretion/dummy-analysis";
 import { BlurredAnalysisOverlay } from "@/components/discretion/blurred-analysis-overlay";
 import { RatingChecklistView } from "@/components/rating-checklist-view";
+import { PositionCard, type PriceFormat } from "@/components/position-card";
+import { MiniPriceChart } from "@/components/mini-price-chart";
 
-type PriceBar = { date: string; close_pence: number };
-type Period = "since" | "ytd" | "max";
-
-const PERIODS: { key: Period; label: string }[] = [
-  { key: "since", label: "Since entry" },
-  { key: "ytd", label: "YTD" },
-  { key: "max", label: "Max" },
-];
-
-function MiniPriceChart({
-  ticker,
-  tradeDate,
-  entryPricePence,
-}: {
-  ticker: string;       // full ticker e.g. "TSCO.L"
-  tradeDate: string;    // YYYY-MM-DD
-  entryPricePence: number;
-}) {
-  const [period, setPeriod] = useState<Period>("since");
-  const [allBars, setAllBars] = useState<PriceBar[]>([]);
-
-  const displayTicker = ticker.replace(/\.L$/, "");
-
-  useEffect(() => {
-    if (!ticker) { setAllBars([]); return; }
-    setAllBars([]);
-    api.priceHistory(ticker, 365).then(setAllBars).catch(() => {});
-  }, [ticker]);
-
-  const bars = useMemo(() => {
-    if (period === "since") return allBars.filter((b) => b.date >= tradeDate);
-    if (period === "ytd") return allBars.filter((b) => b.date >= `${new Date().getFullYear()}-01-01`);
-    return allBars;
-  }, [allBars, period, tradeDate]);
-
-  const lastBar = allBars[allBars.length - 1];
-  const up = lastBar ? lastBar.close_pence >= entryPricePence : true;
-  const returnPct = lastBar ? ((lastBar.close_pence - entryPricePence) / entryPricePence) * 100 : 0;
-
-  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
-  const lineColor = up ? (isDark ? "#5cd84a" : "#1e6b18") : (isDark ? "#e84d4d" : "#8b2020");
-  const upCls = "text-[#1e6b18] dark:text-[#5cd84a]";
-  const downCls = "text-[#8b2020] dark:text-[#e84d4d]";
-
-  const W = 240, H = 160;
-  const pL = 2, pR = 2, pT = 8, pB = 18;
-
-  let svgContent: React.ReactNode = null;
-
-  if (bars.length >= 2) {
-    const prices = bars.map((b) => b.close_pence);
-    const rawMin = Math.min(...prices);
-    const rawMax = Math.max(...prices);
-    // On "since entry", fold the entry price into the Y-bounds so the line's
-    // slope reads as gain/loss against the buy, not just the period's local
-    // low→high. Matches the iOS MiniPriceChart.
-    const minP = period === "since" ? Math.min(rawMin, entryPricePence) : rawMin;
-    const maxP = period === "since" ? Math.max(rawMax, entryPricePence) : rawMax;
-    const yPad = (maxP - minP) * 0.06 || 5;
-    const yMin = minP - yPad;
-    const yMax = maxP + yPad;
-    const yRange = yMax - yMin;
-    const n = bars.length;
-
-    const xS = (i: number) => pL + (i / (n - 1)) * (W - pL - pR);
-    const yS = (v: number) => pT + (1 - (v - yMin) / yRange) * (H - pT - pB);
-
-    const entryIdx = period === "since" ? 0 : bars.findIndex((b) => b.date >= tradeDate);
-    const entryY = yS(entryPricePence);
-    const path = bars
-      .map((b, i) => `${i === 0 ? "M" : "L"}${xS(i).toFixed(1)},${yS(b.close_pence).toFixed(1)}`)
-      .join(" ");
-
-    svgContent = (
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        width="100%"
-        height="100%"
-        preserveAspectRatio="none"
-        style={{ display: "block" }}
-      >
-        <line x1={pL} y1={entryY} x2={W - pR} y2={entryY}
-          stroke="#888" strokeWidth={0.75} strokeDasharray="3,3" opacity={0.35} />
-        {entryIdx > 0 && (
-          <line x1={xS(entryIdx)} y1={pT} x2={xS(entryIdx)} y2={H - pB}
-            stroke="#888" strokeWidth={0.75} strokeDasharray="3,3" opacity={0.35} />
-        )}
-        <path d={path} fill="none" stroke={lineColor} strokeWidth={1.5}
-          strokeLinecap="round" strokeLinejoin="round" />
-        {entryIdx >= 0 && entryIdx < n && (
-          <circle cx={xS(entryIdx)} cy={yS(bars[entryIdx].close_pence)}
-            r={2.5} fill={lineColor} opacity={0.55} />
-        )}
-        <circle cx={xS(n - 1)} cy={yS(bars[n - 1].close_pence)} r={2.5} fill={lineColor} />
-        <text x={pL} y={H - 4} fontSize={8} fill="#999">{bars[0].date.slice(5)}</text>
-        <text x={W - pR} y={H - 4} fontSize={8} textAnchor="end" fill="#999">{bars[n - 1].date.slice(5)}</text>
-      </svg>
-    );
-  }
-
-  // Price legend values derived from the currently-visible bars
-  const visiblePrices = bars.map((b) => b.close_pence);
-  const periodHigh = visiblePrices.length ? Math.max(...visiblePrices) : null;
-  const periodLow  = visiblePrices.length ? Math.min(...visiblePrices) : null;
-  const nowPrice   = lastBar?.close_pence ?? null;
-  const fmtP = (p: number) => `${p.toFixed(0)}p`;
-
-  return (
-    <div className="flex flex-col h-full gap-2">
-      {/* Header row */}
-      <div className="flex items-center justify-between shrink-0">
-        <span className="text-[10px] text-muted uppercase tracking-wider font-medium">
-          {displayTicker}
-        </span>
-        {lastBar && (
-          <span className={`text-[10px] font-semibold tabular-nums ${up ? upCls : downCls}`}>
-            {returnPct >= 0 ? "+" : ""}{returnPct.toFixed(1)}% since buy
-          </span>
-        )}
-      </div>
-
-      {/* Period toggles */}
-      <div className="flex gap-1 shrink-0">
-        {PERIODS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setPeriod(key)}
-            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
-              period === key
-                ? "border-[#6b5038]/50 bg-[#6b5038]/10 text-[#6b5038] dark:text-[#a8804e]"
-                : "border-black/10 dark:border-white/10 text-muted hover:border-[#6b5038]/30"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Price legend */}
-      {nowPrice !== null && (
-        <div className="flex items-center gap-3 shrink-0 border-t border-black/[0.07] dark:border-white/[0.07] pt-2">
-          <span className="text-[10px] text-muted">
-            Entry <span className="font-mono tabular-nums text-foreground/70">{fmtP(entryPricePence)}</span>
-          </span>
-          <span className="text-[10px] text-muted">
-            Now <span className={`font-mono tabular-nums font-semibold ${up ? upCls : downCls}`}>{fmtP(nowPrice)}</span>
-          </span>
-          {periodHigh !== null && periodLow !== null && (
-            <span className="text-[10px] text-muted ml-auto">
-              <span className="font-mono tabular-nums">{fmtP(periodLow)}</span>
-              <span className="opacity-40 mx-0.5">–</span>
-              <span className="font-mono tabular-nums">{fmtP(periodHigh)}</span>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Chart fills remaining height */}
-      <div className="flex-1 min-h-0">
-        {bars.length >= 2 ? svgContent : (
-          <div className="flex items-center justify-center h-full">
-            <span className="text-xs text-muted/50">
-              {allBars.length === 0 ? "Loading chart…" : "No data for this period"}
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// Pence (LSE quote unit) → GBP. Used for both the position card and price
+// chart; values from /api/prices/history come back as `close_pence` for UK
+// tickers so the quote unit IS pence.
+const GBP_FORMAT: PriceFormat = {
+  formatPrice: (n) => `${n.toFixed(0)}p`,
+  formatValue: (n) =>
+    new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: "GBP",
+      maximumFractionDigits: 0,
+    }).format(n),
+  quoteToValue: 0.01,
+};
 
 function fmtGbp(n: number) {
   return new Intl.NumberFormat("en-GB", {
@@ -233,108 +76,6 @@ function TriageOnlyAnalysisNotice({
           </p>
         )}
       </div>
-    </div>
-  );
-}
-
-function PositionCard({
-  entry,
-  current,
-  shares,
-  originalValue,
-  ftseEntry,
-  ftseCurrent,
-}: {
-  entry: number;
-  current: number;
-  shares: number;
-  originalValue: number;
-  ftseEntry?: number;
-  ftseCurrent?: number;
-}) {
-  const stockPct = (current - entry) / entry;
-  const up = stockPct >= 0;
-  // When shares × entry disagrees with originalValue the row is internally
-  // inconsistent — either shares is wrong or value_gbp is. Without an
-  // independent signal, pick whichever side produces a plausible director-
-  // RNS trade size (≥ £5k disclosure threshold, ≤ £10M). Otherwise fall
-  // back to the reported share count rather than guess.
-  const computedFromShares = (shares * entry) / 100;
-  const sharesRatio = computedFromShares > 0 && originalValue > 0
-    ? Math.max(computedFromShares, originalValue) /
-      Math.min(computedFromShares, originalValue)
-    : 1;
-  const plausible = (v: number) => v >= 5_000 && v <= 10_000_000;
-  const effectiveShares =
-    sharesRatio < 1.05 || entry <= 0 || originalValue <= 0
-      ? shares
-      : plausible(originalValue) && !plausible(computedFromShares)
-        ? (originalValue * 100) / entry
-        : shares;
-  const currentValue = (effectiveShares * current) / 100;
-  const gainLoss = currentValue - originalValue;
-  const gainSign = gainLoss >= 0 ? "+" : "";
-
-  const ftsePct =
-    ftseEntry != null && ftseCurrent != null
-      ? (ftseCurrent - ftseEntry) / ftseEntry
-      : null;
-  const alphaPct = ftsePct != null ? stockPct - ftsePct : null;
-  const ahead = alphaPct != null && alphaPct >= 0;
-
-  const fmt = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}%`;
-  const fmtPp = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}pp`;
-
-  const upText = "text-[#1e6b18] dark:text-[#5cd84a]";
-  const downText = "text-[#8b2020] dark:text-[#e84d4d]";
-  const upBg = "bg-[#1e6b18]/[0.12] dark:bg-[#5cd84a]/[0.12]";
-  const downBg = "bg-[#8b2020]/[0.12] dark:bg-[#e84d4d]/[0.12]";
-
-  return (
-    <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-      <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Entry</div>
-        <div className="text-2xl font-bold tabular-nums">{entry.toFixed(0)}p</div>
-        <div className="text-xs text-muted mt-1">{fmtGbp(originalValue)}</div>
-      </div>
-
-      <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Now</div>
-        <div className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}>
-          {current.toFixed(0)}p
-        </div>
-        <div className="text-xs text-muted mt-1">{fmtGbp(currentValue)}</div>
-      </div>
-
-      <div className={`rounded-xl px-4 py-4 ${up ? upBg : downBg}`}>
-        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Return</div>
-        <div className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}>
-          {fmt(stockPct)}
-        </div>
-        <div className={`text-xs font-medium mt-1 opacity-70 ${up ? upText : downText}`}>
-          {gainSign}{fmtGbp(gainLoss)}
-        </div>
-      </div>
-
-      {ftsePct != null ? (
-        <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-          <div className="text-[10px] text-muted uppercase tracking-wider mb-2">vs FTSE</div>
-          <div className="text-2xl font-bold tabular-nums text-foreground/50">
-            {fmt(ftsePct)}
-          </div>
-          {alphaPct != null && (
-            <div className={`text-xs font-semibold mt-1 ${ahead ? upText : downText}`}>
-              {fmtPp(alphaPct)} alpha
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-          <div className="text-[10px] text-muted uppercase tracking-wider mb-2">vs FTSE</div>
-          <Skeleton className="h-8 w-20 mt-1" />
-          <Skeleton className="h-3 w-16 mt-2" />
-        </div>
-      )}
     </div>
   );
 }
@@ -488,16 +229,22 @@ export function DealingDetailPanel({
                     current={currentPricePence}
                     shares={dealing.shares}
                     originalValue={dealing.value_gbp}
-                    ftseEntry={ftseEntryPence}
-                    ftseCurrent={ftseCurrentPence}
+                    fmt={GBP_FORMAT}
+                    benchmark={{
+                      entry: ftseEntryPence ?? null,
+                      current: ftseCurrentPence ?? null,
+                      label: "FTSE",
+                    }}
                   />
                 )}
 
                 <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] p-4 h-72">
                   <MiniPriceChart
-                    ticker={dealing.ticker}
+                    tickerForApi={dealing.ticker}
+                    tickerForDisplay={dealing.ticker.replace(/\.L$/, "")}
                     tradeDate={dealing.trade_date.slice(0, 10)}
-                    entryPricePence={dealing.price_pence}
+                    entryPrice={dealing.price_pence}
+                    fmt={GBP_FORMAT}
                   />
                 </div>
 

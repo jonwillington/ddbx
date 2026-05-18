@@ -19,8 +19,24 @@ import { CompanyLogo } from "@/components/company-logo";
 import { RatingBadge } from "@/components/rating-badge";
 import { EvidenceTable } from "@/components/evidence-table";
 import { RatingChecklistView } from "@/components/rating-checklist-view";
+import { PositionCard, type PriceFormat } from "@/components/position-card";
+import { MiniPriceChart } from "@/components/mini-price-chart";
 import { api, type IngestResult, type UsDealing, type UsDealingsStats } from "@/lib/api";
 import type { Analysis, UsReporter, UsTransactionCode, UsTriageVerdict } from "@/types/ddbx";
+
+// USD quote unit is also the domestic currency, so quoteToValue is 1. /api/prices
+// caches the numeric close in close_pence regardless of source — for US tickers
+// the number is dollars-major; the column name is just misleading.
+const USD_FORMAT: PriceFormat = {
+  formatPrice: (n) => `$${n.toFixed(2)}`,
+  formatValue: (n) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(n),
+  quoteToValue: 1,
+};
 
 type Tone = "buy" | "sell" | "plan" | "grant" | "exercise" | "neutral";
 type View = "signal" | "interesting" | "all";
@@ -476,10 +492,64 @@ function UsAnalysisSection({ analysis }: { analysis: Analysis }) {
   );
 }
 
+function UsPositionSection({ group }: { group: RowGroup }) {
+  const ticker = group.primary.ticker;
+  const tradeDate = group.primary.trade_date.slice(0, 10);
+  // Volume-weighted average across legs when the buy was filled at multiple
+  // prices; falls back to the primary leg's price when total_value is null
+  // (footnoted prices). undefined when we genuinely don't know.
+  const entryPrice = useMemo<number | undefined>(() => {
+    if (group.total_value != null && group.total_shares > 0) {
+      return group.total_value / group.total_shares;
+    }
+    return group.primary.price ?? undefined;
+  }, [group]);
+
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  useEffect(() => {
+    if (!ticker) return;
+    let cancelled = false;
+    api.latestPrices([ticker])
+      .then((rows) => {
+        if (cancelled) return;
+        const match = rows.find((r) => r.ticker.toUpperCase() === ticker.toUpperCase());
+        setCurrentPrice(match?.price_pence ?? null);
+      })
+      .catch(() => { if (!cancelled) setCurrentPrice(null); });
+    return () => { cancelled = true; };
+  }, [ticker]);
+
+  if (entryPrice == null) return null;
+
+  return (
+    <div className="mb-4 space-y-4">
+      {currentPrice != null && group.total_value != null && (
+        <PositionCard
+          entry={entryPrice}
+          current={currentPrice}
+          shares={group.total_shares}
+          originalValue={group.total_value}
+          fmt={USD_FORMAT}
+        />
+      )}
+      <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] p-4 h-72">
+        <MiniPriceChart
+          tickerForApi={ticker}
+          tickerForDisplay={ticker}
+          tradeDate={tradeDate}
+          entryPrice={entryPrice}
+          fmt={USD_FORMAT}
+        />
+      </div>
+    </div>
+  );
+}
+
 function UsGroupDetail({ group }: { group: RowGroup }) {
   const row = group.primary;
   return (
     <div className="px-4 md:px-6 py-4 bg-black/[0.02] dark:bg-white/[0.02] border-t border-black/[0.06] dark:border-white/[0.06]">
+      <UsPositionSection group={group} />
       {group.analysis && <UsAnalysisSection analysis={group.analysis} />}
       {group.triage_verdict && (
         <div className="mb-3 flex items-start gap-3 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3">
