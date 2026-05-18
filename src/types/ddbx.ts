@@ -384,9 +384,25 @@ export interface UsDealing {
    *  the read API — not part of the raw Form 4 payload. */
   triage_verdict?: UsTriageVerdict;
   triage_reason?: string;
+
+  /** Deep analysis result for the parent filing+code+reporter group, when
+   *  one exists. Joined in by the read API from us_analyses; absent (or null)
+   *  when the group hasn't been enriched yet. The same Analysis shape UK
+   *  dealings carry, so the same renderers apply on the frontend. */
+  analysis?: Analysis | null;
 }
 
 export type UsTriageVerdict = "skip" | "maybe" | "promising";
+
+/** Composite key for one logical Form 4 trade — matches the triple
+ *  getUsDealingsGrouped collapses tranche rows on. The right granularity for
+ *  both triage and analysis: joint-filer disclosures stay separate, multi-leg
+ *  purchases at different prices collapse into one decision. */
+export interface UsAnalysisKey {
+  filing_id: string;
+  transaction_code: string;
+  reporter_cik: string;
+}
 
 // ============================================================================
 // EU wire format — MAR Article 19 PDMR transactions

@@ -16,8 +16,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import DefaultLayout from "@/layouts/default";
 import { CompanyLogo } from "@/components/company-logo";
+import { RatingBadge } from "@/components/rating-badge";
+import { EvidenceTable } from "@/components/evidence-table";
+import { RatingChecklistView } from "@/components/rating-checklist-view";
 import { api, type IngestResult, type UsDealing, type UsDealingsStats } from "@/lib/api";
-import type { UsReporter, UsTransactionCode, UsTriageVerdict } from "@/types/ddbx";
+import type { Analysis, UsReporter, UsTransactionCode, UsTriageVerdict } from "@/types/ddbx";
 
 type Tone = "buy" | "sell" | "plan" | "grant" | "exercise" | "neutral";
 type View = "signal" | "interesting" | "all";
@@ -35,6 +38,10 @@ interface RowGroup {
   leg_count: number;
   triage_verdict?: UsTriageVerdict;
   triage_reason?: string;
+  // Deep analysis result for the group, when one exists. Same Analysis shape
+  // UK dealings carry — lets us reuse RatingBadge / EvidenceTable /
+  // RatingChecklistView verbatim instead of fork-rendering by market.
+  analysis?: Analysis | null;
 }
 
 function groupRows(rows: UsDealing[]): RowGroup[] {
@@ -52,6 +59,7 @@ function groupRows(rows: UsDealing[]): RowGroup[] {
         leg_count: 0,
         triage_verdict: r.triage_verdict,
         triage_reason: r.triage_reason,
+        analysis: r.analysis ?? null,
       };
       map.set(key, g);
     }
@@ -275,7 +283,11 @@ function UsDealingRow({
               )}
             </span>
             <div className="flex items-center gap-1">
-              {group.triage_verdict && <VerdictChip verdict={group.triage_verdict} size="sm" />}
+              {group.analysis ? (
+                <RatingBadge rating={group.analysis.rating} />
+              ) : (
+                group.triage_verdict && <VerdictChip verdict={group.triage_verdict} size="sm" />
+              )}
               <ActionChip label={action.label} tone={action.tone} size="sm" />
             </div>
           </div>
@@ -355,8 +367,12 @@ function UsDealingRow({
           </div>
           <div className="w-56 shrink-0 px-3 py-4 flex flex-col items-center justify-center gap-1">
             <ActionChip label={action.label} tone={action.tone} />
-            {group.triage_verdict && (
-              <VerdictChip verdict={group.triage_verdict} size="sm" />
+            {group.analysis ? (
+              <RatingBadge rating={group.analysis.rating} />
+            ) : (
+              group.triage_verdict && (
+                <VerdictChip verdict={group.triage_verdict} size="sm" />
+              )
             )}
             {suffixBadges.length > 0 && (
               <div className="flex flex-wrap gap-1 justify-center">
@@ -391,10 +407,80 @@ function VerdictChip({
   );
 }
 
+function UsAnalysisSection({ analysis }: { analysis: Analysis }) {
+  // Same composition as DealingDetailPanel's analysis block, minus the
+  // GBP/pence-flavoured position card and price chart (US uses USD; equivalents
+  // for the US side land later). Components are shape-agnostic and reused.
+  return (
+    <div className="mb-4 space-y-6 rounded-lg border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-surface p-5">
+      <div className="flex items-center gap-3">
+        <RatingBadge rating={analysis.rating} />
+        <span className="text-xs text-muted">
+          {(analysis.confidence * 100).toFixed(0)}% confidence · {analysis.catalyst_window} catalyst
+        </span>
+      </div>
+
+      {analysis.summary && (
+        <p className="text-lg font-semibold leading-snug text-foreground/90">
+          {analysis.summary}
+        </p>
+      )}
+
+      {analysis.checklist && (
+        <RatingChecklistView checklist={analysis.checklist} />
+      )}
+
+      {analysis.thesis_points.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Thesis</h3>
+          <div className="space-y-3">
+            {analysis.thesis_points.map((p, i) => (
+              <p key={i} className="text-sm text-foreground/90 leading-relaxed">
+                {p}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-8">
+        <EvidenceTable
+          points={analysis.evidence_for}
+          title="Why this is interesting"
+          tone="for"
+        />
+        <EvidenceTable
+          points={analysis.evidence_against}
+          title="Why it might not be"
+          tone="against"
+        />
+      </div>
+
+      {analysis.key_risks.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold mb-1">Key risks</h4>
+          <ul className="text-sm list-disc pl-5 text-foreground/90 space-y-1">
+            {analysis.key_risks.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {analysis.rating_rationale && (
+        <p className="text-xs italic text-muted leading-relaxed border-t border-black/[0.06] dark:border-white/[0.08] pt-3">
+          {analysis.rating_rationale}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function UsGroupDetail({ group }: { group: RowGroup }) {
   const row = group.primary;
   return (
     <div className="px-4 md:px-6 py-4 bg-black/[0.02] dark:bg-white/[0.02] border-t border-black/[0.06] dark:border-white/[0.06]">
+      {group.analysis && <UsAnalysisSection analysis={group.analysis} />}
       {group.triage_verdict && (
         <div className="mb-3 flex items-start gap-3 rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3">
           <VerdictChip verdict={group.triage_verdict} />
