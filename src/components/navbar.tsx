@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "@/components/theme-switch";
+import { MarketSwitcher } from "@/components/market-switcher";
 
 export const Navbar = () => {
   const location = useLocation();
@@ -14,6 +15,7 @@ export const Navbar = () => {
           <Link to="/" className="shrink-0">
             <img src="/logo.svg" alt={siteConfig.name} className="h-7 max-w-[56px] dark:invert" />
           </Link>
+          <MarketSwitcher />
           <ul className="flex gap-4">
             {siteConfig.navItems.map((item) => {
               const active = location.pathname === item.href;
