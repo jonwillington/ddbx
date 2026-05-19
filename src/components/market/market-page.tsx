@@ -403,6 +403,8 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
                 />
               ))}
             </div>
+          ) : config.TodayEmpty ? (
+            <config.TodayEmpty />
           ) : (
             <div className="px-5 py-6 text-sm text-muted">
               No filings disclosed today yet.
@@ -539,6 +541,7 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
         newsFooterNote={config.newsFooterNote}
         fmt={config.priceFormat}
         selectedKey={selectedKey}
+        TodayEmpty={config.TodayEmpty}
       />
 
       <MarketDetailDrawer

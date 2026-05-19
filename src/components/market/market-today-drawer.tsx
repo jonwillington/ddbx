@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import {
   ArrowsUpDownIcon,
   ArrowTopRightOnSquareIcon,
@@ -34,6 +34,9 @@ interface MarketTodayDrawerProps<W> {
   fmt: PriceFormat;
   /** Selection state — used to highlight the currently-open detail row. */
   selectedKey?: string | null;
+  /** Optional empty-state component for the today pane. Falls back to the
+   *  default "No filings disclosed today yet." copy when undefined. */
+  TodayEmpty?: ComponentType;
 }
 
 /** Persistent right-hand drawer, lg+ only. Each market mounts its own
@@ -47,6 +50,7 @@ export function MarketTodayDrawer<W>({
   newsFooterNote,
   fmt,
   selectedKey,
+  TodayEmpty,
 }: MarketTodayDrawerProps<W>) {
   const hasNewsSource = news !== undefined;
   const prevNewsUrlsRef = useRef<Set<string> | null>(null);
@@ -106,6 +110,8 @@ export function MarketTodayDrawer<W>({
                   />
                 ))}
               </div>
+            ) : TodayEmpty ? (
+              <TodayEmpty />
             ) : (
               <div className="px-4 py-6 text-xs text-muted/70">
                 No filings disclosed today yet.

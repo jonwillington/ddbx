@@ -23,8 +23,11 @@ import { MiniPriceChart } from "@/components/mini-price-chart";
 import { PositionCard, type PriceFormat } from "@/components/position-card";
 import { RatingBadge } from "@/components/rating-badge";
 import { RatingChecklistView } from "@/components/rating-checklist-view";
+import { TodayEmptyState } from "@/components/today-empty-state";
 import { api } from "@/lib/api";
+import { useBankHolidays } from "@/lib/bank-holidays";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
+import { lseStatus } from "@/lib/market-status";
 import type {
   MarketConfig,
   MarketDealing,
@@ -310,6 +313,17 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+/* ─── Slot: TodayEmpty (LSE-status-aware empty state) ────────────────── */
+
+function UkTodayEmpty() {
+  // Mirror dashboard.tsx: holidays-aware "Closed for X" / weekend / "no
+  // deals yet today" messaging. The component holds the hooks so the slot
+  // stays a clean component reference in the MarketConfig.
+  const holidays = useBankHolidays();
+  const status = lseStatus(new Date(), holidays);
+  return <TodayEmptyState status={status} variant="inline" />;
+}
+
 /* ─── MarketConfig ───────────────────────────────────────────────────── */
 
 // Rating-keyed views. The live UK page treats this as a hero-filter
@@ -387,6 +401,7 @@ export const UkMarket: MarketConfig<Dealing> = {
   RowActionCell: UkRowActionCell,
   DetailBody: UkDetailBody,
   DetailPosition: UkDetailPosition,
+  TodayEmpty: UkTodayEmpty,
   renderEmptyState: ({ view, stats, setView }) => {
     if (view === "significant") {
       return (

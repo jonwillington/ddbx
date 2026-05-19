@@ -203,4 +203,11 @@ export interface MarketConfig<W = unknown> {
     stats: MarketStats | null;
     setView: (v: string) => void;
   }) => ReactNode;
+
+  /** Optional component slot rendered when today has no filings yet. UK
+   *  surfaces LSE-status-aware messaging ("Closed for Spring bank holiday"
+   *  vs "No deals yet — markets reopen at 8:00"); markets without a session
+   *  concept can omit this and fall back to the generic "No filings yet"
+   *  copy. The slot is a Component (not a render fn) so it can hold hooks. */
+  TodayEmpty?: ComponentType;
 }
