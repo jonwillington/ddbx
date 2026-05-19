@@ -88,6 +88,8 @@ export const api = {
     ).then((r) => r.rates),
   ukNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/uk"),
+  usNews: () =>
+    get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/us"),
   version: () => get<{ latest: string | null; total: number }>("/version"),
   usDealings: (
     opts: {

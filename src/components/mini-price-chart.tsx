@@ -26,23 +26,36 @@ export function MiniPriceChart({
   tradeDate,
   entryPrice,
   fmt,
+  normalizeClose,
 }: {
   tickerForApi: string;
   tickerForDisplay: string;
   tradeDate: string;
-  /** Per-share quote price on the trade date (pence for LSE, USD for US). */
+  /** Per-share quote price on the trade date — must be in the same unit
+   *  the chart will render closes in (after `normalizeClose`). */
   entryPrice: number;
   fmt: PriceFormat;
+  /** Map a raw `close_pence` API value to the rendered quote unit. UK
+   *  defaults to identity (prices are already pence and match the dealing's
+   *  `price_pence`). US passes `(n) => n / 100` because Yahoo's USD bars
+   *  land as cents in the prices table while Form 4's `price` is in
+   *  major-dollars. Mismatched units make the chart squish the line
+   *  against the top of the y-axis. */
+  normalizeClose?: (closePence: number) => number;
 }) {
   const [period, setPeriod] = useState<Period>("since");
   const [allBars, setAllBars] = useState<{ date: string; close: number }[]>([]);
+  const normalize = normalizeClose ?? ((n: number) => n);
 
   useEffect(() => {
     if (!tickerForApi) { setAllBars([]); return; }
     setAllBars([]);
     api.priceHistory(tickerForApi, 365)
-      .then((bars) => setAllBars(bars.map((b) => ({ date: b.date, close: b.close_pence }))))
+      .then((bars) => setAllBars(bars.map((b) => ({ date: b.date, close: normalize(b.close_pence) }))))
       .catch(() => {});
+    // normalize is intentionally not in deps — it's a stable per-market
+    // function and changing it would trigger a refetch unnecessarily.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickerForApi]);
 
   const bars = useMemo(() => {
