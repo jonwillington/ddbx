@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicons/react/24/outline";
 
 import { EvidenceTable } from "@/components/evidence-table";
+import { MetricModeSheet } from "@/components/metric-mode-sheet";
 import { MiniPriceChart } from "@/components/mini-price-chart";
 import { PositionCard, type PriceFormat } from "@/components/position-card";
 import { RatingBadge } from "@/components/rating-badge";
@@ -26,12 +27,14 @@ import { RatingChecklistView } from "@/components/rating-checklist-view";
 import { TodayEmptyState } from "@/components/today-empty-state";
 import { api } from "@/lib/api";
 import { useBankHolidays } from "@/lib/bank-holidays";
+import { useDashboardMetricMode } from "@/lib/dashboard-metric-mode";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
 import { lseStatus } from "@/lib/market-status";
 import type {
   MarketConfig,
   MarketDealing,
   MarketStats,
+  MetricModeInfo,
   Tone,
 } from "@/lib/markets/types";
 import type { Dealing, Rating, TriageVerdict } from "@/types/ddbx";
@@ -313,6 +316,21 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+/* ─── Metric-mode hook adapter ───────────────────────────────────────── */
+
+// MarketPage expects { isVsMarket, anchorsOnDisclosure, shortLabel }; the
+// canonical UK hook exposes those plus the setters the sheet talks to. The
+// sheet reads useDashboardMetricMode itself, so we just project the fields
+// MarketPage actually consumes.
+function useUkMetricMode(): MetricModeInfo {
+  const m = useDashboardMetricMode();
+  return {
+    isVsMarket: m.isVsMarket,
+    anchorsOnDisclosure: m.anchorsOnDisclosure,
+    shortLabel: m.shortLabel,
+  };
+}
+
 /* ─── Slot: TodayEmpty (LSE-status-aware empty state) ────────────────── */
 
 function UkTodayEmpty() {
@@ -405,5 +423,7 @@ export const UkMarket: MarketConfig<Dealing> = {
   DetailBody: UkDetailBody,
   DetailPosition: UkDetailPosition,
   TodayEmpty: UkTodayEmpty,
+  useMetricMode: useUkMetricMode,
+  MetricModeSheet,
   renderEmptyState: () => <>No UK disclosures stored yet.</>,
 };

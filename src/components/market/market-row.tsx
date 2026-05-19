@@ -6,13 +6,17 @@ import type { MarketDealing } from "@/lib/markets/types";
 import { benchmarkReturnPct, deltaStyle, shortDate, stockReturnPct } from "./market-utils";
 
 /** Column headers above the row list. `hideDate` matches the per-section
- *  Today cluster which gets its own date heading. */
+ *  Today cluster which gets its own date heading. When `singlePerf` is true
+ *  the two separate Return/vs-benchmark cells collapse into one Performance
+ *  cell — used by markets that opt into useMetricMode. */
 export function MarketRowHeader({
   hideDate = false,
   benchmarkLabel,
+  singlePerf = false,
 }: {
   hideDate?: boolean;
   benchmarkLabel: string;
+  singlePerf?: boolean;
 }) {
   return (
     <div className="hidden md:flex items-center text-xs text-muted font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] rounded-t-xl">
@@ -30,12 +34,20 @@ export function MarketRowHeader({
       <div className="w-32 shrink-0 px-4 py-2.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]">
         Value
       </div>
-      <div className="w-24 shrink-0 px-2 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
-        Return
-      </div>
-      <div className="w-24 shrink-0 px-2 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
-        vs {benchmarkLabel}
-      </div>
+      {singlePerf ? (
+        <div className="w-32 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
+          Performance
+        </div>
+      ) : (
+        <>
+          <div className="w-24 shrink-0 px-2 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
+            Return
+          </div>
+          <div className="w-24 shrink-0 px-2 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
+            vs {benchmarkLabel}
+          </div>
+        </>
+      )}
       <div className="w-44 shrink-0 px-3 py-2.5 text-center">Action</div>
     </div>
   );
@@ -71,6 +83,10 @@ interface MarketRowProps<W> {
   benchmarkLabel: string;
   RowActionCell: ComponentType<{ dealing: MarketDealing<W> }>;
   hideDate?: boolean;
+  /** When set, the row renders a single Performance cell that flips between
+   *  raw return and alpha based on `isVsMarket`. When omitted the row keeps
+   *  the older two-cell (Return + vs Benchmark) layout. */
+  metricMode?: { isVsMarket: boolean };
 }
 
 /** A single dealing row, shared across all markets. The shell hands in the
@@ -88,7 +104,10 @@ export function MarketRow<W>({
   benchmarkLabel,
   RowActionCell,
   hideDate,
+  metricMode,
 }: MarketRowProps<W>) {
+  const singlePerf = !!metricMode;
+  const showAlpha = metricMode?.isVsMarket ?? false;
   // Loud when the row has earned an analysis rating, quiet otherwise. Mirrors
   // the UK row's `muted = !analysis` convention so the unread pool fades and
   // the analysed rows stand out at a glance.
@@ -156,14 +175,29 @@ export function MarketRow<W>({
             )}
           </div>
         </div>
-        {(stockPct != null || alpha != null) && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {stockPct != null && <DeltaBadge value={stockPct} />}
-            {alpha != null && <DeltaBadge value={alpha} suffix="pp" />}
-            {alpha != null && (
-              <span className="text-[10px] text-muted/70">vs {benchmarkLabel}</span>
-            )}
-          </div>
+        {singlePerf ? (
+          (showAlpha ? alpha != null : stockPct != null) && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {showAlpha ? (
+                <>
+                  <DeltaBadge value={alpha!} suffix="pp" />
+                  <span className="text-[10px] text-muted/70">vs {benchmarkLabel}</span>
+                </>
+              ) : (
+                <DeltaBadge value={stockPct!} />
+              )}
+            </div>
+          )
+        ) : (
+          (stockPct != null || alpha != null) && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {stockPct != null && <DeltaBadge value={stockPct} />}
+              {alpha != null && <DeltaBadge value={alpha} suffix="pp" />}
+              {alpha != null && (
+                <span className="text-[10px] text-muted/70">vs {benchmarkLabel}</span>
+              )}
+            </div>
+          )
         )}
       </div>
 
@@ -202,12 +236,24 @@ export function MarketRow<W>({
             )}
           </div>
         </div>
-        <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-          {stockPct != null ? <DeltaBadge value={stockPct} /> : <span className="text-xs text-muted/50">—</span>}
-        </div>
-        <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-          {alpha != null ? <DeltaBadge value={alpha} suffix="pp" /> : <span className="text-xs text-muted/50">—</span>}
-        </div>
+        {singlePerf ? (
+          <div className="w-32 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+            {showAlpha ? (
+              alpha != null ? <DeltaBadge value={alpha} suffix="pp" /> : <span className="text-xs text-muted/50">—</span>
+            ) : (
+              stockPct != null ? <DeltaBadge value={stockPct} /> : <span className="text-xs text-muted/50">—</span>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+              {stockPct != null ? <DeltaBadge value={stockPct} /> : <span className="text-xs text-muted/50">—</span>}
+            </div>
+            <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+              {alpha != null ? <DeltaBadge value={alpha} suffix="pp" /> : <span className="text-xs text-muted/50">—</span>}
+            </div>
+          </>
+        )}
         <div className="w-44 shrink-0 px-3 py-4 flex flex-col items-center justify-center gap-1">
           <RowActionCell dealing={dealing} />
         </div>

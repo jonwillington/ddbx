@@ -228,4 +228,30 @@ export interface MarketConfig<W = unknown> {
   heroFilters?: HeroFilter<W>[];
   /** Default-selected hero filter id; falls back to heroFilters[0]?.id. */
   defaultHeroFilter?: string;
+
+  /** Optional metric-mode hook. Markets that opt in get a single Performance
+   *  cell on every row whose semantic (raw return vs alpha) flips with the
+   *  hook's `isVsMarket`; the benchmark entry is picked from the
+   *  `anchorsOnDisclosure` axis so the alpha number tracks the right window.
+   *  Pair with `MetricModeSheet` so the toolbar gear actually toggles
+   *  something. Markets without this stay on the two-cell (Return + vs
+   *  Benchmark) layout. */
+  useMetricMode?: () => MetricModeInfo;
+  /** Modal sheet rendered when the toolbar metric button is clicked. Shell
+   *  owns the open state and passes it down. */
+  MetricModeSheet?: ComponentType<{ open: boolean; onClose: () => void }>;
+}
+
+/** Shape the shell expects back from `useMetricMode`. Mirrors the relevant
+ *  fields from `useDashboardMetricMode` — markets supplying their own hook
+ *  just need to expose these three. */
+export interface MetricModeInfo {
+  /** When true, the Performance cell shows alpha (stock − benchmark). When
+   *  false, it shows raw stock return. */
+  isVsMarket: boolean;
+  /** When true, alpha is computed from the disclosure-day benchmark close;
+   *  otherwise from the trade-day close. */
+  anchorsOnDisclosure: boolean;
+  /** Short label rendered inside the toolbar chip — "Raw" / "Market" etc. */
+  shortLabel: string;
 }

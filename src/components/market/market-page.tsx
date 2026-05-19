@@ -39,6 +39,13 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
   const [heroFilterId, setHeroFilterId] = useState<string | null>(
     config.defaultHeroFilter ?? config.heroFilters?.[0]?.id ?? null,
   );
+  const [metricSheetOpen, setMetricSheetOpen] = useState(false);
+
+  // Hooks must be called unconditionally — when the market doesn't opt in we
+  // still need a stable hook position, so call a no-op fallback. Markets
+  // without useMetricMode keep the older two-cell perf layout.
+  const useMetricMode = config.useMetricMode;
+  const metricInfo = useMetricMode ? useMetricMode() : null;
 
   /** Live stock prices keyed by ticker — close_pence column raw values. */
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -170,13 +177,21 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
     [prices, config],
   );
 
+  // When the market opts into useMetricMode and the user picks the
+  // disclosure anchor, we look up the benchmark close on the disclosure
+  // date first (and fall back to trade-day). Otherwise the older trade-day
+  // preference stands.
+  const anchorsOnDisclosure = metricInfo?.anchorsOnDisclosure ?? false;
   const benchmarkEntry = useCallback(
     (d: MarketDealing<W>): number | undefined => {
       const tradeIso = d.tradeDate.slice(0, 10);
       const disclosedIso = d.disclosedDate.slice(0, 10);
+      if (anchorsOnDisclosure) {
+        return benchEntries[disclosedIso] ?? benchEntries[tradeIso];
+      }
       return benchEntries[tradeIso] ?? benchEntries[disclosedIso];
     },
-    [benchEntries],
+    [benchEntries, anchorsOnDisclosure],
   );
 
   const benchmarkCurrent = prices[config.benchmarkTicker];
@@ -239,6 +254,20 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
 
   const currentView = config.views.find((v) => v.id === view);
   const heroViewLabel = currentView ? `${currentView.label} filings` : "Filings";
+
+  const metricChip = metricInfo ? (
+    <button
+      type="button"
+      onClick={() => setMetricSheetOpen(true)}
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#6b5038]/10 px-3 py-1 text-xs font-semibold text-[#6b5038] hover:bg-[#6b5038]/15 transition-colors"
+    >
+      {metricInfo.shortLabel}
+      <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3" aria-hidden="true">
+        <path d="M2 4.5h12M5 8h8m-5 3.5h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    </button>
+  ) : null;
+  const rowMetricMode = metricInfo ? { isVsMarket: metricInfo.isVsMarket } : undefined;
 
   /* ───────── Handlers ────────────────────────────────────────────────── */
 
@@ -434,6 +463,7 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
                   fmt={config.priceFormat}
                   benchmarkLabel={config.benchmarkLabel}
                   RowActionCell={config.RowActionCell}
+                  metricMode={rowMetricMode}
                   hideDate
                 />
               ))}
@@ -463,8 +493,9 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
               onViewMode={setViewMode}
               search={search}
               onSearch={setSearch}
+              trailing={metricChip}
             />
-            <MarketRowHeader benchmarkLabel={config.benchmarkLabel} />
+            <MarketRowHeader benchmarkLabel={config.benchmarkLabel} singlePerf={!!metricInfo} />
             <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
               {byGain.map(({ dealing: d }) => (
                 <MarketRow
@@ -478,6 +509,7 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
                   fmt={config.priceFormat}
                   benchmarkLabel={config.benchmarkLabel}
                   RowActionCell={config.RowActionCell}
+                  metricMode={rowMetricMode}
                 />
               ))}
             </div>
@@ -522,7 +554,7 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
                   </div>
                   {monthOpen && (
                     <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
-                      <MarketRowHeader benchmarkLabel={config.benchmarkLabel} />
+                      <MarketRowHeader benchmarkLabel={config.benchmarkLabel} singlePerf={!!metricInfo} />
                       <div className="divide-y divide-black/[0.06] dark:divide-separator">
                         {month.days.map((day) => (
                           <Fragment key={day.key}>
@@ -586,6 +618,13 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
         DetailBody={config.DetailBody}
         DetailPosition={config.DetailPosition}
       />
+
+      {config.MetricModeSheet && (
+        <config.MetricModeSheet
+          open={metricSheetOpen}
+          onClose={() => setMetricSheetOpen(false)}
+        />
+      )}
     </DefaultLayout>
   );
 }
