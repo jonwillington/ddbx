@@ -131,6 +131,16 @@ export interface NewsPayload {
   fetched_at: string | null;
 }
 
+/** Hero-card filter pill — a second axis on top of view tabs, used by UK
+ *  to narrow the "average return vs benchmark" stat to one rating tier
+ *  without changing what list is being fetched. The predicate runs over
+ *  MarketDealings the shell already has on hand. */
+export interface HeroFilter<W = unknown> {
+  id: string;
+  label: string;
+  predicate: (d: MarketDealing<W>) => boolean;
+}
+
 /** A complete market plugin. Everything per-market hangs off here. */
 export interface MarketConfig<W = unknown> {
   /** Stable identifier (`uk` | `us` | `eu` | …). Used in keys and URLs. */
@@ -210,4 +220,12 @@ export interface MarketConfig<W = unknown> {
    *  concept can omit this and fall back to the generic "No filings yet"
    *  copy. The slot is a Component (not a render fn) so it can hold hooks. */
   TodayEmpty?: ComponentType;
+
+  /** Hero-card filter pills. Optional — when present, MarketPage renders a
+   *  pill strip above the hero and narrows the hero performance stats to
+   *  the matching dealings. UK uses this for the rating axis
+   *  (Significant / Noteworthy / All / Routine). */
+  heroFilters?: HeroFilter<W>[];
+  /** Default-selected hero filter id; falls back to heroFilters[0]?.id. */
+  defaultHeroFilter?: string;
 }

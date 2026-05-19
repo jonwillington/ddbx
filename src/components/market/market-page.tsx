@@ -36,6 +36,9 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
   const [err, setErr] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [openMonths, setOpenMonths] = useState<Set<string> | null>(null);
+  const [heroFilterId, setHeroFilterId] = useState<string | null>(
+    config.defaultHeroFilter ?? config.heroFilters?.[0]?.id ?? null,
+  );
 
   /** Live stock prices keyed by ticker — close_pence column raw values. */
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -190,10 +193,21 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
       .sort((a, b) => b.pct - a.pct);
   }, [filteredDealings, stockCurrent]);
 
+  // Hero filter narrows the dataset behind heroStats only — today list and
+  // monthly buckets stay on the unfiltered set so the user's view of "the
+  // market" doesn't collapse when they ask "how are my Significant picks
+  // doing?". Matches dashboard.tsx heroFilter semantics.
+  const heroFilteredDealings = useMemo(() => {
+    if (!config.heroFilters || !heroFilterId) return filteredDealings;
+    const f = config.heroFilters.find((h) => h.id === heroFilterId);
+    if (!f) return filteredDealings;
+    return filteredDealings.filter(f.predicate);
+  }, [filteredDealings, config.heroFilters, heroFilterId]);
+
   const heroStats = useMemo<MarketHeroStats | null>(() => {
     if (benchmarkCurrent == null || Object.keys(benchEntries).length === 0) return null;
     const picks: { stockRet: number; benchRet: number }[] = [];
-    for (const d of filteredDealings) {
+    for (const d of heroFilteredDealings) {
       const current = stockCurrent(d.ticker);
       const benchEntry = benchmarkEntry(d);
       if (
@@ -216,7 +230,7 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
       alphaPp: (avgStock - avgBench) * 100,
       beatCount: picks.filter((p) => p.stockRet > p.benchRet).length,
     };
-  }, [filteredDealings, stockCurrent, benchmarkEntry, benchmarkCurrent, benchEntries]);
+  }, [heroFilteredDealings, stockCurrent, benchmarkEntry, benchmarkCurrent, benchEntries]);
 
   const selectedDealing = useMemo(
     () => (selectedKey ? filteredDealings.find((d) => d.key === selectedKey) ?? null : null),
@@ -287,11 +301,12 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div
-            role="tablist"
-            className="inline-flex rounded-full border border-separator bg-surface/40 p-1"
-          >
-            {config.views.map((v) => (
+          {config.views.length > 1 && (
+            <div
+              role="tablist"
+              className="inline-flex rounded-full border border-separator bg-surface/40 p-1"
+            >
+              {config.views.map((v) => (
               <button
                 key={v.id}
                 role="tab"
@@ -311,7 +326,8 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
                 )}
               </button>
             ))}
-          </div>
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-3 text-xs">
             {stats?.latestDisclosedLabel && (
               <span className="text-muted hidden sm:inline">
@@ -352,6 +368,25 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
         )}
 
         {/* Hero — performance vs benchmark + market positioning copy */}
+        {config.heroFilters && config.heroFilters.length > 0 && (
+          <div role="tablist" className="-mb-2 flex flex-wrap gap-1.5">
+            {config.heroFilters.map((f) => (
+              <button
+                key={f.id}
+                role="tab"
+                aria-selected={heroFilterId === f.id}
+                onClick={() => setHeroFilterId(f.id)}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                  heroFilterId === f.id
+                    ? "border-[#6b5038]/50 bg-[#6b5038]/10 text-[#6b5038] dark:text-[#a8804e]"
+                    : "border-separator text-muted hover:text-foreground hover:border-[#6b5038]/30"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
           <div className="hidden lg:flex flex-col justify-center px-2">
             <h2 className="text-2xl font-semibold tracking-tight">{config.heroHeading}</h2>

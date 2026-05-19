@@ -326,15 +326,18 @@ function UkTodayEmpty() {
 
 /* ─── MarketConfig ───────────────────────────────────────────────────── */
 
-// Rating-keyed views. The live UK page treats this as a hero-filter
-// concept layered on top of an "all" chronological list — Phase 2 will
-// add proper hero-filter support; for Phase 1 we approximate by filtering
-// at fetch time and computing counts client-side.
-const RATING_BUCKETS: Array<{ id: string; label: string; predicate: (r?: Rating) => boolean }> = [
-  { id: "significant", label: "Significant", predicate: (r) => r === "significant" },
-  { id: "noteworthy", label: "Noteworthy", predicate: (r) => r === "significant" || r === "noteworthy" },
-  { id: "all", label: "All", predicate: () => true },
-];
+// Rating-keyed hero pills. Live UK dashboard has this as a four-way
+// filter that narrows the "Average return vs FTSE" stat to one rating
+// tier — pipeline stages aren't a concept here (Opus screens every
+// disclosure), so view tabs collapse to a single "All" view and the
+// rating axis lives on heroFilters.
+function ratingPredicate(target: Rating | "any" | "routine") {
+  return (d: { rating?: Rating }) => {
+    if (target === "any") return true;
+    if (target === "routine") return !d.rating || d.rating === "routine";
+    return d.rating === target;
+  };
+}
 
 export const UkMarket: MarketConfig<Dealing> = {
   id: "uk",
@@ -362,27 +365,30 @@ export const UkMarket: MarketConfig<Dealing> = {
   normalizeLivePrice: (close_pence) => close_pence,
   benchmarkTicker: FTSE_TICKER,
   benchmarkLabel: FTSE_LABEL,
-  views: RATING_BUCKETS.map((b) => ({ id: b.id, label: b.label })),
-  defaultView: "significant",
+  // Single view — UK doesn't have pipeline stages the way US does, so the
+  // tab strip is hidden (MarketPage shows it only when len > 1).
+  views: [{ id: "all", label: "All" }],
+  defaultView: "all",
+  heroFilters: [
+    { id: "significant", label: "Significant", predicate: ratingPredicate("significant") },
+    { id: "noteworthy", label: "Noteworthy", predicate: ratingPredicate("noteworthy") },
+    { id: "routine", label: "Routine / unrated", predicate: ratingPredicate("routine") },
+    { id: "any", label: "All", predicate: ratingPredicate("any") },
+  ],
+  defaultHeroFilter: "significant",
   pollIntervalMs: 30_000,
   fetchNews: () => api.ukNews(),
   newsHeading: "UK market news",
   newsFooterNote:
     "Third-party headlines (FT, Reuters, BBC Business, Guardian Business); opens in a new tab.",
-  async fetchDealings({ view }) {
-    const bucket =
-      RATING_BUCKETS.find((b) => b.id === view) ?? RATING_BUCKETS[RATING_BUCKETS.length - 1];
-    // api.dealings() unwraps to a flat Dealing[] (see lib/api.ts).
+  async fetchDealings() {
+    // api.dealings() unwraps to a flat Dealing[] (see lib/api.ts). UK loads
+    // the whole list and lets the hero filter narrow client-side — matches
+    // the live dashboard behaviour and keeps API surface unchanged.
     const all = await api.dealings();
-    const filtered = all.filter((d) => bucket.predicate(d.analysis?.rating));
     const stats: MarketStats = {
       total: all.length,
-      viewCounts: Object.fromEntries(
-        RATING_BUCKETS.map((b) => [
-          b.id,
-          all.filter((d) => b.predicate(d.analysis?.rating)).length,
-        ]),
-      ),
+      viewCounts: { all: all.length },
       latestDisclosedLabel: (() => {
         if (all.length === 0) return undefined;
         const latest = all.reduce<string | null>((acc, d) => {
@@ -393,42 +399,11 @@ export const UkMarket: MarketConfig<Dealing> = {
         return latest ? `Latest disclosure ${latest.slice(0, 10)}` : undefined;
       })(),
     };
-    return {
-      dealings: filtered.map(toMarketDealing),
-      stats,
-    };
+    return { dealings: all.map(toMarketDealing), stats };
   },
   RowActionCell: UkRowActionCell,
   DetailBody: UkDetailBody,
   DetailPosition: UkDetailPosition,
   TodayEmpty: UkTodayEmpty,
-  renderEmptyState: ({ view, stats, setView }) => {
-    if (view === "significant") {
-      return (
-        <>
-          No <em>significant</em> trades in the current window.{" "}
-          <button
-            onClick={() => setView("noteworthy")}
-            className="text-foreground/70 underline underline-offset-2 hover:text-foreground"
-          >
-            Show noteworthy ({stats?.viewCounts.noteworthy ?? 0})
-          </button>
-        </>
-      );
-    }
-    if (view === "noteworthy") {
-      return (
-        <>
-          No noteworthy trades.{" "}
-          <button
-            onClick={() => setView("all")}
-            className="text-foreground/70 underline underline-offset-2 hover:text-foreground"
-          >
-            Show all {stats?.total ?? 0} disclosures
-          </button>
-        </>
-      );
-    }
-    return <>No UK disclosures stored yet.</>;
-  },
+  renderEmptyState: () => <>No UK disclosures stored yet.</>,
 };
