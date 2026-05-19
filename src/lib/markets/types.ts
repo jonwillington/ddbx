@@ -153,6 +153,9 @@ export interface MarketConfig<W = unknown> {
   /** Short market label substituted into the shared hero headline
    *  ("Which directors have been buying shares in {marketLabel} companies?"). */
   marketLabel: string;
+  /** Optional banner rendered above the hero — used by markets in
+   *  early-access / beta to disclose data confidence. */
+  topNotice?: ReactNode;
 
   /** Currency formatter bundle — used everywhere money is rendered. */
   priceFormat: PriceFormat;

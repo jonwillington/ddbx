@@ -328,6 +328,17 @@ export function MarketPage<W>({
   return (
     <DefaultLayout drawerRight>
       <section className="pb-8 space-y-6">
+        {config.topNotice && (
+          <div className="-mx-4 md:-mx-6 px-4 md:px-6 py-2.5 text-center text-sm border-b border-amber-300/40 bg-amber-100/60 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-800/50">
+            <span className="inline-flex items-center gap-2">
+              <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                Beta
+              </span>
+              {config.topNotice}
+            </span>
+          </div>
+        )}
+
         {/* Shared hero — first content under the navbar. Perf moved to
             /performance; the old title + description block is dropped
             because the hero IS the page heading. */}

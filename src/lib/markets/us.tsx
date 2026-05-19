@@ -532,6 +532,7 @@ export const UsMarket: MarketConfig<UsRowGroup> = {
     </>
   ),
   marketLabel: "US",
+  topNotice: "The US is in BETA currently.",
   priceFormat: USD_FORMAT,
   // Yahoo USD bars are observed stored as USD-cents in close_pence (e.g.
   // AAPL at $222 stored as 22251). /100 brings them into the major unit
