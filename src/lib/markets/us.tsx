@@ -531,12 +531,7 @@ export const UsMarket: MarketConfig<UsRowGroup> = {
       shows everything for spot-checking the noise.
     </>
   ),
-  heroHeading: "Find value in insider deals.",
-  heroTaglines: [
-    "Every US Form 4 insider filing, automatically screened",
-    "Haiku triage scores each disclosure by signal strength",
-    "Returns measured against the S&P 500 from trade date",
-  ],
+  marketLabel: "US",
   priceFormat: USD_FORMAT,
   // Yahoo USD bars are observed stored as USD-cents in close_pence (e.g.
   // AAPL at $222 stored as 22251). /100 brings them into the major unit

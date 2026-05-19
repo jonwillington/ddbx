@@ -150,10 +150,9 @@ export interface MarketConfig<W = unknown> {
   title: string;
   /** Explainer paragraph under the title. Markdown-y JSX is fine. */
   description: ReactNode;
-  /** Marketing taglines for the lg+ left-side hero column. */
-  heroTaglines: string[];
-  /** Headline above the taglines. */
-  heroHeading: string;
+  /** Short market label substituted into the shared hero headline
+   *  ("Which directors have been buying shares in {marketLabel} companies?"). */
+  marketLabel: string;
 
   /** Currency formatter bundle — used everywhere money is rendered. */
   priceFormat: PriceFormat;

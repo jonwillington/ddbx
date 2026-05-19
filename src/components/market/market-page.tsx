@@ -17,7 +17,7 @@ import type {
 
 import { MarketDetailDrawer } from "./market-detail-drawer";
 import { MarketFilterBar, type MarketViewMode } from "./market-filter-bar";
-import { MarketHeroCard, type MarketHeroStats } from "./market-hero";
+import { MarketHero } from "./market-hero";
 import { MarketRow, MarketRowHeader, MarketRowSkeleton } from "./market-row";
 import { MarketSkippedCluster } from "./market-skipped-cluster";
 import { MarketTodayDrawer } from "./market-today-drawer";
@@ -165,16 +165,25 @@ export function MarketPage<W>({
 
   /* ───────── Derived state ───────────────────────────────────────────── */
 
+  // Hero filter pills now act on the actual deals list (not just on the
+  // long-gone hero perf card). Predicate runs first; the search box is
+  // applied on top so the user can filter further inside a rating tier.
+  const heroPredicate = useMemo(() => {
+    if (!config.heroFilters || !heroFilterId) return null;
+    return config.heroFilters.find((h) => h.id === heroFilterId)?.predicate ?? null;
+  }, [config.heroFilters, heroFilterId]);
+
   const filteredDealings = useMemo(() => {
-    if (!search.trim()) return dealings;
+    let base = heroPredicate ? dealings.filter(heroPredicate) : dealings;
     const q = search.trim().toLowerCase();
-    return dealings.filter(
+    if (!q) return base;
+    return base.filter(
       (d) =>
         d.ticker.toLowerCase().includes(q) ||
         d.company.toLowerCase().includes(q) ||
         d.insiderName.toLowerCase().includes(q),
     );
-  }, [dealings, search]);
+  }, [dealings, search, heroPredicate]);
 
   const todayIso = useMemo(() => todayKeyIso(), []);
 
@@ -234,52 +243,12 @@ export function MarketPage<W>({
       .sort((a, b) => b.pct - a.pct);
   }, [filteredDealings, stockCurrent]);
 
-  // Hero filter narrows the dataset behind heroStats only — today list and
-  // monthly buckets stay on the unfiltered set so the user's view of "the
-  // market" doesn't collapse when they ask "how are my Significant picks
-  // doing?". Matches dashboard.tsx heroFilter semantics.
-  const heroFilteredDealings = useMemo(() => {
-    if (!config.heroFilters || !heroFilterId) return filteredDealings;
-    const f = config.heroFilters.find((h) => h.id === heroFilterId);
-    if (!f) return filteredDealings;
-    return filteredDealings.filter(f.predicate);
-  }, [filteredDealings, config.heroFilters, heroFilterId]);
-
-  const heroStats = useMemo<MarketHeroStats | null>(() => {
-    if (benchmarkCurrent == null || Object.keys(benchEntries).length === 0) return null;
-    const picks: { stockRet: number; benchRet: number }[] = [];
-    for (const d of heroFilteredDealings) {
-      const current = stockCurrent(d.ticker);
-      const benchEntry = benchmarkEntry(d);
-      if (
-        d.entryPrice == null || d.entryPrice <= 0 ||
-        current == null ||
-        benchEntry == null || benchEntry <= 0
-      ) continue;
-      const stockRet = (current - d.entryPrice) / d.entryPrice;
-      const benchRet = (benchmarkCurrent - benchEntry) / benchEntry;
-      if (!isFinite(stockRet) || !isFinite(benchRet)) continue;
-      picks.push({ stockRet, benchRet });
-    }
-    if (picks.length === 0) return null;
-    const avgStock = picks.reduce((s, p) => s + p.stockRet, 0) / picks.length;
-    const avgBench = picks.reduce((s, p) => s + p.benchRet, 0) / picks.length;
-    return {
-      count: picks.length,
-      avgStock,
-      avgBench,
-      alphaPp: (avgStock - avgBench) * 100,
-      beatCount: picks.filter((p) => p.stockRet > p.benchRet).length,
-    };
-  }, [heroFilteredDealings, stockCurrent, benchmarkEntry, benchmarkCurrent, benchEntries]);
-
   const selectedDealing = useMemo(
     () => (selectedKey ? filteredDealings.find((d) => d.key === selectedKey) ?? null : null),
     [filteredDealings, selectedKey],
   );
 
   const currentView = config.views.find((v) => v.id === view);
-  const heroViewLabel = currentView ? `${currentView.label} filings` : "Filings";
 
   const metricChip = metricInfo ? (
     <button
@@ -359,60 +328,58 @@ export function MarketPage<W>({
   return (
     <DefaultLayout drawerRight>
       <section className="pb-8 space-y-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-            {config.title}
-          </h1>
-          <div className="mt-2 text-sm text-foreground/55 max-w-2xl">
-            {config.description}
-          </div>
-        </div>
+        {/* Shared hero — first content under the navbar. Perf moved to
+            /performance; the old title + description block is dropped
+            because the hero IS the page heading. */}
+        <MarketHero marketLabel={config.marketLabel} />
 
-        <div className="flex flex-wrap items-center gap-3">
-          {config.views.length > 1 && (
-            <div
-              role="tablist"
-              className="inline-flex rounded-full border border-separator bg-surface/40 p-1"
-            >
-              {config.views.map((v) => (
-              <button
-                key={v.id}
-                role="tab"
-                aria-selected={view === v.id}
-                onClick={() => setView(v.id)}
-                className={`text-sm px-4 py-1.5 rounded-full transition-colors font-medium ${
-                  view === v.id
-                    ? "bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882]"
-                    : "text-muted hover:text-foreground"
-                }`}
+        {(config.views.length > 1 || config.ingest || stats?.latestDisclosedLabel) && (
+          <div className="flex flex-wrap items-center gap-3">
+            {config.views.length > 1 && (
+              <div
+                role="tablist"
+                className="inline-flex rounded-full border border-separator bg-surface/40 p-1"
               >
-                {v.label}
-                {stats && (
-                  <span className="ml-1 text-xs opacity-60 tabular-nums">
-                    {stats.viewCounts[v.id] ?? 0}
-                  </span>
-                )}
-              </button>
-            ))}
+                {config.views.map((v) => (
+                  <button
+                    key={v.id}
+                    role="tab"
+                    aria-selected={view === v.id}
+                    onClick={() => setView(v.id)}
+                    className={`text-sm px-4 py-1.5 rounded-full transition-colors font-medium ${
+                      view === v.id
+                        ? "bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882]"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {v.label}
+                    {stats && (
+                      <span className="ml-1 text-xs opacity-60 tabular-nums">
+                        {stats.viewCounts[v.id] ?? 0}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="ml-auto flex items-center gap-3 text-xs">
+              {stats?.latestDisclosedLabel && (
+                <span className="text-muted hidden sm:inline">
+                  {stats.latestDisclosedLabel}
+                </span>
+              )}
+              {config.ingest && (
+                <button
+                  onClick={runIngest}
+                  disabled={ingesting}
+                  className="rounded-full border border-separator bg-[#6b5038]/10 hover:bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882] px-3 py-1.5 font-medium disabled:opacity-50 transition-colors"
+                >
+                  {ingesting ? "Fetching…" : config.ingest.label}
+                </button>
+              )}
             </div>
-          )}
-          <div className="ml-auto flex items-center gap-3 text-xs">
-            {stats?.latestDisclosedLabel && (
-              <span className="text-muted hidden sm:inline">
-                {stats.latestDisclosedLabel}
-              </span>
-            )}
-            {config.ingest && (
-              <button
-                onClick={runIngest}
-                disabled={ingesting}
-                className="rounded-full border border-separator bg-[#6b5038]/10 hover:bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882] px-3 py-1.5 font-medium disabled:opacity-50 transition-colors"
-              >
-                {ingesting ? "Fetching…" : config.ingest.label}
-              </button>
-            )}
           </div>
-        </div>
+        )}
 
         {ingestSummary && (
           <div className="rounded-lg border border-separator bg-surface/40 px-4 py-2 text-xs text-foreground/65">
@@ -435,9 +402,10 @@ export function MarketPage<W>({
           </div>
         )}
 
-        {/* Hero — performance vs benchmark + market positioning copy */}
+        {/* Rating filter pills sit directly above the deals; they now filter
+            the actual list (not just a defunct hero stats card). */}
         {config.heroFilters && config.heroFilters.length > 0 && (
-          <div role="tablist" className="-mb-2 flex flex-wrap gap-1.5">
+          <div role="tablist" className="flex flex-wrap justify-center gap-1.5 animate-content-in">
             {config.heroFilters.map((f) => (
               <button
                 key={f.id}
@@ -455,24 +423,6 @@ export function MarketPage<W>({
             ))}
           </div>
         )}
-        <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-          <div className="hidden lg:flex flex-col justify-center px-2">
-            <h2 className="text-2xl font-semibold tracking-tight">{config.heroHeading}</h2>
-            <ul className="mt-4 space-y-1.5 text-sm text-muted">
-              {config.heroTaglines.map((line) => (
-                <li key={line} className="flex items-center gap-2">
-                  <span className="text-[#6b5038]">✓</span>
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <MarketHeroCard
-            stats={heroStats}
-            benchmarkLabel={config.benchmarkLabel}
-            viewLabel={heroViewLabel}
-          />
-        </div>
 
         {/* Today — inline card; lg+ hides this because the right drawer
             already shows today's filings. */}

@@ -388,12 +388,7 @@ export const UkMarket: MarketConfig<Dealing> = {
       every disclosed buy for spot-checking the noise floor.
     </>
   ),
-  heroHeading: "Follow the signal in director dealings.",
-  heroTaglines: [
-    "Every UK RNS director disclosure, screened by Opus",
-    "Each significant trade tracked vs the FTSE All-Share",
-    "Direct disclosures only — no scheme exercises or in-the-money awards",
-  ],
+  marketLabel: "UK",
   priceFormat: GBP_FORMAT,
   // For LSE tickers /api/prices already stores pence (close_pence is literal
   // pence), and Dealing.price_pence is pence too, so the major unit on
