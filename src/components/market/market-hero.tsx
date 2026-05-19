@@ -1,10 +1,11 @@
-/** Shared hero section. One templated headline + the ambient orb/trend-
- *  line animation ported from the retired dashboard hero. Animations are
- *  CSS-only and respect prefers-reduced-motion. */
+/** Shared hero section. One templated headline + ambient orb / trend-line
+ *  animation ported from the retired dashboard hero. Orbs are confined to
+ *  side panels so they sit beside the headline, not behind it. Animations
+ *  are CSS-only and respect prefers-reduced-motion. */
 export function MarketHero({ marketLabel }: { marketLabel: string }) {
   return (
     <header className="relative -mx-4 md:-mx-6 overflow-hidden animate-content-in">
-      {/* Gradient fades so the orbs dissolve into the surrounding page */}
+      {/* Top/bottom fades dissolve the orbs into the surrounding page */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-16 z-[5] bg-gradient-to-b from-[#f5f0e8] dark:from-background to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 z-[5] bg-gradient-to-t from-[#f5f0e8] dark:from-background to-transparent" />
 
@@ -94,8 +95,9 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
         }
       `}</style>
 
-      {/* Orb + trend-line layer — hidden below md so phones stay quiet */}
-      <div aria-hidden className="hidden md:block absolute inset-0 z-0 pointer-events-none">
+      {/* Left side panel — orbs anchored at the right edge so they drift
+          out toward the gutter rather than into the headline. */}
+      <div aria-hidden className="hidden md:block absolute inset-y-0 left-0 w-[28%] overflow-hidden z-0 pointer-events-none">
         <svg
           aria-hidden
           className="absolute inset-0 w-full h-full"
@@ -104,41 +106,62 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
         >
           <polyline
             className="hero-line hero-line-a"
-            points="0,56 10,51 18,47 24,53 33,45 41,41 49,44 57,37 65,33 71,37 79,30 87,27 95,25 100,23"
+            points="0,56 12,51 22,47 32,53 44,45 56,41 68,44 80,37 92,33 100,30"
             stroke="#9a8878"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
           <polyline
             className="hero-line hero-line-b"
-            points="0,68 14,73 26,80 38,77 50,70 62,63 72,58 82,53 92,49 100,46"
+            points="0,68 16,73 30,80 46,77 62,70 78,63 92,58 100,55"
             stroke="#b0a090"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
+        </svg>
+        <div className="hero-orb hero-orb-a" style={{ right: "-20%", top: "-30%", width: 320, height: 320, background: "#b8a898" }} />
+        <div className="hero-orb hero-orb-c" style={{ right:  "10%", top:  "30%", width: 260, height: 260, background: "#a89880" }} />
+        <div className="hero-orb hero-orb-e" style={{ right: "-10%", top:   "0%", width: 240, height: 240, border: "1px solid #b0a090", background: "transparent" }} />
+        <div className="hero-glow hero-glow-a" style={{ right: "20%", top: "30%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
+        <div className="hero-dot  hero-dot-a"  style={{ right: "20%", top: "30%", width: 10, height: 10, background: "#8B6040", marginRight: 5, marginTop: 5 }} />
+      </div>
+
+      {/* Right side panel — mirror, anchored at the left edge. */}
+      <div aria-hidden className="hidden md:block absolute inset-y-0 right-0 w-[28%] overflow-hidden z-0 pointer-events-none">
+        <svg
+          aria-hidden
+          className="absolute inset-0 w-full h-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
           <polyline
             className="hero-line hero-line-c"
-            points="38,53 48,48 55,51 63,44 71,48 79,41 87,45 94,39 100,37"
+            points="0,53 12,48 22,51 34,44 48,48 62,41 76,45 88,39 100,37"
             stroke="#8B7258"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
+          <polyline
+            className="hero-line hero-line-b"
+            points="0,30 14,33 28,30 44,27 58,25 74,22 88,20 100,18"
+            stroke="#b0a090"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+          />
         </svg>
-        <div className="hero-orb hero-orb-a" style={{ left: "8%",  top: "-40%", width: 320, height: 320, background: "#b8a898" }} />
-        <div className="hero-orb hero-orb-b" style={{ left: "60%", top: "-20%", width: 280, height: 280, background: "#c4b5a5" }} />
-        <div className="hero-orb hero-orb-c" style={{ left: "30%", top: "40%",  width: 260, height: 260, background: "#a89880" }} />
-        <div className="hero-orb hero-orb-d" style={{ left: "70%", top: "30%",  width: 360, height: 360, border: "1px solid #9a8878", background: "transparent" }} />
-        <div className="hero-orb hero-orb-e" style={{ left: "15%", top: "10%",  width: 240, height: 240, border: "1px solid #b0a090", background: "transparent" }} />
-        <div className="hero-glow hero-glow-a" style={{ left: "20%", top: "30%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
-        <div className="hero-dot  hero-dot-a"  style={{ left: "20%", top: "30%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
-        <div className="hero-glow hero-glow-b" style={{ left: "55%", top: "65%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
-        <div className="hero-dot  hero-dot-b"  style={{ left: "55%", top: "65%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
-        <div className="hero-glow hero-glow-c" style={{ left: "78%", top: "20%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
-        <div className="hero-dot  hero-dot-c"  style={{ left: "78%", top: "20%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
+        <div className="hero-orb hero-orb-b" style={{ left: "-15%", top: "-25%", width: 280, height: 280, background: "#c4b5a5" }} />
+        <div className="hero-orb hero-orb-d" style={{ left:  "20%", top:  "25%", width: 360, height: 360, border: "1px solid #9a8878", background: "transparent" }} />
+        <div className="hero-glow hero-glow-b" style={{ left: "15%", top: "60%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
+        <div className="hero-dot  hero-dot-b"  style={{ left: "15%", top: "60%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
+        <div className="hero-glow hero-glow-c" style={{ left: "45%", top: "20%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
+        <div className="hero-dot  hero-dot-c"  style={{ left: "45%", top: "20%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
       </div>
 
       <div className="relative z-10 py-10 md:py-16 px-4 text-center">
-        <h2 className="mx-auto max-w-3xl text-balance text-2xl md:text-4xl font-semibold tracking-tight leading-tight">
+        <h2
+          className="mx-auto text-balance text-3xl font-semibold tracking-tight leading-[1.05] md:text-[52px]"
+          style={{ maxWidth: 550 }}
+        >
           Which directors have been buying shares in{" "}
           <span className="text-[#6b5038] dark:text-[#c4a882]">{marketLabel}</span>{" "}
           companies?

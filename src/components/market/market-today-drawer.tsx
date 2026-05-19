@@ -197,7 +197,7 @@ function TodayRow<W>({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary shrink-0">
-              {dealing.ticker || "—"}
+              {(dealing.ticker || "—").replace(/\.L$/, "")}
             </span>
             <span className="text-sm font-medium truncate">
               {dealing.company || "—"}

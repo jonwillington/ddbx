@@ -204,7 +204,10 @@ export function MarketRow<W>({
       : null;
   const alpha = stockPct != null && benchPct != null ? stockPct - benchPct : null;
 
-  const ticker = dealing.ticker || "—";
+  // UK LSE tickers carry a ".L" suffix on the wire (used by /api/prices)
+  // but it's noise in the UI. Stripping a trailing ".L" is a no-op for
+  // every other market.
+  const ticker = (dealing.ticker || "—").replace(/\.L$/, "");
   const company = dealing.company || "—";
   const insiderLine = dealing.insiderRole
     ? `${dealing.insiderName} (${dealing.insiderRole})`
