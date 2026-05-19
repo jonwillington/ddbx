@@ -310,12 +310,11 @@ export function MarketRow<W>({
         </div>
         <div className="w-32 shrink-0 px-4 py-4 flex flex-col items-end justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
           <div className="text-xl font-medium tabular-nums">{valueLabel}</div>
-          <div className="text-xs text-muted tabular-nums mt-0.5">
-            {dealing.shares.toLocaleString()} sh
-            {dealing.legCount > 1 && (
-              <span className="ml-1 opacity-75">· {dealing.legCount} fills</span>
-            )}
-          </div>
+          {dealing.legCount > 1 && (
+            <div className="text-xs text-muted tabular-nums mt-0.5">
+              {dealing.legCount} fills
+            </div>
+          )}
         </div>
         {singlePerf ? (
           <div className="w-32 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
