@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
 import type { PriceFormat } from "@/components/position-card";
+import { Skeleton } from "@/components/skeleton";
 import type { MarketDealing } from "@/lib/markets/types";
 import { benchmarkReturnPct, deltaStyle, shortDate, stockReturnPct } from "./market-utils";
 
@@ -49,6 +50,83 @@ export function MarketRowHeader({
         </>
       )}
       <div className="w-44 shrink-0 px-3 py-2.5 text-center">Action</div>
+    </div>
+  );
+}
+
+/** Skeleton placeholder that matches MarketRow's column geometry on both
+ *  mobile and desktop. Used while the dealings fetch is in flight so the
+ *  layout doesn't jump when data arrives. */
+export function MarketRowSkeleton({
+  hideDate = false,
+  singlePerf = false,
+}: {
+  hideDate?: boolean;
+  singlePerf?: boolean;
+}) {
+  return (
+    <div className="w-full">
+      {/* Mobile */}
+      <div className="md:hidden px-4 py-3.5">
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <Skeleton className="h-3 w-20 rounded" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+        <div className="flex items-start gap-3">
+          <Skeleton circle className="shrink-0 mt-0.5" w={36} h={36} />
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-12 rounded" />
+              <Skeleton className="h-4 flex-1 rounded" />
+            </div>
+            <Skeleton className="h-3 w-2/3 rounded" />
+          </div>
+          <Skeleton className="h-5 w-16 rounded shrink-0" />
+        </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden md:flex items-stretch">
+        {!hideDate && (
+          <div className="w-32 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06] min-h-[4rem]">
+            <Skeleton className="h-4 w-20 rounded" />
+          </div>
+        )}
+        <div className="w-[4.5rem] shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+          <Skeleton className="h-5 w-10 rounded" />
+        </div>
+        <div className="flex-1 min-w-0 px-4 py-4 flex items-center gap-3 border-r border-black/[0.06] dark:border-white/[0.06]">
+          <Skeleton circle w={36} h={36} className="shrink-0" />
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <Skeleton className="h-4 w-1/2 rounded" />
+            <Skeleton className="h-3 w-2/5 rounded" />
+          </div>
+        </div>
+        <div className="w-32 shrink-0 px-4 py-4 flex flex-col items-end justify-center gap-1.5 border-r border-black/[0.06] dark:border-white/[0.06]">
+          <Skeleton className="h-5 w-20 rounded" />
+          <Skeleton className="h-3 w-14 rounded" />
+        </div>
+        {singlePerf ? (
+          <div className="w-32 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+        ) : (
+          <>
+            <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+            <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+          </>
+        )}
+        <div className="w-44 shrink-0 px-3 py-4 flex items-center justify-center">
+          <Skeleton className="h-6 w-24 rounded-full" />
+        </div>
+      </div>
     </div>
   );
 }

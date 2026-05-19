@@ -18,7 +18,7 @@ import type {
 import { MarketDetailDrawer } from "./market-detail-drawer";
 import { MarketFilterBar, type MarketViewMode } from "./market-filter-bar";
 import { MarketHeroCard, type MarketHeroStats } from "./market-hero";
-import { MarketRow, MarketRowHeader } from "./market-row";
+import { MarketRow, MarketRowHeader, MarketRowSkeleton } from "./market-row";
 import { MarketSkippedCluster } from "./market-skipped-cluster";
 import { MarketTodayDrawer } from "./market-today-drawer";
 import { bucketByMonth, todayKeyIso } from "./market-utils";
@@ -507,6 +507,12 @@ export function MarketPage<W>({
                 />
               ))}
             </div>
+          ) : loading ? (
+            <div className="divide-y divide-black/[0.06] dark:divide-separator">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <MarketRowSkeleton key={i} hideDate singlePerf={!!metricInfo} />
+              ))}
+            </div>
           ) : config.TodayEmpty ? (
             <config.TodayEmpty />
           ) : (
@@ -517,8 +523,13 @@ export function MarketPage<W>({
         </div>
 
         {loading && filteredDealings.length === 0 && (
-          <div className="bg-[#faf7f2] dark:bg-surface rounded-xl px-4 py-10 text-center text-sm text-muted">
-            Loading…
+          <div className="bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden animate-content-in">
+            <MarketRowHeader benchmarkLabel={config.benchmarkLabel} singlePerf={!!metricInfo} />
+            <div className="divide-y divide-black/[0.06] dark:divide-separator">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <MarketRowSkeleton key={i} singlePerf={!!metricInfo} />
+              ))}
+            </div>
           </div>
         )}
 
@@ -672,6 +683,7 @@ export function MarketPage<W>({
         fmt={config.priceFormat}
         selectedKey={selectedKey}
         TodayEmpty={config.TodayEmpty}
+        loading={loading && dealings.length === 0}
       />
 
       <MarketDetailDrawer

@@ -37,6 +37,9 @@ interface MarketTodayDrawerProps<W> {
   /** Optional empty-state component for the today pane. Falls back to the
    *  default "No filings disclosed today yet." copy when undefined. */
   TodayEmpty?: ComponentType;
+  /** True while the initial dealings fetch is in flight. Lets the drawer
+   *  render skeleton rows instead of the empty state. */
+  loading?: boolean;
 }
 
 /** Persistent right-hand drawer, lg+ only. Each market mounts its own
@@ -51,6 +54,7 @@ export function MarketTodayDrawer<W>({
   fmt,
   selectedKey,
   TodayEmpty,
+  loading = false,
 }: MarketTodayDrawerProps<W>) {
   const hasNewsSource = news !== undefined;
   const prevNewsUrlsRef = useRef<Set<string> | null>(null);
@@ -110,6 +114,12 @@ export function MarketTodayDrawer<W>({
                   />
                 ))}
               </div>
+            ) : loading ? (
+              <div className="divide-y divide-black/[0.06] dark:divide-separator">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <TodayRowSkeleton key={i} />
+                ))}
+              </div>
             ) : TodayEmpty ? (
               <TodayEmpty />
             ) : (
@@ -139,6 +149,26 @@ export function MarketTodayDrawer<W>({
         </div>
       )}
     </aside>
+  );
+}
+
+function TodayRowSkeleton() {
+  return (
+    <div className="w-full px-4 py-3.5">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-10 rounded" />
+            <Skeleton className="h-4 flex-1 rounded" />
+          </div>
+          <Skeleton className="h-3 w-2/3 rounded" />
+        </div>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <Skeleton className="h-4 w-14 rounded" />
+          <Skeleton className="h-2.5 w-10 rounded" />
+        </div>
+      </div>
+    </div>
   );
 }
 
