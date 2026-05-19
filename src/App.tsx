@@ -1,43 +1,23 @@
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
 import { DocumentTitle } from "@/components/document-title";
-import { TodayDrawer } from "@/components/today-drawer";
-import DashboardPage from "@/pages/dashboard";
 import PerformancePage from "@/pages/performance";
 import DirectorPage from "@/pages/director";
 import EuPreviewPage from "@/pages/eu-preview";
 import UsPreviewPage from "@/pages/us-preview";
 import UkPreviewPage from "@/pages/uk-preview";
 
-// Routes that should NOT show the right-hand TodayDrawer. Everything else
-// gets it. Mounting the drawer here (above Routes) keeps its data + scroll
-// state across page changes — Performance ↔ Dashboard no longer remounts
-// the drawer's deals/news fetches.
-// /uk-preview ships its own MarketPage today-pane so it doesn't want the
-// legacy drawer either.
-const HIDE_DRAWER_PREFIXES = [
-  "/directors/",
-  "/uk-preview",
-  "/us-preview",
-  "/us",
-  "/eu-preview",
-  "/eu",
-];
-
 function App() {
-  const { pathname } = useLocation();
-  const showDrawer = !HIDE_DRAWER_PREFIXES.some((p) => pathname.startsWith(p));
-
   return (
     <>
       <DocumentTitle />
       <Routes>
-        <Route element={<DashboardPage />} path="/" />
-        <Route element={<DashboardPage />} path="/dealings/:id" />
-        <Route element={<DashboardPage />} path="/contact" />
-        <Route element={<DashboardPage />} path="/privacy" />
-        <Route element={<DashboardPage />} path="/cookies" />
-        <Route element={<DashboardPage />} path="/terms" />
+        <Route element={<UkPreviewPage />} path="/" />
+        <Route element={<UkPreviewPage />} path="/dealings/:id" />
+        <Route element={<UkPreviewPage />} path="/contact" />
+        <Route element={<UkPreviewPage />} path="/privacy" />
+        <Route element={<UkPreviewPage />} path="/cookies" />
+        <Route element={<UkPreviewPage />} path="/terms" />
         <Route element={<PerformancePage />} path="/portfolio" />
         <Route element={<PerformancePage />} path="/performance" />
         <Route element={<DirectorPage />} path="/directors/:id" />
@@ -47,7 +27,6 @@ function App() {
         <Route element={<EuPreviewPage />} path="/eu" />
         <Route element={<UkPreviewPage />} path="/uk-preview" />
       </Routes>
-      {showDrawer && <TodayDrawer />}
     </>
   );
 }

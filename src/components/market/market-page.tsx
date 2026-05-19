@@ -27,7 +27,19 @@ import { bucketByMonth, todayKeyIso } from "./market-utils";
  *  MarketConfig — adding a new market means writing a new MarketConfig and
  *  pointing a route at `<MarketPage config={…} />`. Nothing in here should
  *  grow per-market branches. */
-export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
+export function MarketPage<W>({
+  config,
+  selectedKey: selectedKeyProp,
+  onSelectionChange,
+}: {
+  config: MarketConfig<W>;
+  /** Optional controlled selection. When provided, MarketPage uses this
+   *  instead of internal state and reports changes through
+   *  onSelectionChange — lets a router-aware wrapper drive selection from
+   *  the URL (e.g. /dealings/:id). */
+  selectedKey?: string | null;
+  onSelectionChange?: (key: string | null) => void;
+}) {
   const [view, setView] = useState<string>(config.defaultView);
   const [viewMode, setViewMode] = useState<MarketViewMode>("chronological");
   const [search, setSearch] = useState("");
@@ -35,7 +47,16 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
   const [stats, setStats] = useState<MarketStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [internalSelectedKey, setInternalSelectedKey] = useState<string | null>(null);
+  const controlled = selectedKeyProp !== undefined;
+  const selectedKey = controlled ? selectedKeyProp ?? null : internalSelectedKey;
+  const setSelectedKey = useCallback(
+    (key: string | null) => {
+      if (!controlled) setInternalSelectedKey(key);
+      onSelectionChange?.(key);
+    },
+    [controlled, onSelectionChange],
+  );
   const [openMonths, setOpenMonths] = useState<Set<string> | null>(null);
   const [heroFilterId, setHeroFilterId] = useState<string | null>(
     config.defaultHeroFilter ?? config.heroFilters?.[0]?.id ?? null,

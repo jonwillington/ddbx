@@ -1,19 +1,9 @@
 // UkMarket — the UK RNS director-dealings plugin for <MarketPage />.
-// Phase-1 port of dashboard.tsx onto the shared MarketPage shell. Slots in
-// the same UK-specific Analysis rendering the live page uses (rating badge,
-// evidence tables, checklist, position card + chart against FTSE).
-//
-// Known gaps vs the live dashboard.tsx (deferred to Phase 2):
-//  - Discretion mode (free-drawer-per-day gating + BlurredDealingRow)
-//  - Metric mode toggle (absolute return vs alpha-vs-FTSE)
-//  - Hero filter pills (significant / noteworthy / all) as a SECOND axis on
-//    top of view tabs — Phase 1 conflates them into views.
-//  - Skipped-cluster collapsing inside each month
-//  - LSE-status + bank-holidays empty state
-//
-// While those are missing, this preview lives at /uk-preview; the live UK
-// page stays on dashboard.tsx at `/`. After Phase 2 lands and parity is
-// confirmed, the route flips here and dashboard.tsx retires.
+// Mounted at `/` (and the static pages) via UkPreviewPage; the legacy
+// dashboard.tsx retired in Phase 2. UK-specific behaviour (Opus analysis
+// rendering, FTSE benchmark, discretion gating, metric-mode toggle,
+// skipped-cluster collapsing, LSE-status empty state) all hang off this
+// MarketConfig — the shell in `components/market/` is market-agnostic.
 
 import { useEffect, useState } from "react";
 import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicons/react/24/outline";
