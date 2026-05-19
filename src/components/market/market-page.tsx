@@ -19,6 +19,7 @@ import { MarketDetailDrawer } from "./market-detail-drawer";
 import { MarketFilterBar, type MarketViewMode } from "./market-filter-bar";
 import { MarketHeroCard, type MarketHeroStats } from "./market-hero";
 import { MarketRow, MarketRowHeader } from "./market-row";
+import { MarketSkippedCluster } from "./market-skipped-cluster";
 import { MarketTodayDrawer } from "./market-today-drawer";
 import { bucketByMonth, todayKeyIso } from "./market-utils";
 
@@ -40,6 +41,8 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
     config.defaultHeroFilter ?? config.heroFilters?.[0]?.id ?? null,
   );
   const [metricSheetOpen, setMetricSheetOpen] = useState(false);
+  const [openSkipped, setOpenSkipped] = useState<Set<string>>(new Set());
+  const [skippedVisible, setSkippedVisible] = useState<Record<string, number>>({});
 
   // Hooks must be called unconditionally — when the market doesn't opt in we
   // still need a stable hook position, so call a no-op fallback. Markets
@@ -158,8 +161,8 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
   );
 
   const monthBuckets = useMemo(
-    () => bucketByMonth(filteredDealings, todayIso),
-    [filteredDealings, todayIso],
+    () => bucketByMonth(filteredDealings, todayIso, { isSkipped: config.isSkipped }),
+    [filteredDealings, todayIso, config.isSkipped],
   );
 
   useEffect(() => {
@@ -293,6 +296,19 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
       else next.add(key);
       return next;
     });
+  };
+
+  const toggleSkipped = (clusterKey: string) => {
+    setOpenSkipped((prev) => {
+      const next = new Set(prev);
+      if (next.has(clusterKey)) next.delete(clusterKey);
+      else next.add(clusterKey);
+      return next;
+    });
+  };
+
+  const showMoreSkipped = (clusterKey: string) => {
+    setSkippedVisible((prev) => ({ ...prev, [clusterKey]: (prev[clusterKey] ?? 5) + 5 }));
   };
 
   /* ───────── Render ──────────────────────────────────────────────────── */
@@ -544,7 +560,9 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="text-xs text-muted">
-                          {month.count} {month.count === 1 ? "filing" : "filings"}
+                          {config.isSkipped
+                            ? `${month.suggestedCount} analysed · ${month.skippedCount} skipped`
+                            : `${month.count} ${month.count === 1 ? "filing" : "filings"}`}
                         </span>
                         <ChevronDownIcon
                           className={`w-5 h-5 text-muted shrink-0 transition-transform duration-200 ${monthOpen ? "rotate-180" : ""}`}
@@ -556,24 +574,46 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
                     <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
                       <MarketRowHeader benchmarkLabel={config.benchmarkLabel} singlePerf={!!metricInfo} />
                       <div className="divide-y divide-black/[0.06] dark:divide-separator">
-                        {month.days.map((day) => (
-                          <Fragment key={day.key}>
-                            {day.dealings.map((d) => (
-                              <MarketRow
-                                key={d.key}
-                                dealing={d}
-                                selected={selectedKey === d.key}
-                                onSelect={() => setSelectedKey(d.key)}
-                                stockCurrentMajor={stockCurrent(d.ticker)}
-                                benchmarkEntry={benchmarkEntry(d)}
-                                benchmarkCurrent={benchmarkCurrent}
-                                fmt={config.priceFormat}
-                                benchmarkLabel={config.benchmarkLabel}
-                                RowActionCell={config.RowActionCell}
-                              />
-                            ))}
-                          </Fragment>
-                        ))}
+                        {month.days.map((day) => {
+                          const clusterKey = `${month.key}-${day.key}`;
+                          return (
+                            <Fragment key={day.key}>
+                              {day.suggested.map((d) => (
+                                <MarketRow
+                                  key={d.key}
+                                  dealing={d}
+                                  selected={selectedKey === d.key}
+                                  onSelect={() => setSelectedKey(d.key)}
+                                  stockCurrentMajor={stockCurrent(d.ticker)}
+                                  benchmarkEntry={benchmarkEntry(d)}
+                                  benchmarkCurrent={benchmarkCurrent}
+                                  fmt={config.priceFormat}
+                                  benchmarkLabel={config.benchmarkLabel}
+                                  RowActionCell={config.RowActionCell}
+                                  metricMode={rowMetricMode}
+                                />
+                              ))}
+                              {day.skipped.length > 0 && (
+                                <MarketSkippedCluster
+                                  dealings={day.skipped}
+                                  open={openSkipped.has(clusterKey)}
+                                  onToggle={() => toggleSkipped(clusterKey)}
+                                  visibleCount={skippedVisible[clusterKey] ?? 5}
+                                  onShowMore={() => showMoreSkipped(clusterKey)}
+                                  selectedKey={selectedKey}
+                                  onSelect={(d) => setSelectedKey(d.key)}
+                                  stockCurrent={stockCurrent}
+                                  benchmarkEntry={benchmarkEntry}
+                                  benchmarkCurrent={benchmarkCurrent}
+                                  fmt={config.priceFormat}
+                                  benchmarkLabel={config.benchmarkLabel}
+                                  RowActionCell={config.RowActionCell}
+                                  metricMode={rowMetricMode}
+                                />
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

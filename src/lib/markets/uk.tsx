@@ -425,5 +425,9 @@ export const UkMarket: MarketConfig<Dealing> = {
   TodayEmpty: UkTodayEmpty,
   useMetricMode: useUkMetricMode,
   MetricModeSheet,
+  // Rows that didn't earn an Opus rating (or were rated routine-only) collapse
+  // into a per-day cluster the user can expand. Mirrors the live dashboard's
+  // "X analysed · Y skipped" split.
+  isSkipped: (d) => !isSuggestedDealing(d.raw),
   renderEmptyState: () => <>No UK disclosures stored yet.</>,
 };

@@ -229,6 +229,12 @@ export interface MarketConfig<W = unknown> {
   /** Default-selected hero filter id; falls back to heroFilters[0]?.id. */
   defaultHeroFilter?: string;
 
+  /** Predicate identifying "skipped" rows — dealings that exist in the data
+   *  but didn't earn full analysis. The shell collapses these into a
+   *  per-day cluster the user can expand. Markets without an analyst pass
+   *  omit this and every row renders inline. */
+  isSkipped?: (d: MarketDealing<W>) => boolean;
+
   /** Optional metric-mode hook. Markets that opt in get a single Performance
    *  cell on every row whose semantic (raw return vs alpha) flips with the
    *  hook's `isVsMarket`; the benchmark entry is picked from the

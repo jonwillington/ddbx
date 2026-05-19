@@ -9,6 +9,11 @@ export interface DayBucket<W> {
   day: string;         // "4th"
   key: string;         // ISO disclosed date
   dealings: MarketDealing<W>[];
+  /** Split of `dealings` per the market's isSkipped predicate. When the
+   *  market doesn't supply one, `suggested === dealings` and `skipped`
+   *  is empty. */
+  suggested: MarketDealing<W>[];
+  skipped: MarketDealing<W>[];
 }
 
 export interface MonthBucket<W> {
@@ -17,17 +22,25 @@ export interface MonthBucket<W> {
   key: string;         // "May-2026"
   days: DayBucket<W>[];
   count: number;
+  suggestedCount: number;
+  skippedCount: number;
 }
 
 /** Group dealings into month → day buckets keyed on disclosed_date. Excludes
  *  rows whose disclosed_date equals todayIso — those belong to the dedicated
- *  Today section above the month list. Mirrors the structure used in the UK
- *  dashboard. */
+ *  Today section above the month list. When `isSkipped` is provided, each
+ *  day's dealings are split into suggested + skipped so the shell can render
+ *  the skipped rows under a collapsible cluster. */
 export function bucketByMonth<W>(
   dealings: MarketDealing<W>[],
   todayIso: string,
-  locale = "en-US",
+  options?: {
+    locale?: string;
+    isSkipped?: (d: MarketDealing<W>) => boolean;
+  },
 ): MonthBucket<W>[] {
+  const locale = options?.locale ?? "en-US";
+  const isSkipped = options?.isSkipped;
   const months: MonthBucket<W>[] = [];
   for (const d of dealings) {
     const iso = d.disclosedDate.slice(0, 10);
@@ -39,16 +52,39 @@ export function bucketByMonth<W>(
     const monthKey = `${monthLabel}-${year}`;
     let bucket = months.find((m) => m.key === monthKey);
     if (!bucket) {
-      bucket = { label: monthLabel, year, key: monthKey, days: [], count: 0 };
+      bucket = {
+        label: monthLabel,
+        year,
+        key: monthKey,
+        days: [],
+        count: 0,
+        suggestedCount: 0,
+        skippedCount: 0,
+      };
       months.push(bucket);
     }
     let day = bucket.days.find((db) => db.key === iso);
     if (!day) {
       const weekday = date.toLocaleString(locale, { weekday: "short" }).toUpperCase();
-      day = { weekday, day: ordinal(date.getDate()), key: iso, dealings: [] };
+      day = {
+        weekday,
+        day: ordinal(date.getDate()),
+        key: iso,
+        dealings: [],
+        suggested: [],
+        skipped: [],
+      };
       bucket.days.push(day);
     }
     day.dealings.push(d);
+    const skipped = isSkipped ? isSkipped(d) : false;
+    if (skipped) {
+      day.skipped.push(d);
+      bucket.skippedCount++;
+    } else {
+      day.suggested.push(d);
+      bucket.suggestedCount++;
+    }
     bucket.count++;
   }
   return months;
