@@ -235,6 +235,19 @@ export interface MarketConfig<W = unknown> {
    *  omit this and every row renders inline. */
   isSkipped?: (d: MarketDealing<W>) => boolean;
 
+  /** Discretion-gating hook. When provided, MarketDetailDrawer calls
+   *  `recordView(dealId)` on open and falls back to the dummy body +
+   *  overlay when `hasFullAccess(dealId)` returns false. The hook owns
+   *  whatever storage it needs — the shell never touches localStorage. */
+  useGating?: () => GatingInfo;
+  /** Component rendered as a blurred replacement for DetailBody when the
+   *  current viewer doesn't have full access. Markets supply their own so
+   *  the shape/length matches their real analysis. */
+  DummyDetailBody?: ComponentType<{ dealing: MarketDealing<W> }>;
+  /** Overlay rendered above the blurred dummy body — the "open the app" CTA.
+   *  Positioned absolutely inside the drawer body. */
+  AnalysisOverlay?: ComponentType;
+
   /** Optional metric-mode hook. Markets that opt in get a single Performance
    *  cell on every row whose semantic (raw return vs alpha) flips with the
    *  hook's `isVsMarket`; the benchmark entry is picked from the
@@ -260,4 +273,17 @@ export interface MetricModeInfo {
   anchorsOnDisclosure: boolean;
   /** Short label rendered inside the toolbar chip — "Raw" / "Market" etc. */
   shortLabel: string;
+}
+
+/** Shape the shell expects back from `useGating`. Markets layer whatever
+ *  policy they want behind these three fields; the shell only knows about
+ *  per-deal access checks and view recording. */
+export interface GatingInfo {
+  /** Whether gating is on for this session at all. False = treat every
+   *  drawer as fully-accessible. */
+  enabled: boolean;
+  /** True if the viewer is allowed to see real content for this deal. */
+  hasFullAccess: (dealId: string) => boolean;
+  /** Called by the shell when a drawer opens. Idempotent per dealId. */
+  recordView: (dealId: string) => void;
 }

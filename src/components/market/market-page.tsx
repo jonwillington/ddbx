@@ -49,6 +49,8 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
   // without useMetricMode keep the older two-cell perf layout.
   const useMetricMode = config.useMetricMode;
   const metricInfo = useMetricMode ? useMetricMode() : null;
+  const useGating = config.useGating;
+  const gating = useGating ? useGating() : undefined;
 
   /** Live stock prices keyed by ticker — close_pence column raw values. */
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -657,6 +659,9 @@ export function MarketPage<W>({ config }: { config: MarketConfig<W> }) {
         fmt={config.priceFormat}
         DetailBody={config.DetailBody}
         DetailPosition={config.DetailPosition}
+        gating={gating}
+        DummyDetailBody={config.DummyDetailBody}
+        AnalysisOverlay={config.AnalysisOverlay}
       />
 
       {config.MetricModeSheet && (

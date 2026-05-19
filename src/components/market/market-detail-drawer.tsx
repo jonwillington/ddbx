@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { RatingBadge } from "@/components/rating-badge";
-import type { MarketDealing } from "@/lib/markets/types";
+import type { GatingInfo, MarketDealing } from "@/lib/markets/types";
 import type { PriceFormat } from "@/components/position-card";
 
 /** Right-hand modal drawer used by every market. Shell-owned: backdrop,
@@ -16,12 +16,20 @@ export function MarketDetailDrawer<W>({
   fmt,
   DetailBody,
   DetailPosition,
+  gating,
+  DummyDetailBody,
+  AnalysisOverlay,
 }: {
   dealing: MarketDealing<W> | null;
   onClose: () => void;
   fmt: PriceFormat;
   DetailBody: ComponentType<{ dealing: MarketDealing<W> }>;
   DetailPosition?: ComponentType<{ dealing: MarketDealing<W> }>;
+  /** Optional gating state — when set, the drawer records a view on open
+   *  and may swap to the dummy body + overlay. */
+  gating?: GatingInfo;
+  DummyDetailBody?: ComponentType<{ dealing: MarketDealing<W> }>;
+  AnalysisOverlay?: ComponentType;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -54,6 +62,20 @@ export function MarketDetailDrawer<W>({
     const el = scrollRef.current;
     if (el) el.scrollTop = 0;
   }, [dealing?.key]);
+
+  // Record the view on every drawer open. recordView is idempotent per
+  // dealId so re-renders during the same view don't matter; the first
+  // open of the day becomes the "freebie" and subsequent ones get gated.
+  useEffect(() => {
+    if (!dealing || !gating?.enabled) return;
+    gating.recordView(dealing.id);
+  }, [dealing, gating]);
+
+  const gated =
+    gating?.enabled === true &&
+    !!dealing &&
+    !gating.hasFullAccess(dealing.id);
+  const BodyComponent = gated && DummyDetailBody ? DummyDetailBody : DetailBody;
 
   const ticker = dealing?.ticker || "—";
   const company = dealing?.company || "—";
@@ -135,7 +157,20 @@ export function MarketDetailDrawer<W>({
                 </dl>
 
                 {DetailPosition && <DetailPosition dealing={dealing} />}
-                <DetailBody dealing={dealing} />
+                {gated ? (
+                  <div className="relative">
+                    <div
+                      aria-hidden
+                      className="pointer-events-none select-none"
+                      style={{ filter: "blur(4px)" }}
+                    >
+                      <BodyComponent dealing={dealing} />
+                    </div>
+                    {AnalysisOverlay && <AnalysisOverlay />}
+                  </div>
+                ) : (
+                  <BodyComponent dealing={dealing} />
+                )}
               </div>
             </div>
           </>

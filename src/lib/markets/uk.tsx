@@ -18,6 +18,8 @@
 import { useEffect, useState } from "react";
 import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicons/react/24/outline";
 
+import { BlurredAnalysisOverlay } from "@/components/discretion/blurred-analysis-overlay";
+import { DUMMY_ANALYSIS } from "@/components/discretion/dummy-analysis";
 import { EvidenceTable } from "@/components/evidence-table";
 import { MetricModeSheet } from "@/components/metric-mode-sheet";
 import { MiniPriceChart } from "@/components/mini-price-chart";
@@ -29,8 +31,10 @@ import { api } from "@/lib/api";
 import { useBankHolidays } from "@/lib/bank-holidays";
 import { useDashboardMetricMode } from "@/lib/dashboard-metric-mode";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
+import { useDiscretion } from "@/lib/discretion";
 import { lseStatus } from "@/lib/market-status";
 import type {
+  GatingInfo,
   MarketConfig,
   MarketDealing,
   MarketStats,
@@ -316,6 +320,30 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+/* ─── Slot: DummyDetailBody (gated drawer body) ──────────────────────── */
+
+// Renders UkDetailBody but with the analysis replaced by a static stand-in.
+// Behind the blur + overlay this just needs to look like real analysis at a
+// glance — UkDetailBody handles the actual rendering.
+function UkDummyDetailBody({ dealing }: { dealing: MarketDealing<Dealing> }) {
+  const dummyDealing: MarketDealing<Dealing> = {
+    ...dealing,
+    raw: { ...dealing.raw, analysis: DUMMY_ANALYSIS },
+  };
+  return <UkDetailBody dealing={dummyDealing} />;
+}
+
+/* ─── Gating hook adapter ────────────────────────────────────────────── */
+
+function useUkGating(): GatingInfo {
+  const d = useDiscretion();
+  return {
+    enabled: d.enabled,
+    hasFullAccess: d.hasFullAccess,
+    recordView: d.recordView,
+  };
+}
+
 /* ─── Metric-mode hook adapter ───────────────────────────────────────── */
 
 // MarketPage expects { isVsMarket, anchorsOnDisclosure, shortLabel }; the
@@ -429,5 +457,10 @@ export const UkMarket: MarketConfig<Dealing> = {
   // into a per-day cluster the user can expand. Mirrors the live dashboard's
   // "X analysed · Y skipped" split.
   isSkipped: (d) => !isSuggestedDealing(d.raw),
+  // Discretion gating: first drawer of the UK day is free; subsequent drawers
+  // render the dummy body under a blur with a "use the app" overlay.
+  useGating: useUkGating,
+  DummyDetailBody: UkDummyDetailBody,
+  AnalysisOverlay: BlurredAnalysisOverlay,
   renderEmptyState: () => <>No UK disclosures stored yet.</>,
 };
