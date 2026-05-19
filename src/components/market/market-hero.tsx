@@ -119,9 +119,27 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
             vectorEffect="non-scaling-stroke"
           />
         </svg>
-        <div className="hero-orb hero-orb-a" style={{ right: "-20%", top: "-30%", width: 320, height: 320, background: "#b8a898" }} />
-        <div className="hero-orb hero-orb-c" style={{ right:  "10%", top:  "30%", width: 260, height: 260, background: "#a89880" }} />
-        <div className="hero-orb hero-orb-e" style={{ right: "-10%", top:   "0%", width: 240, height: 240, border: "1px solid #b0a090", background: "transparent" }} />
+        <div
+          className="hero-orb hero-orb-a"
+          style={{
+            right: "-20%", top: "-30%", width: 320, height: 320,
+            background: "radial-gradient(circle, #b8a898 0%, rgba(184,168,152,0) 70%)",
+          }}
+        />
+        <div
+          className="hero-orb hero-orb-c"
+          style={{
+            right: "10%", top: "30%", width: 260, height: 260,
+            background: "radial-gradient(circle, #a89880 0%, rgba(168,152,128,0) 70%)",
+          }}
+        />
+        <div
+          className="hero-orb hero-orb-e"
+          style={{
+            right: "-10%", top: "0%", width: 240, height: 240,
+            background: "radial-gradient(circle, transparent 46%, #b0a090 49%, #b0a090 51%, transparent 56%)",
+          }}
+        />
         <div className="hero-glow hero-glow-a" style={{ right: "20%", top: "30%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
         <div className="hero-dot  hero-dot-a"  style={{ right: "20%", top: "30%", width: 10, height: 10, background: "#8B6040", marginRight: 5, marginTop: 5 }} />
       </div>
@@ -149,8 +167,20 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
             vectorEffect="non-scaling-stroke"
           />
         </svg>
-        <div className="hero-orb hero-orb-b" style={{ left: "-15%", top: "-25%", width: 280, height: 280, background: "#c4b5a5" }} />
-        <div className="hero-orb hero-orb-d" style={{ left:  "20%", top:  "25%", width: 360, height: 360, border: "1px solid #9a8878", background: "transparent" }} />
+        <div
+          className="hero-orb hero-orb-b"
+          style={{
+            left: "-15%", top: "-25%", width: 280, height: 280,
+            background: "radial-gradient(circle, #c4b5a5 0%, rgba(196,181,165,0) 70%)",
+          }}
+        />
+        <div
+          className="hero-orb hero-orb-d"
+          style={{
+            left: "20%", top: "25%", width: 360, height: 360,
+            background: "radial-gradient(circle, transparent 47%, #9a8878 49%, #9a8878 51%, transparent 55%)",
+          }}
+        />
         <div className="hero-glow hero-glow-b" style={{ left: "15%", top: "60%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
         <div className="hero-dot  hero-dot-b"  style={{ left: "15%", top: "60%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
         <div className="hero-glow hero-glow-c" style={{ left: "45%", top: "20%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
