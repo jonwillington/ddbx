@@ -7,12 +7,22 @@ import PerformancePage from "@/pages/performance";
 import DirectorPage from "@/pages/director";
 import EuPreviewPage from "@/pages/eu-preview";
 import UsPreviewPage from "@/pages/us-preview";
+import UkPreviewPage from "@/pages/uk-preview";
 
 // Routes that should NOT show the right-hand TodayDrawer. Everything else
 // gets it. Mounting the drawer here (above Routes) keeps its data + scroll
 // state across page changes — Performance ↔ Dashboard no longer remounts
 // the drawer's deals/news fetches.
-const HIDE_DRAWER_PREFIXES = ["/directors/", "/us-preview", "/us", "/eu-preview", "/eu"];
+// /uk-preview ships its own MarketPage today-pane so it doesn't want the
+// legacy drawer either.
+const HIDE_DRAWER_PREFIXES = [
+  "/directors/",
+  "/uk-preview",
+  "/us-preview",
+  "/us",
+  "/eu-preview",
+  "/eu",
+];
 
 function App() {
   const { pathname } = useLocation();
@@ -35,6 +45,7 @@ function App() {
         <Route element={<UsPreviewPage />} path="/us" />
         <Route element={<EuPreviewPage />} path="/eu-preview" />
         <Route element={<EuPreviewPage />} path="/eu" />
+        <Route element={<UkPreviewPage />} path="/uk-preview" />
       </Routes>
       {showDrawer && <TodayDrawer />}
     </>
