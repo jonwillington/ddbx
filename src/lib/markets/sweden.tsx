@@ -109,29 +109,118 @@ function translateRole(role: string | undefined): string | undefined {
   return mapped.join(" · ");
 }
 
-/* ─── Wire → MarketDealing normalization ─────────────────────────────── */
+/* ─── Tranche grouping ──────────────────────────────────────────────── */
 
-function rowValue(d: EuDealing): number | null {
-  if (d.price == null) return null;
-  return d.price * d.volume;
+/** One logical filing after collapsing tranche-split rows. FI publishes a
+ *  separate row for every leg of a buy programme (Lars Erik Corneliusson
+ *  on Ferronordic over three days = three rows; Simon Mulder same-day
+ *  4-leg on Sensys Gatso = four rows). We collapse client-side on
+ *  (lei, reporter_name, isin, nature) — same insider, same security, same
+ *  direction — and present one card with `leg_count` and the volume-
+ *  weighted entry price. Mirrors the US `UsRowGroup` shape so the shared
+ *  market shell sees the same MarketDealing surface.
+ *
+ *  PCA and share-programme legs key separately from direct, on-own-name
+ *  legs because they're materially different signals. Amendments key
+ *  separately too — a 4/A-equivalent is a correction event, not a new
+ *  buy. */
+export interface EuRowGroup {
+  key: string;
+  legs: EuDealing[];         // sorted disclosed_date DESC
+  primary: EuDealing;        // most-recent leg — drives display metadata
+  total_shares: number;
+  /** Sum of `leg.price * leg.volume` across legs with a non-null price.
+   *  null when every leg was footnoted. Native currency (SEK/EUR). */
+  total_value: number | null;
+  /** Volume-weighted average across legs with a non-null price. null when
+   *  every leg was footnoted. */
+  weighted_price: number | null;
+  leg_count: number;
+  disclosed_date: string;     // MAX across legs
+  trade_date: string;         // MAX across legs
 }
+
+function groupRows(rows: EuDealing[]): EuRowGroup[] {
+  const map = new Map<string, EuRowGroup>();
+  for (const r of rows) {
+    const key = [
+      r.lei,
+      r.reporter.name,
+      r.isin,
+      r.nature,
+      r.reporter.is_closely_associated ? "pca" : "self",
+      r.is_share_programme ? "prg" : "outright",
+      r.is_amendment ? "amd" : "ok",
+    ].join("|");
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        legs: [],
+        primary: r,
+        total_shares: 0,
+        total_value: null,
+        weighted_price: null,
+        leg_count: 0,
+        disclosed_date: r.disclosed_date,
+        trade_date: r.trade_date,
+      };
+      map.set(key, g);
+    }
+    g.legs.push(r);
+    g.leg_count++;
+    g.total_shares += r.volume;
+    if (r.price != null) {
+      g.total_value = (g.total_value ?? 0) + r.price * r.volume;
+    }
+    if (r.disclosed_date > g.disclosed_date) g.disclosed_date = r.disclosed_date;
+    if (r.trade_date > g.trade_date) g.trade_date = r.trade_date;
+    if (r.disclosed_date >= g.primary.disclosed_date) g.primary = r;
+  }
+  for (const g of map.values()) {
+    g.legs.sort((a, b) => (b.disclosed_date > a.disclosed_date ? 1 : -1));
+    let pxSum = 0;
+    let qtySum = 0;
+    for (const leg of g.legs) {
+      if (leg.price != null) {
+        pxSum += leg.price * leg.volume;
+        qtySum += leg.volume;
+      }
+    }
+    g.weighted_price = qtySum > 0 ? pxSum / qtySum : null;
+  }
+  // Preserve API order (disclosed DESC).
+  return Array.from(map.values()).sort((a, b) =>
+    b.disclosed_date > a.disclosed_date ? 1 : -1,
+  );
+}
+
+/* ─── Wire → MarketDealing normalization ─────────────────────────────── */
 
 /** Direct PDMR acquisitions outside any share programme — the cleanest
  *  conviction-style buys. Used both for the Signal view filter and for the
- *  shell's row-opacity mute (matches UK's isSuggestedDealing). */
-function isCleanBuy(d: EuDealing): boolean {
+ *  shell's row-opacity mute (matches UK's isSuggestedDealing). The group
+ *  keys carry PCA / programme / amendment flags so a group's primary leg
+ *  is representative of the whole group on these dimensions. */
+function isCleanBuyGroup(g: EuRowGroup): boolean {
+  const d = g.primary;
   const t = translateNature(d.nature).tone;
   if (t !== "buy") return false;
   if (d.reporter.is_closely_associated) return false;
   if (d.is_share_programme) return false;
+  if (d.is_amendment) return false;
   return true;
 }
 
-function toMarketDealing(d: EuDealing): MarketDealing<EuDealing> {
+function toMarketDealing(g: EuRowGroup): MarketDealing<EuRowGroup> {
+  const d = g.primary;
   const action = translateNature(d.nature);
   const suffix = d.reporter.is_closely_associated ? " (PCA)" : "";
   return {
-    key: d.id,
+    key: g.key,
+    // Drawer deep-link id — primary leg's deterministic id. Re-resolves to
+    // the same group on the next load (groupRows is deterministic on the
+    // returned MarketDealings).
     id: d.id,
     // MAR has no native ticker field, but the worker now stamps a Yahoo-style
     // ticker on rows whose ISIN appears in the Stockholm lookup map (see
@@ -141,16 +230,16 @@ function toMarketDealing(d: EuDealing): MarketDealing<EuDealing> {
     company: d.company,
     insiderName: d.reporter.name,
     insiderRole: translateRole(d.reporter.role),
-    disclosedDate: d.disclosed_date,
-    tradeDate: d.trade_date,
-    isPurchase: isCleanBuy(d),
-    value: rowValue(d),
-    entryPrice: d.price,
-    shares: d.volume,
-    legCount: 1,
+    disclosedDate: g.disclosed_date,
+    tradeDate: g.trade_date,
+    isPurchase: isCleanBuyGroup(g),
+    value: g.total_value,
+    entryPrice: g.weighted_price,
+    shares: g.total_shares,
+    legCount: g.leg_count,
     actionLabel: action.label + suffix,
     actionTone: action.tone,
-    raw: d,
+    raw: g,
   };
 }
 
@@ -164,8 +253,10 @@ const CHIP_TONES: Record<"weak" | "neutral", string> = {
   neutral: "bg-transparent text-[#b0a898] border-[#d8d0c6]/60 dark:text-foreground/45",
 };
 
-function SwedenRowActionCell({ dealing }: { dealing: MarketDealing<EuDealing> }) {
-  const d = dealing.raw;
+function SwedenRowActionCell({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
+  // Group keys carry PCA / programme / amendment, so reading the primary
+  // leg's flags is representative of the entire group.
+  const d = dealing.raw.primary;
   const chips: Array<{ label: string; tone: "weak" | "neutral" }> = [];
   // PCA and Programme weaken the signal — surfaced as the only chips that
   // earn space in the row (matches US's "Amendment / Late" discipline).
@@ -205,15 +296,16 @@ function fmtNativePrice(n: number | null, ccy: string): string {
   return `${num} ${ccy}`;
 }
 
-function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuDealing> }) {
-  const d = dealing.raw;
+function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
+  const g = dealing.raw;
+  const d = g.primary;
   const action = translateNature(d.nature);
-  const value = rowValue(d);
   const flags: Array<{ label: string; tone: "weak" | "neutral" }> = [];
   if (d.reporter.is_closely_associated) flags.push({ label: "PCA filing", tone: "weak" });
   if (d.is_share_programme) flags.push({ label: "Share programme", tone: "weak" });
   if (d.is_first_time_report) flags.push({ label: "First-time report", tone: "neutral" });
   if (d.is_amendment) flags.push({ label: "Amendment", tone: "neutral" });
+  const multiLeg = g.leg_count > 1;
 
   return (
     <div className="space-y-6">
@@ -221,9 +313,18 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuDealing> }) {
         <Field label="Insider" value={d.reporter.name} />
         <Field label="Role" value={translateRole(d.reporter.role) ?? "—"} />
         <Field label="Action" value={action.label} />
-        <Field label="Value" value={fmtNativeMoney(value, d.currency)} />
-        <Field label="Shares" value={d.volume.toLocaleString("en-GB")} />
-        <Field label="Price" value={fmtNativePrice(d.price, d.currency)} />
+        <Field
+          label={multiLeg ? "Total value" : "Value"}
+          value={fmtNativeMoney(g.total_value, d.currency)}
+        />
+        <Field
+          label={multiLeg ? "Total shares" : "Shares"}
+          value={g.total_shares.toLocaleString("en-GB")}
+        />
+        <Field
+          label={multiLeg ? "VWAP" : "Price"}
+          value={fmtNativePrice(g.weighted_price, d.currency)}
+        />
       </dl>
 
       {flags.length > 0 && (
@@ -258,6 +359,41 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuDealing> }) {
           <Field label="Currency" value={d.currency || "—"} />
         </div>
       </div>
+
+      {multiLeg && (
+        <div className="rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3">
+          <div className="text-xs uppercase tracking-wide font-semibold text-muted mb-2">
+            Fills ({g.leg_count})
+          </div>
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted">
+              <tr>
+                <th className="text-left font-normal pb-1">Trade date</th>
+                <th className="text-right font-normal pb-1">Shares</th>
+                <th className="text-right font-normal pb-1">Price</th>
+                <th className="text-right font-normal pb-1">Value</th>
+              </tr>
+            </thead>
+            <tbody className="tabular-nums">
+              {g.legs.map((leg) => (
+                <tr key={leg.id} className="border-t border-black/[0.04] dark:border-white/[0.06]">
+                  <td className="py-1">{leg.trade_date.slice(0, 10)}</td>
+                  <td className="py-1 text-right">{leg.volume.toLocaleString("en-GB")}</td>
+                  <td className="py-1 text-right">
+                    {fmtNativePrice(leg.price, leg.currency)}
+                  </td>
+                  <td className="py-1 text-right">
+                    {fmtNativeMoney(
+                      leg.price != null ? leg.price * leg.volume : null,
+                      leg.currency,
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {d.reporter.filing_entity && d.reporter.filing_entity !== d.reporter.name && (
         <div className="rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3 text-sm">
@@ -303,7 +439,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 
 /* ─── MarketConfig ───────────────────────────────────────────────────── */
 
-export const SwedenMarket: MarketConfig<EuDealing> = {
+export const SwedenMarket: MarketConfig<EuRowGroup> = {
   id: "se",
   title: "Sweden director dealings (preview)",
   description: (
@@ -342,18 +478,26 @@ export const SwedenMarket: MarketConfig<EuDealing> = {
   pollIntervalMs: 60_000,
   async fetchDealings({ view }) {
     const r = await api.euDealings({ market: "SE", limit: 500 });
-    const all = r.dealings;
-    const signal = all.filter(isCleanBuy);
-    const selected = view === "signal" ? signal : all;
+    const groups = groupRows(r.dealings);
+    const signal = groups.filter(isCleanBuyGroup);
+    const selected = view === "signal" ? signal : groups;
     const stats: MarketStats = {
-      total: all.length,
+      // viewCounts now report logical-event counts (post-collapse), which is
+      // the user-facing number ("12 filings today" instead of "47 legs across
+      // 12 buys"). r.stats.total still reflects raw eu_dealings rows from the
+      // worker — surface that as a transparency aside.
+      total: groups.length,
       viewCounts: {
         signal: signal.length,
-        all: all.length,
+        all: groups.length,
       },
       latestDisclosedLabel: r.stats.latest_disclosed_date
         ? `Latest disclosure ${r.stats.latest_disclosed_date.slice(0, 10)}`
         : undefined,
+      debugBreakdown:
+        r.dealings.length !== groups.length
+          ? `${r.dealings.length} raw legs collapsed into ${groups.length} filings`
+          : undefined,
     };
     return { dealings: selected.map(toMarketDealing), stats };
   },
