@@ -1,0 +1,36 @@
+name: Check ddbx wire-format sync
+
+# Fails the workflow if src/types/ddbx.ts has drifted from the canonical
+# copy in ddbx-data/worker/db/types.ts. The check is one-way (this repo
+# is a consumer of the canonical); fix drift by running `npm run sync:types`
+# in this repo from a checkout of the matching ddbx-data commit.
+#
+# iOS will become a third consumer of the same canonical file; the same
+# check pattern can be added to ddbx-ios-app when Swift Codable structs
+# land.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check-types:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ddbx-site
+        uses: actions/checkout@v4
+        with:
+          path: ddbx-site
+
+      - name: Checkout ddbx-data (canonical types source)
+        uses: actions/checkout@v4
+        with:
+          repository: jonwillington/ddbx-data
+          path: ddbx-data
+
+      - name: Check types sync
+        working-directory: ddbx-site
+        env:
+          DDBX_DATA_PATH: ${{ github.workspace }}/ddbx-data
+        run: npm run check:types
