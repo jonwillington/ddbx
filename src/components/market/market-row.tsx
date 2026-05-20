@@ -26,7 +26,7 @@ export function MarketRowHeader({
           Disclosed
         </div>
       )}
-      <div className="w-[4.5rem] shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
+      <div className="w-24 shrink-0 px-3 py-2.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
         Ticker
       </div>
       <div className="flex-1 min-w-0 px-4 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">
@@ -95,7 +95,7 @@ export function MarketRowSkeleton({
             <Skeleton className="h-4 w-20 rounded" />
           </div>
         )}
-        <div className="w-[4.5rem] shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+        <div className="w-24 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
           <Skeleton className="h-5 w-10 rounded" />
         </div>
         <div className="flex-1 min-w-0 px-4 py-4 flex items-center gap-3 border-r border-black/[0.06] dark:border-white/[0.06]">
@@ -301,7 +301,7 @@ export function MarketRow<W>({
             )}
           </div>
         )}
-        <div className="w-[4.5rem] shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+        <div className="w-24 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
           <span className="font-mono text-sm font-semibold px-2 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary">
             {ticker}
           </span>

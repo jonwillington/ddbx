@@ -96,7 +96,7 @@ export function MarketSkippedCluster<W>({
               {dateLabel}
             </div>
           </div>
-          <div className="w-[4.5rem] shrink-0 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+          <div className="w-24 shrink-0 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
             <TrashIcon className="w-4 h-4 text-muted/50" />
           </div>
           <div className="flex-1 min-w-0 px-4 py-4 flex items-center">
