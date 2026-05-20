@@ -327,9 +327,13 @@ export const SwedenMarket: MarketConfig<EuDealing> = {
   normalizeLivePrice: (close_pence) => close_pence,
   // OMXS30 ticker on Yahoo. Not yet wired into /api/prices for SE — kept
   // here so when ISIN-based price history lands, the benchmark slot is
-  // already labelled correctly.
+  // already labelled correctly. enableLivePrices below stops the shell
+  // from spamming /api/prices/latest with Swedish symbols while the
+  // worker has no SEK branch in pipeline/prices.ts (every fetch would
+  // return nothing and get re-polled).
   benchmarkTicker: "^OMX",
   benchmarkLabel: "OMXS30",
+  enableLivePrices: false,
   views: [
     { id: "signal", label: "Signal" },
     { id: "all", label: "All filings" },

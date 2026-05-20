@@ -182,6 +182,12 @@ export interface MarketConfig<W = unknown> {
   /** Poll cadence in ms; 0 to disable. Default 30s. */
   pollIntervalMs?: number;
 
+  /** When false, MarketPage skips the per-ticker latest-price fetch and the
+   *  benchmark-history fetch entirely. Set false on markets whose tickers
+   *  the worker's /api/prices path doesn't know how to resolve yet (Sweden
+   *  until pipeline/prices.ts learns SEK). Default true. */
+  enableLivePrices?: boolean;
+
   /** Fetch dealings for a given view. Adapter does its own bucketing into
    *  MarketDealings before returning. */
   fetchDealings: (opts: { view: string }) => Promise<DealingsPayload<W>>;

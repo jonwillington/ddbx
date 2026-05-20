@@ -525,11 +525,14 @@ export interface EuDealing {
   /** FI: Status. "Aktuell" = current/active; rows can be retracted. */
   status: string;
 
-  /** Yahoo-style ticker resolved from `isin` via the per-market lookup table
-   *  in `worker/pipeline/eu/isin-tickers.ts`. Populated at read time by
-   *  `getEuDealings`, so it's absent on wire-format consumers that go
-   *  through `raw_json` directly. Optional — names not in the lookup keep
-   *  showing the ISIN until the map is extended. */
+  /** Canonical display symbol resolved from `isin` via the per-market
+   *  lookup in `worker/pipeline/eu/isin-tickers.ts` — UI only, no exchange
+   *  suffix. Populated at read time by `getEuDealings`, so consumers that
+   *  go through `raw_json` directly won't see it. Optional — names not in
+   *  the lookup keep falling back to the ISIN until the map is extended.
+   *  The vendor-specific Yahoo symbol is deliberately not exposed on the
+   *  wire; it lives in the lookup module and is used only by server-side
+   *  price-fetching code. */
   ticker?: string;
 }
 

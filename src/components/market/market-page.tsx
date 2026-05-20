@@ -119,8 +119,14 @@ export function MarketPage<W>({
   }, [config.pollIntervalMs, load]);
 
   // Latest prices for every ticker on screen + the benchmark. One batched
-  // call to /api/prices/latest — same shape across markets.
+  // call to /api/prices/latest — same shape across markets. Skipped
+  // entirely when the market opted out via enableLivePrices=false (Sweden
+  // today, because pipeline/prices.ts in the worker doesn't yet know how
+  // to fetch SEK closes). Avoids spamming Yahoo with .ST symbols it'd
+  // return nothing for.
+  const livePricesEnabled = config.enableLivePrices !== false;
   useEffect(() => {
+    if (!livePricesEnabled) return;
     if (dealings.length === 0) return;
     const tickers = Array.from(new Set(dealings.map((d) => d.ticker).filter(Boolean)));
     if (tickers.length === 0) return;
@@ -132,10 +138,11 @@ export function MarketPage<W>({
         setPrices(map);
       })
       .catch(() => {});
-  }, [dealings, config.benchmarkTicker]);
+  }, [dealings, config.benchmarkTicker, livePricesEnabled]);
 
   // Benchmark daily-close history — pre-loaded once per market.
   useEffect(() => {
+    if (!livePricesEnabled) return;
     api
       .priceHistory(config.benchmarkTicker, 365)
       .then((bars) => {
@@ -144,7 +151,7 @@ export function MarketPage<W>({
         setBenchEntries(map);
       })
       .catch(() => {});
-  }, [config.benchmarkTicker]);
+  }, [config.benchmarkTicker, livePricesEnabled]);
 
   // News — optional. Refresh on the same cadence as the main poll so the
   // strip stays live.
