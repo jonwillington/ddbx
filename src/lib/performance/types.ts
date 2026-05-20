@@ -36,7 +36,8 @@ export type MarketBenchmark =
   | "ftse_all_share"
   | "ftse_100"
   | "sp_500"
-  | "msci_world";
+  | "msci_world"
+  | "omx_30";
 
 export interface UniverseInfo {
   displayName: string;
@@ -197,6 +198,12 @@ export const BENCHMARKS: Record<MarketBenchmark, BenchmarkInfo> = {
     displayName: "MSCI World",
     description: "Global developed markets",
     ticker: "URTH",
+    isGbp: false,
+  },
+  omx_30: {
+    displayName: "OMXS30",
+    description: "Top 30 Stockholm-listed companies",
+    ticker: "^OMX",
     isGbp: false,
   },
 };
