@@ -2,6 +2,7 @@ import type {
   Dealing,
   DirectorDetail,
   EuDealing,
+  EuDirectorDetail,
   LatestPrice,
   Portfolio,
   Rating,
@@ -74,6 +75,8 @@ export const api = {
     get<Portfolio>(fy != null ? `/portfolio?fy=${fy}` : `/portfolio`),
   director: (id: string) => get<DirectorDetail>(`/directors/${id}`),
   usDirector: (id: string) => get<UsDirectorDetail>(`/directors/us/${id}`),
+  seDirector: (nameOrKey: string) =>
+    get<EuDirectorDetail>(`/directors/se/${encodeURIComponent(nameOrKey)}`),
   latestPrices: (tickers: string[]) =>
     get<{ prices: LatestPrice[] }>(
       `/prices/latest?tickers=${tickers.join(",")}`,
@@ -168,6 +171,7 @@ export type {
   Dealing,
   DirectorDetail,
   EuDealing,
+  EuDirectorDetail,
   LatestPrice,
   Portfolio,
   Rating,

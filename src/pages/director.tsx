@@ -1,7 +1,6 @@
 // Per-director profile page. Market-aware: /directors/:id stays a UK-only
 // alias for back-compat; /:market/directors/:id is the canonical path going
-// forward. UK + US live; SE still waits on ddbx-data backing (FI
-// Insynsregister normalisation).
+// forward. UK + US + SE all live as of 2026-05-20.
 import type { MarketDealing } from "@/lib/markets/types";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +11,12 @@ import { MarketRow, MarketRowHeader } from "@/components/market/market-row";
 import { Skeleton } from "@/components/skeleton";
 import DefaultLayout from "@/layouts/default";
 import { subtitle, title } from "@/components/primitives";
-import { api, type DirectorDetail, type UsDirectorDetail } from "@/lib/api";
+import {
+  api,
+  type DirectorDetail,
+  type EuDirectorDetail,
+  type UsDirectorDetail,
+} from "@/lib/api";
 import {
   marketForPath,
   type MarketRegistryEntry,
@@ -22,16 +26,27 @@ import {
   groupRows as groupUsRows,
   toMarketDealing as toUsMarketDealing,
 } from "@/lib/markets/us";
+import {
+  groupRows as groupSeRows,
+  toMarketDealing as toSeMarketDealing,
+} from "@/lib/markets/sweden";
 
-type AnyDirectorDetail = DirectorDetail | UsDirectorDetail;
+type AnyDirectorDetail =
+  | DirectorDetail
+  | UsDirectorDetail
+  | EuDirectorDetail;
 
 function isUsDetail(d: AnyDirectorDetail): d is UsDirectorDetail {
   // UsDirectorDetail.prior_picks carries UsDealing rows (filing_id +
-  // transaction_code); Dealing rows don't. Cheap structural sniff so the
-  // page doesn't need a discriminator on the wire.
+  // transaction_code); Dealing / EuDealing rows don't.
   const first = d.prior_picks[0] as { filing_id?: string } | undefined;
 
   return first != null && typeof first.filing_id === "string";
+}
+
+function isSeDetail(d: AnyDirectorDetail): d is EuDirectorDetail {
+  // EuDirectorDetail carries `market` on the response shape; UK/US don't.
+  return (d as { market?: string }).market != null;
 }
 
 function pct(n: number | null) {
@@ -41,17 +56,19 @@ function pct(n: number | null) {
 }
 
 /** Per-market adapter for `prior_picks → MarketDealing[]`. UK maps 1:1 from
- *  Dealing; US folds tranche-split legs into UsRowGroups first, then maps.
- *  SE returns empty until task #10 ships. */
+ *  Dealing; US + SE fold tranche-split legs into RowGroups first, then map. */
 function toMarketDealings(
   market: MarketRegistryEntry,
   detail: AnyDirectorDetail,
 ): MarketDealing[] {
-  if (market.id === "uk" && !isUsDetail(detail)) {
+  if (market.id === "uk" && !isUsDetail(detail) && !isSeDetail(detail)) {
     return detail.prior_picks.map(toUkMarketDealing);
   }
   if (market.id === "us" && isUsDetail(detail)) {
     return groupUsRows(detail.prior_picks).map(toUsMarketDealing);
+  }
+  if (market.id === "se" && isSeDetail(detail)) {
+    return groupSeRows(detail.prior_picks).map(toSeMarketDealing);
   }
 
   return [];
@@ -65,16 +82,14 @@ export default function DirectorPage() {
   const [d, setD] = useState<AnyDirectorDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // UK + US live; SE has no backing endpoint yet — short-circuit to the
-  // coming-soon view so we don't spam 404s.
   useEffect(() => {
     if (!id) return;
-    if (market.id === "se") {
-      setD(null);
-
-      return;
-    }
-    const fetcher = market.id === "us" ? api.usDirector(id) : api.director(id);
+    const fetcher =
+      market.id === "us"
+        ? api.usDirector(id)
+        : market.id === "se"
+          ? api.seDirector(id)
+          : api.director(id);
 
     fetcher
       .then((r) => setD(r as AnyDirectorDetail))
@@ -89,21 +104,6 @@ export default function DirectorPage() {
     () => dealings.find((x) => x.key === selectedKey) ?? null,
     [dealings, selectedKey],
   );
-
-  if (market.id === "se") {
-    return (
-      <DefaultLayout>
-        <section className="py-8 space-y-3">
-          <h1 className={title({ size: "sm" })}>Director profiles</h1>
-          <p className={subtitle({ class: "mt-2" })}>
-            Coming soon for {market.label}. The FI Insynsregister
-            director-attribution pipeline lands alongside reporter-name
-            normalisation.
-          </p>
-        </section>
-      </DefaultLayout>
-    );
-  }
 
   if (err) return <DefaultLayout>Error: {err}</DefaultLayout>;
   if (!d)

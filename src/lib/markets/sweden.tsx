@@ -190,7 +190,7 @@ export interface EuRowGroup {
   trade_date: string; // MAX across legs
 }
 
-function groupRows(rows: EuDealing[]): EuRowGroup[] {
+export function groupRows(rows: EuDealing[]): EuRowGroup[] {
   const map = new Map<string, EuRowGroup>();
 
   for (const r of rows) {
@@ -269,7 +269,7 @@ function isCleanBuyGroup(g: EuRowGroup): boolean {
   return true;
 }
 
-function toMarketDealing(g: EuRowGroup): MarketDealing<EuRowGroup> {
+export function toMarketDealing(g: EuRowGroup): MarketDealing<EuRowGroup> {
   const d = g.primary;
   const action = translateNature(d.nature);
   const suffix = d.reporter.is_closely_associated ? " (PCA)" : "";
