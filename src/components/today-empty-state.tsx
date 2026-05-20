@@ -1,23 +1,27 @@
+import type { MarketSession, MarketStatus } from "@/lib/market-status";
+
 import { CalendarIcon, ClockIcon } from "@heroicons/react/24/outline";
 
-import type { MarketStatus } from "@/lib/market-status";
-import { noDealsSubtitle, reopensPhrase } from "@/lib/market-status";
+import { LSE, noDealsSubtitle, reopensPhrase } from "@/lib/market-status";
 
 /**
  * Empty state for the "Today" section when no deals have come in yet. Mirrors
  * iOS `emptyTodayCard` — calendar icon for weekend/holiday closures, clock
- * icon for in-session "still waiting" states.
+ * icon for in-session "still waiting" states. `session` defaults to the LSE
+ * for back-compat with UK callers; US/SE pass their own.
  */
 export function TodayEmptyState({
   status,
   now = new Date(),
   variant = "card",
+  session = LSE,
 }: {
   status: MarketStatus;
   now?: Date;
   variant?: "card" | "inline";
+  session?: MarketSession;
 }) {
-  const { icon, headline, subtitle } = describe(status, now);
+  const { icon, headline, subtitle } = describe(status, now, session);
 
   if (variant === "inline") {
     return (
@@ -45,7 +49,9 @@ export function TodayEmptyState({
         )}
       </div>
       <div className="text-sm font-semibold">{headline}</div>
-      <div className="text-xs text-muted leading-relaxed max-w-xs">{subtitle}</div>
+      <div className="text-xs text-muted leading-relaxed max-w-xs">
+        {subtitle}
+      </div>
     </div>
   );
 }
@@ -53,6 +59,7 @@ export function TodayEmptyState({
 function describe(
   status: MarketStatus,
   now: Date,
+  session: MarketSession,
 ): { icon: "calendar" | "clock"; headline: string; subtitle: string } {
   if (status.kind === "closed" && status.reason.kind === "holiday") {
     return {
@@ -68,9 +75,10 @@ function describe(
       subtitle: "Enjoy your time off.",
     };
   }
+
   return {
     icon: "clock",
     headline: "No deals have happened yet today",
-    subtitle: noDealsSubtitle(now),
+    subtitle: noDealsSubtitle(session, now),
   };
 }

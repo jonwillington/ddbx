@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
+import type { GatingInfo, MarketDealing } from "@/lib/markets/types";
+import type { PriceFormat } from "@/components/position-card";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { RatingBadge } from "@/components/rating-badge";
-import type { GatingInfo, MarketDealing } from "@/lib/markets/types";
-import type { PriceFormat } from "@/components/position-card";
 
 /** Right-hand modal drawer used by every market. Shell-owned: backdrop,
  *  slide-from-right, escape-to-close, body-scroll lock, scroll-shadow on
@@ -44,12 +45,15 @@ export function MarketDetailDrawer<W>({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   }, [dealing, onClose]);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
+
     return () => {
       document.body.style.overflow = "";
     };
@@ -57,6 +61,7 @@ export function MarketDetailDrawer<W>({
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
+
     if (!el) return;
     setScrolled(el.scrollTop > 56);
   }, []);
@@ -64,6 +69,7 @@ export function MarketDetailDrawer<W>({
   useEffect(() => {
     setScrolled(false);
     const el = scrollRef.current;
+
     if (el) el.scrollTop = 0;
   }, [dealing?.key]);
 
@@ -76,9 +82,7 @@ export function MarketDetailDrawer<W>({
   }, [dealing, gating]);
 
   const gated =
-    gating?.enabled === true &&
-    !!dealing &&
-    !gating.hasFullAccess(dealing.id);
+    gating?.enabled === true && !!dealing && !gating.hasFullAccess(dealing.id);
   const BodyComponent = gated && DummyDetailBody ? DummyDetailBody : DetailBody;
 
   const ticker = dealing?.ticker || "—";
@@ -109,17 +113,18 @@ export function MarketDetailDrawer<W>({
           <>
             <div
               className={`shrink-0 flex items-center gap-3 px-5 md:px-8 py-4 border-b transition-all duration-200
-                ${scrolled
-                  ? "border-black/10 dark:border-white/10 shadow-[0_2px_12px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
-                  : "border-transparent"
+                ${
+                  scrolled
+                    ? "border-black/10 dark:border-white/10 shadow-[0_2px_12px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
+                    : "border-transparent"
                 }`}
             >
-              {showLogo && <CompanyLogo ticker={ticker} size={32} />}
+              {showLogo && <CompanyLogo size={32} ticker={ticker} />}
               <span className="font-mono text-xs bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded shrink-0">
                 {ticker}
               </span>
               {dealing.rating && (
-                <RatingBadge rating={dealing.rating} className="shrink-0" />
+                <RatingBadge className="shrink-0" rating={dealing.rating} />
               )}
               <span
                 className={`font-semibold text-sm truncate flex-1 min-w-0 transition-opacity duration-200
@@ -136,10 +141,14 @@ export function MarketDetailDrawer<W>({
               </button>
             </div>
 
-            <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto"
+              onScroll={handleScroll}
+            >
               <div className="p-5 md:p-8 space-y-6">
                 <div className="flex items-center gap-4">
-                  {showLogo && <CompanyLogo ticker={ticker} size={56} />}
+                  {showLogo && <CompanyLogo size={56} ticker={ticker} />}
                   <h1 className="text-3xl font-bold leading-tight tracking-tight flex-1 min-w-0">
                     {company}
                   </h1>
@@ -147,15 +156,25 @@ export function MarketDetailDrawer<W>({
 
                 <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 py-4 border-y border-black/10 dark:border-white/10">
                   <div>
-                    <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Insider</dt>
-                    <dd className="text-sm font-medium truncate">{insiderLine}</dd>
+                    <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">
+                      Insider
+                    </dt>
+                    <dd className="text-sm font-medium truncate">
+                      {insiderLine}
+                    </dd>
                   </div>
                   <div>
-                    <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Action</dt>
-                    <dd className="text-sm font-medium">{dealing.actionLabel}</dd>
+                    <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">
+                      Action
+                    </dt>
+                    <dd className="text-sm font-medium">
+                      {dealing.actionLabel}
+                    </dd>
                   </div>
                   <div>
-                    <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Amount</dt>
+                    <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">
+                      Amount
+                    </dt>
                     <dd className="text-sm font-medium">{valueLabel}</dd>
                   </div>
                 </dl>

@@ -5,6 +5,7 @@
 import type { ContributorRow, StrategyConfig } from "@/lib/performance/types";
 
 import { Link } from "react-router-dom";
+
 import { useDiscretion } from "@/lib/discretion";
 
 interface Props {
@@ -19,7 +20,16 @@ interface Props {
 const UNBLURRED_CONTRIBUTORS = 2;
 
 const PLACEHOLDER_TICKERS = [
-  "GSK", "BARC", "RR", "VOD", "BP", "TSCO", "AZN", "LLOY", "DGE", "REL",
+  "GSK",
+  "BARC",
+  "RR",
+  "VOD",
+  "BP",
+  "TSCO",
+  "AZN",
+  "LLOY",
+  "DGE",
+  "REL",
 ];
 const PLACEHOLDER_COMPANIES = [
   "GlaxoSmithKline plc",
@@ -33,7 +43,9 @@ const PLACEHOLDER_COMPANIES = [
   "Diageo plc",
   "RELX plc",
 ];
-const PLACEHOLDER_RETURNS = [0.087, -0.041, 0.121, -0.012, 0.034, 0.059, -0.024, 0.018, 0.073, -0.035];
+const PLACEHOLDER_RETURNS = [
+  0.087, -0.041, 0.121, -0.012, 0.034, 0.059, -0.024, 0.018, 0.073, -0.035,
+];
 const PLACEHOLDER_PNLS = [142, -38, 240, -8, 47, 92, -22, 24, 118, -54];
 
 function formatPct(value: number): string {
@@ -60,6 +72,7 @@ export function ContributorsList({
   onResetExclusions,
 }: Props) {
   const discretion = useDiscretion();
+
   if (rows.length === 0) return null;
 
   return (

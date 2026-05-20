@@ -2,13 +2,17 @@
 // PerformanceChart fed by `SectorResult.result` (already computed by the
 // view-model for the chosen sector). Mirrors iOS SectorDrilldownSheet.
 
-import { useEffect, useState } from "react";
-
-import { PerformanceChart, pctAtIndex } from "@/components/performance/performance-chart";
 import type {
   PerformanceViewMode,
   SectorResult,
 } from "@/lib/performance/types";
+
+import { useEffect, useState } from "react";
+
+import {
+  PerformanceChart,
+  pctAtIndex,
+} from "@/components/performance/performance-chart";
 import {
   alphaReturnPct,
   benchmarkReturnPct,
@@ -27,19 +31,29 @@ export function SectorDrilldownSheet({ sector, viewMode, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
+
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
-  useEffect(() => { setScrubIdx(null); }, [sector]);
+  useEffect(() => {
+    setScrubIdx(null);
+  }, [sector]);
 
   return (
     <>
@@ -50,9 +64,8 @@ export function SectorDrilldownSheet({ sector, viewMode, onClose }: Props) {
         onClick={onClose}
       />
       <div
-        role="dialog"
-        aria-modal="true"
         aria-label={sector ? `${sector.sector} — backtest` : "Sector backtest"}
+        aria-modal="true"
         className={`fixed z-50 left-1/2 -translate-x-1/2 bg-background border border-black/10 dark:border-white/10
           shadow-2xl rounded-xl flex flex-col overflow-hidden
           w-[calc(100%-2rem)] max-w-2xl
@@ -60,8 +73,17 @@ export function SectorDrilldownSheet({ sector, viewMode, onClose }: Props) {
           max-h-[85vh]
           transition-opacity duration-150
           ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        role="dialog"
       >
-        {sector && <Body sector={sector} viewMode={viewMode} scrubIdx={scrubIdx} setScrubIdx={setScrubIdx} onClose={onClose} />}
+        {sector && (
+          <Body
+            scrubIdx={scrubIdx}
+            sector={sector}
+            setScrubIdx={setScrubIdx}
+            viewMode={viewMode}
+            onClose={onClose}
+          />
+        )}
       </div>
     </>
   );
@@ -98,14 +120,15 @@ function Body({
         <div className="min-w-0">
           <h2 className="text-base font-semibold truncate">{sector.sector}</h2>
           <p className="text-xs text-muted mt-0.5">
-            {sector.result.dealCount} deal{sector.result.dealCount === 1 ? "" : "s"} backtested
+            {sector.result.dealCount} deal
+            {sector.result.dealCount === 1 ? "" : "s"} backtested
           </p>
         </div>
         <button
-          type="button"
           aria-label="Close"
-          onClick={onClose}
           className="shrink-0 text-muted hover:text-foreground text-2xl leading-none px-1"
+          type="button"
+          onClick={onClose}
         >
           ×
         </button>
@@ -113,13 +136,13 @@ function Body({
 
       <div className="overflow-y-auto px-5 py-4 space-y-4">
         <div className="grid grid-cols-3 gap-3 text-center">
-          <Stat label="Picks" value={formatPct(stratPct)} muted={false} />
-          <Stat label="Benchmark" value={formatPct(benchPct)} muted />
+          <Stat label="Picks" muted={false} value={formatPct(stratPct)} />
+          <Stat muted label="Benchmark" value={formatPct(benchPct)} />
           <Stat
-            label="Alpha"
-            value={`${positive ? "+" : "−"}${Math.abs(alpha).toFixed(1)}pp`}
-            muted={false}
             color={positive ? "oklch(36% 0.16 155)" : "oklch(38% 0.16 18)"}
+            label="Alpha"
+            muted={false}
+            value={`${positive ? "+" : "−"}${Math.abs(alpha).toFixed(1)}pp`}
           />
         </div>
 
@@ -128,10 +151,14 @@ function Body({
             <span className="font-mono tabular-nums">{scrubDate}</span>
             <span className="flex items-center gap-3">
               {scrubPicks != null && (
-                <span className="font-mono tabular-nums">{formatPct(scrubPicks / 100)}</span>
+                <span className="font-mono tabular-nums">
+                  {formatPct(scrubPicks / 100)}
+                </span>
               )}
               {scrubBench != null && (
-                <span className="font-mono tabular-nums text-muted/70">{formatPct(scrubBench / 100)}</span>
+                <span className="font-mono tabular-nums text-muted/70">
+                  {formatPct(scrubBench / 100)}
+                </span>
               )}
             </span>
           </div>
@@ -162,7 +189,9 @@ function Stat({
 }) {
   return (
     <div className="rounded-lg bg-black/[0.04] dark:bg-white/[0.05] px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted mb-1">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted mb-1">
+        {label}
+      </div>
       <div
         className={`text-base font-semibold tabular-nums ${muted ? "text-muted" : ""}`}
         style={color ? { color } : undefined}
@@ -175,5 +204,6 @@ function Stat({
 
 function formatPct(p: number): string {
   const sign = p >= 0 ? "+" : "−";
+
   return `${sign}${Math.abs(p * 100).toFixed(1)}%`;
 }

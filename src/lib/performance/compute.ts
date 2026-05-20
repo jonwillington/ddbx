@@ -2,6 +2,7 @@
 // No React, no fetch — inputs in, PerformanceResult out.
 
 import type { Dealing } from "@/lib/api";
+import type { SectorNormalized } from "@/types/ddbx";
 
 import {
   EMPTY_RESULT,
@@ -15,7 +16,6 @@ import {
   type SectorResult,
   type StrategyConfig,
 } from "./types";
-import type { SectorNormalized } from "@/types/ddbx";
 
 import { isSuggestedDealing } from "@/lib/dealing-classify";
 
@@ -357,19 +357,25 @@ export function computeSectorResults(args: {
   const { deals } = args;
 
   const grouped = new Map<SectorNormalized, Dealing[]>();
+
   for (const d of deals) {
     const s = d.sector_normalized;
+
     if (!s) continue;
     const list = grouped.get(s);
+
     if (list) list.push(d);
     else grouped.set(s, [d]);
   }
 
   const rows: SectorResult[] = [];
+
   for (const [sector, dealsInSector] of grouped) {
     const r = computeResult({ ...args, deals: dealsInSector });
+
     rows.push({ sector, result: r });
   }
   rows.sort((a, b) => alphaReturnPct(b.result) - alphaReturnPct(a.result));
+
   return rows;
 }

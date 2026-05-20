@@ -35,7 +35,9 @@ export function isVsMarket(mode: DashboardMetricMode): boolean {
 }
 
 export function anchorsOnDisclosure(mode: DashboardMetricMode): boolean {
-  return mode === "performanceSinceDisclosure" || mode === "vsMarketSinceDisclosure";
+  return (
+    mode === "performanceSinceDisclosure" || mode === "vsMarketSinceDisclosure"
+  );
 }
 
 export function comparisonOf(mode: DashboardMetricMode): DashboardComparison {
@@ -50,9 +52,13 @@ export function modeFromAxes(
   comparison: DashboardComparison,
   anchor: DashboardAnchor,
 ): DashboardMetricMode {
-  if (comparison === "raw" && anchor === "trade") return "performanceSinceTrade";
-  if (comparison === "raw" && anchor === "disclosure") return "performanceSinceDisclosure";
-  if (comparison === "market" && anchor === "trade") return "vsMarketSinceTrade";
+  if (comparison === "raw" && anchor === "trade")
+    return "performanceSinceTrade";
+  if (comparison === "raw" && anchor === "disclosure")
+    return "performanceSinceDisclosure";
+  if (comparison === "market" && anchor === "trade")
+    return "vsMarketSinceTrade";
+
   return "vsMarketSinceDisclosure";
 }
 
@@ -65,12 +71,14 @@ function readStored(): DashboardMetricMode {
   if (typeof window === "undefined") return DEFAULT_MODE;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+
     if (raw && (ALL_MODES as readonly string[]).includes(raw)) {
       return raw as DashboardMetricMode;
     }
   } catch {
     // ignore — falls through to default
   }
+
   return DEFAULT_MODE;
 }
 
@@ -83,22 +91,34 @@ export function useDashboardMetricMode() {
       if (e.key !== STORAGE_KEY) return;
       setModeState(readStored());
     };
+
     window.addEventListener("storage", onStorage);
+
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const setMode = useCallback((next: DashboardMetricMode) => {
     setModeState(next);
-    try { window.localStorage.setItem(STORAGE_KEY, next); } catch { /* quota / SSR */ }
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      /* quota / SSR */
+    }
   }, []);
 
-  const setComparison = useCallback((c: DashboardComparison) => {
-    setMode(modeFromAxes(c, anchorOf(mode)));
-  }, [mode, setMode]);
+  const setComparison = useCallback(
+    (c: DashboardComparison) => {
+      setMode(modeFromAxes(c, anchorOf(mode)));
+    },
+    [mode, setMode],
+  );
 
-  const setAnchor = useCallback((a: DashboardAnchor) => {
-    setMode(modeFromAxes(comparisonOf(mode), a));
-  }, [mode, setMode]);
+  const setAnchor = useCallback(
+    (a: DashboardAnchor) => {
+      setMode(modeFromAxes(comparisonOf(mode), a));
+    },
+    [mode, setMode],
+  );
 
   return {
     mode,

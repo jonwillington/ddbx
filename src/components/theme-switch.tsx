@@ -1,5 +1,4 @@
 import { FC, useState, useEffect, useCallback } from "react";
-
 import { SunIcon, MoonIcon } from "@heroicons/react/24/solid";
 
 export interface ThemeSwitchProps {
@@ -12,10 +11,7 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({ className }) => {
 
   useEffect(() => {
     const root = document.documentElement;
-    const savedTheme = localStorage.getItem("theme") as
-      | "light"
-      | "dark"
-      | null;
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     const initialTheme = savedTheme || "dark";
 
     setTheme(initialTheme);

@@ -7,12 +7,7 @@
 // if this file drifts from the canonical.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-
-export type Rating =
-  | "significant"
-  | "noteworthy"
-  | "minor"
-  | "routine";
+export type Rating = "significant" | "noteworthy" | "minor" | "routine";
 
 // ICB top-level industries (FTSE Russell). Used to group dealings by
 // industry in the iOS Performance tab. Sourced from Companies House SIC
@@ -45,7 +40,10 @@ export const SECTOR_NORMALIZED_VALUES: readonly SectorNormalized[] = [
 ] as const;
 
 export function isSectorNormalized(v: unknown): v is SectorNormalized {
-  return typeof v === "string" && (SECTOR_NORMALIZED_VALUES as readonly string[]).includes(v);
+  return (
+    typeof v === "string" &&
+    (SECTOR_NORMALIZED_VALUES as readonly string[]).includes(v)
+  );
 }
 
 export interface RatingChecklist {
@@ -60,9 +58,9 @@ export interface RatingChecklist {
 export type TriageVerdict = "skip" | "maybe" | "promising";
 
 export interface EvidencePoint {
-  headline: string;      // short one-liner
-  detail: string;        // fuller explanation
-  source_label: string;  // citation text
+  headline: string; // short one-liner
+  detail: string; // fuller explanation
+  source_label: string; // citation text
   // Real URL retrieved via web_search. Required at write time for new
   // analyses (enforced in worker/pipeline/analyze.ts), but kept optional on
   // the type so legacy rows + fixtures with no URL still typecheck.
@@ -72,8 +70,8 @@ export interface EvidencePoint {
 export interface Analysis {
   rating: Rating;
   confidence: number;
-  summary: string;          // tweet-ready one-liner
-  thesis_points: string[];  // 4-6 short paragraphs, each <=2 sentences
+  summary: string; // tweet-ready one-liner
+  thesis_points: string[]; // 4-6 short paragraphs, each <=2 sentences
   evidence_for: EvidencePoint[];
   evidence_against: EvidencePoint[];
   key_risks: string[];
@@ -95,9 +93,9 @@ export type DealingCurrency = "GBP" | "EUR" | "USD";
 
 export interface Dealing {
   id: string;
-  trade_date: string;      // ISO
-  disclosed_date: string;  // ISO
-  created_at?: string;     // ISO datetime UTC — when the row was ingested
+  trade_date: string; // ISO
+  disclosed_date: string; // ISO
+  created_at?: string; // ISO datetime UTC — when the row was ingested
   director: DirectorSummary;
   ticker: string;
   company: string;
@@ -155,15 +153,15 @@ export interface DirectorDetail extends DirectorSummary {
 
 /** Close-of-day prose recap, synthesised by Opus from the full tape. */
 export interface DailySummary {
-  date: string;                  // ISO YYYY-MM-DD
+  date: string; // ISO YYYY-MM-DD
   session: "morning" | "afternoon";
-  headline: string;              // push title, ~50 chars
-  body: string;                  // prose body, ~150-250 words; may contain markdown bold
-  cited_ids: string[];           // dealings.id in narrative order
-  total_count: number;           // dealings considered that day
-  total_value_gbp: number;       // sum of value_gbp across all considered dealings
-  model: string;                 // e.g. "claude-opus-4-6"
-  created_at: string;            // ISO datetime UTC
+  headline: string; // push title, ~50 chars
+  body: string; // prose body, ~150-250 words; may contain markdown bold
+  cited_ids: string[]; // dealings.id in narrative order
+  total_count: number; // dealings considered that day
+  total_value_gbp: number; // sum of value_gbp across all considered dealings
+  model: string; // e.g. "claude-opus-4-6"
+  created_at: string; // ISO datetime UTC
 }
 
 /** Response shape for GET /api/daily-summary — the summary plus the cited
@@ -188,14 +186,14 @@ export interface PortfolioPick {
   current_price_pence: number | null;
   return_pct: number;
   contribution_gbp: number; // current £value − £100 stake
-  ftse_return_pct: number;  // FTSE All-Share return over the same trade_date → as_of window
-  alpha_pp: number;         // (return_pct − ftse_return_pct) × 100, percentage points
+  ftse_return_pct: number; // FTSE All-Share return over the same trade_date → as_of window
+  alpha_pp: number; // (return_pct − ftse_return_pct) × 100, percentage points
 }
 
 export interface FinancialYear {
-  fy: number;        // 26 means FY26 (starts 6 Apr 2026)
-  start: string;     // ISO date
-  end: string;       // ISO date (inclusive)
+  fy: number; // 26 means FY26 (starts 6 Apr 2026)
+  start: string; // ISO date
+  end: string; // ISO date (inclusive)
   in_progress: boolean;
   picks_count: number;
 }
@@ -239,18 +237,18 @@ export interface UkNewsItem {
 }
 
 export interface Portfolio {
-  fy: number;                  // 26 means FY26
-  fy_start: string;            // ISO, e.g. "2026-04-06"
-  fy_end: string;              // ISO, e.g. "2027-04-05"
-  as_of: string;               // ISO of the latest curve point
-  in_progress: boolean;        // FY hasn't ended yet
+  fy: number; // 26 means FY26
+  fy_start: string; // ISO, e.g. "2026-04-06"
+  fy_end: string; // ISO, e.g. "2027-04-05"
+  as_of: string; // ISO of the latest curve point
+  in_progress: boolean; // FY hasn't ended yet
   picks_curve: PortfolioPoint[];
   ftse_curve: PortfolioPoint[];
-  picks_return_pct: number;    // 0.123 = +12.3%
+  picks_return_pct: number; // 0.123 = +12.3%
   ftse_return_pct: number;
-  alpha_pp: number;            // (picks − ftse) × 100, in percentage points
+  alpha_pp: number; // (picks − ftse) × 100, in percentage points
   picks_count: number;
-  starting_value_gbp: number;  // picks_count × £100
+  starting_value_gbp: number; // picks_count × £100
   picks: PortfolioPick[];
   available_fys: FinancialYear[];
 }
@@ -268,24 +266,24 @@ export interface Portfolio {
  *  iOS adapter can decide how to surface it (open-market buy/sale, grant,
  *  exercise, gift, other). */
 export type UsTransactionCode =
-  | "P"  // Open market or private purchase
-  | "S"  // Open market or private sale
-  | "A"  // Grant/award (issuer to insider, free)
-  | "M"  // Exercise/conversion of derivative
-  | "F"  // Payment of exercise price or tax via shares
-  | "G"  // Gift
-  | "C"  // Conversion of derivative
-  | "D"  // Disposition pursuant to tender / Rule 16b-3
-  | "J"  // Other (footnote required)
-  | "V"  // Voluntary reported earlier
-  | "K"  // Equity swap
-  | "X"  // Exercise of in/at-the-money derivative
-  | "U"  // Disposition pursuant to tender
-  | "W"  // Will or laws of descent
-  | "Z"  // Voting trust
-  | "L"  // Small transaction
-  | "H"  // Expiration
-  | "I"  // Discretionary plan
+  | "P" // Open market or private purchase
+  | "S" // Open market or private sale
+  | "A" // Grant/award (issuer to insider, free)
+  | "M" // Exercise/conversion of derivative
+  | "F" // Payment of exercise price or tax via shares
+  | "G" // Gift
+  | "C" // Conversion of derivative
+  | "D" // Disposition pursuant to tender / Rule 16b-3
+  | "J" // Other (footnote required)
+  | "V" // Voluntary reported earlier
+  | "K" // Equity swap
+  | "X" // Exercise of in/at-the-money derivative
+  | "U" // Disposition pursuant to tender
+  | "W" // Will or laws of descent
+  | "Z" // Voting trust
+  | "L" // Small transaction
+  | "H" // Expiration
+  | "I" // Discretionary plan
   | "E"; // Expiration of short position
 
 export interface UsReporter {
@@ -308,10 +306,10 @@ export interface UsDealing {
    *  disclosures (M then S) share a filing_id. */
   filing_id: string;
   /** Form 4 `periodOfReport` / `transactionDate`. */
-  trade_date: string;          // ISO
+  trade_date: string; // ISO
   /** EDGAR file_date from the index. */
-  disclosed_date: string;      // ISO
-  created_at?: string;         // ISO datetime UTC — when ingested
+  disclosed_date: string; // ISO
+  created_at?: string; // ISO datetime UTC — when ingested
 
   /** Primary reporter, picked per parser rules (prefer named individuals
    *  over fund entities; first listed when ambiguous). */
@@ -322,8 +320,8 @@ export interface UsDealing {
 
   /** Form 4 `issuerCik`. Stable company key; ticker can change on M&A. */
   issuer_cik: string;
-  company: string;             // issuerName
-  ticker: string;              // issuerTradingSymbol (no exchange suffix on US tickers)
+  company: string; // issuerName
+  ticker: string; // issuerTradingSymbol (no exchange suffix on US tickers)
   /** Always "USD" today; field kept for symmetry with `Dealing.currency`. */
   currency: "USD";
 
@@ -404,6 +402,40 @@ export interface UsAnalysisKey {
   reporter_cik: string;
 }
 
+/** Response shape for GET /api/directors/us/:id. Mirrors DirectorDetail
+ *  field-by-field except prior_picks is typed against UsDealing so the
+ *  wire format stays parallel rather than translated. age_band /
+ *  tenure_years / profile are present on the type for shape-parity with
+ *  DirectorDetail but always undefined in v1 — bio + tenure data lands in
+ *  a follow-up. The :id is a reporter_cik. Horizon aggregates can be null
+ *  while US data depth is shallow — frontend renders "—". */
+export interface UsDirectorDetail {
+  /** reporter_cik, zero-padded 10-digit. */
+  id: string;
+  name: string;
+  /** Most recent role across this person's filings — flattened from the
+   *  multi-checkbox UsReporter.roles. Falls back to "Insider" when empty. */
+  role: string;
+  /** Most recent issuer this person filed for. */
+  company: string;
+  age_band?: string;
+  tenure_years?: number;
+  profile?: {
+    biography: string;
+    track_record_summary: string;
+    flags: string[];
+  };
+  prior_picks: UsDealing[];
+  /** Fraction of resolved prior picks with a positive longest-horizon return,
+   *  expressed as a percentage. 0 when no horizons have resolved. */
+  hit_rate_pct: number;
+  /** Average return at each horizon across resolved prior picks. Each value
+   *  is null while that horizon has not resolved for any pick (the common
+   *  case during the first 3 months of US coverage). Keyed "3m" | "6m" |
+   *  "12m" | "24m" to match the UK shape. */
+  avg_return_by_horizon: Record<string, number | null>;
+}
+
 // ============================================================================
 // EU wire format — MAR Article 19 PDMR transactions
 // ============================================================================
@@ -462,11 +494,11 @@ export interface EuDealing {
 
   /** Transaktionsdatum — when the trade happened. Date-only; FI publishes
    *  timestamps but the time component is always 00:00:00. */
-  trade_date: string;          // ISO
+  trade_date: string; // ISO
   /** Publiceringsdatum — when the NCA published the notification. Closest
    *  EU equivalent of EDGAR's file_date. Includes time of day. */
-  disclosed_date: string;      // ISO datetime
-  created_at?: string;         // ISO datetime UTC — when ingested
+  disclosed_date: string; // ISO datetime
+  created_at?: string; // ISO datetime UTC — when ingested
 
   /** PDMR or PCA who filed. */
   reporter: EuReporter;
@@ -534,7 +566,14 @@ export interface EuDealing {
    *  wire; it lives in the lookup module and is used only by server-side
    *  price-fetching code. */
   ticker?: string;
+
+  /** Haiku triage verdict, attached at read time when the eu_triage row
+   *  exists. Same {skip,maybe,promising} shape as the UK and US layers.
+   *  Optional — null/absent on rows we haven't triaged yet. */
+  triage?: { verdict: EuTriageVerdict; reason: string };
 }
+
+export type EuTriageVerdict = "skip" | "maybe" | "promising";
 
 /** One logical Form 4 trade after collapsing tranche-split rows. Same shape
  *  the triage runner sees and the iOS / web clients can render as a single

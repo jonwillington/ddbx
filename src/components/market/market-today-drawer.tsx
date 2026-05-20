@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
+import type { MarketDealing, NewsItem, NewsPayload } from "@/lib/markets/types";
+import type { PriceFormat } from "@/components/position-card";
+
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowsUpDownIcon,
   ArrowTopRightOnSquareIcon,
@@ -7,8 +10,6 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { Skeleton } from "@/components/skeleton";
-import type { MarketDealing, NewsItem, NewsPayload } from "@/lib/markets/types";
-import type { PriceFormat } from "@/components/position-card";
 
 function hostnameFromUrl(url: string): string {
   try {
@@ -63,10 +64,12 @@ export function MarketTodayDrawer<W>({
   useEffect(() => {
     if (!news || news.items.length === 0) return;
     const currentUrls = new Set(news.items.map((n) => n.url));
+
     if (prevNewsUrlsRef.current === null) {
       prevNewsUrlsRef.current = currentUrls;
     } else {
       const fresh = new Set<string>();
+
       for (const url of currentUrls) {
         if (!prevNewsUrlsRef.current.has(url)) fresh.add(url);
       }
@@ -83,7 +86,8 @@ export function MarketTodayDrawer<W>({
           <span className="text-sm font-semibold">Today</span>
           {todayDealings.length > 0 && (
             <span className="text-[10px] text-muted truncate">
-              {todayDealings.length} {todayDealings.length === 1 ? "filing" : "filings"}
+              {todayDealings.length}{" "}
+              {todayDealings.length === 1 ? "filing" : "filings"}
             </span>
           )}
         </div>
@@ -92,7 +96,9 @@ export function MarketTodayDrawer<W>({
       {/* Top half — today's filings */}
       <div
         className={`flex flex-col min-h-0 ${
-          hasNewsSource ? "flex-1 border-b border-[#e8e0d5] dark:border-separator" : "flex-1"
+          hasNewsSource
+            ? "flex-1 border-b border-[#e8e0d5] dark:border-separator"
+            : "flex-1"
         }`}
       >
         <div className="px-4 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted shrink-0">
@@ -108,9 +114,9 @@ export function MarketTodayDrawer<W>({
                   <TodayRow
                     key={d.key}
                     dealing={d}
+                    fmt={fmt}
                     selected={selectedKey === d.key}
                     onSelect={() => onSelect(d)}
-                    fmt={fmt}
                   />
                 ))}
               </div>
@@ -139,10 +145,10 @@ export function MarketTodayDrawer<W>({
             <div className="absolute inset-x-0 bottom-0 h-4 pointer-events-none z-[1] bg-gradient-to-t from-[#faf7f2] dark:from-surface to-transparent" />
             <div className="h-full overflow-y-auto overscroll-contain">
               <NewsStrip
-                news={news}
-                heading={newsHeading}
                 footerNote={newsFooterNote}
+                heading={newsHeading}
                 newNewsUrls={newNewsUrls}
+                news={news}
               />
             </div>
           </div>
@@ -183,7 +189,9 @@ function TodayRow<W>({
   onSelect: () => void;
   fmt: PriceFormat;
 }) {
-  const valueLabel = dealing.value != null ? fmt.formatValue(dealing.value) : "—";
+  const valueLabel =
+    dealing.value != null ? fmt.formatValue(dealing.value) : "—";
+
   return (
     <button
       className={`w-full text-left px-4 py-3.5 transition-colors ${
@@ -203,17 +211,23 @@ function TodayRow<W>({
               {dealing.company || "—"}
             </span>
           </div>
-          <div className="text-xs text-muted truncate">{dealing.insiderName}</div>
+          <div className="text-xs text-muted truncate">
+            {dealing.insiderName}
+          </div>
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1 text-right">
           <span className="text-sm font-medium tabular-nums leading-tight">
             {valueLabel}
           </span>
           {dealing.rating && (
-            <span className="text-[10px] text-muted/70 uppercase">{dealing.rating}</span>
+            <span className="text-[10px] text-muted/70 uppercase">
+              {dealing.rating}
+            </span>
           )}
           {!dealing.rating && dealing.triageVerdict && (
-            <span className="text-[10px] text-muted/70 uppercase">{dealing.triageVerdict}</span>
+            <span className="text-[10px] text-muted/70 uppercase">
+              {dealing.triageVerdict}
+            </span>
           )}
         </div>
       </div>
@@ -262,7 +276,12 @@ function NewsStrip({
       ) : (
         <ul className="space-y-4">
           {news.items.slice(0, 12).map((n, i) => (
-            <NewsRow key={`${n.url}-${i}`} item={n} index={i} fresh={newNewsUrls.has(n.url)} />
+            <NewsRow
+              key={`${n.url}-${i}`}
+              fresh={newNewsUrls.has(n.url)}
+              index={i}
+              item={n}
+            />
           ))}
         </ul>
       )}
@@ -276,21 +295,39 @@ function NewsStrip({
         </p>
       )}
       {footerNote && (
-        <p className="text-[10px] text-muted/45 mt-2 leading-relaxed">{footerNote}</p>
+        <p className="text-[10px] text-muted/45 mt-2 leading-relaxed">
+          {footerNote}
+        </p>
       )}
     </div>
   );
 }
 
-function NewsRow({ item, index, fresh }: { item: NewsItem; index: number; fresh: boolean }) {
+function NewsRow({
+  item,
+  index,
+  fresh,
+}: {
+  item: NewsItem;
+  index: number;
+  fresh: boolean;
+}) {
   return (
-    <li className="pb-0.5" style={{ animation: `fade-in-up 0.4s ease-out ${index * 0.04}s both` }}>
-      <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 group">
+    <li
+      className="pb-0.5"
+      style={{ animation: `fade-in-up 0.4s ease-out ${index * 0.04}s both` }}
+    >
+      <a
+        className="flex items-start gap-2 group"
+        href={item.url}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
         <img
-          src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostnameFromUrl(item.url))}&sz=32`}
           alt=""
           className="w-3.5 h-3.5 mt-0.5 rounded-sm shrink-0"
           loading="lazy"
+          src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostnameFromUrl(item.url))}&sz=32`}
         />
         <span className="min-w-0">
           <span className="flex items-center gap-1.5 text-[10px] font-mono leading-none text-[#6b5038]/90 dark:text-[#c4a882] mb-1">

@@ -1,10 +1,16 @@
 import type { ComponentType } from "react";
-
-import { CompanyLogo } from "@/components/company-logo";
 import type { PriceFormat } from "@/components/position-card";
-import { Skeleton } from "@/components/skeleton";
 import type { MarketDealing } from "@/lib/markets/types";
-import { benchmarkReturnPct, deltaStyle, shortDate, stockReturnPct } from "./market-utils";
+
+import {
+  benchmarkReturnPct,
+  deltaStyle,
+  shortDate,
+  stockReturnPct,
+} from "./market-utils";
+
+import { Skeleton } from "@/components/skeleton";
+import { CompanyLogo } from "@/components/company-logo";
 
 /** Column headers above the row list. `hideDate` matches the per-section
  *  Today cluster which gets its own date heading. When `singlePerf` is true
@@ -73,7 +79,7 @@ export function MarketRowSkeleton({
           <Skeleton className="h-5 w-16 rounded-full" />
         </div>
         <div className="flex items-start gap-3">
-          <Skeleton circle className="shrink-0 mt-0.5" w={36} h={36} />
+          <Skeleton circle className="shrink-0 mt-0.5" h={36} w={36} />
           <div className="flex-1 min-w-0 space-y-1.5">
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-12 rounded" />
@@ -99,7 +105,7 @@ export function MarketRowSkeleton({
           <Skeleton className="h-5 w-10 rounded" />
         </div>
         <div className="flex-1 min-w-0 px-4 py-4 flex items-center gap-3 border-r border-black/[0.06] dark:border-white/[0.06]">
-          <Skeleton circle w={36} h={36} className="shrink-0" />
+          <Skeleton circle className="shrink-0" h={36} w={36} />
           <div className="flex-1 min-w-0 space-y-1.5">
             <Skeleton className="h-4 w-1/2 rounded" />
             <Skeleton className="h-3 w-2/5 rounded" />
@@ -131,15 +137,24 @@ export function MarketRowSkeleton({
   );
 }
 
-export function DeltaBadge({ value, suffix = "%" }: { value: number; suffix?: string }) {
+export function DeltaBadge({
+  value,
+  suffix = "%",
+}: {
+  value: number;
+  suffix?: string;
+}) {
   const sign = value >= 0 ? "+" : "";
   const { bg, text } = deltaStyle(value);
+
   return (
     <span
       className="inline-flex items-center gap-0.5 rounded-full px-2 py-1 text-sm font-semibold whitespace-nowrap"
       style={{ backgroundColor: bg, color: text }}
     >
-      {value >= 0 ? "▲" : "▼"} {sign}{value.toFixed(1)}{suffix}
+      {value >= 0 ? "▲" : "▼"} {sign}
+      {value.toFixed(1)}
+      {suffix}
     </span>
   );
 }
@@ -200,14 +215,17 @@ export function MarketRow<W>({
   const tradeDiffers = tradeDay !== disclosedDay;
 
   const stockPct =
-    dealing.entryPrice != null && stockCurrentMajor != null && dealing.entryPrice > 0
+    dealing.entryPrice != null &&
+    stockCurrentMajor != null &&
+    dealing.entryPrice > 0
       ? stockReturnPct(dealing.entryPrice, stockCurrentMajor)
       : null;
   const benchPct =
     benchmarkEntry != null && benchmarkCurrent != null && benchmarkEntry > 0
       ? benchmarkReturnPct(benchmarkEntry, benchmarkCurrent)
       : null;
-  const alpha = stockPct != null && benchPct != null ? stockPct - benchPct : null;
+  const alpha =
+    stockPct != null && benchPct != null ? stockPct - benchPct : null;
 
   // UK LSE tickers carry a ".L" suffix on the wire (used by /api/prices)
   // but it's noise in the UI. Stripping a trailing ".L" is a no-op for
@@ -217,7 +235,8 @@ export function MarketRow<W>({
   const insiderLine = dealing.insiderRole
     ? `${dealing.insiderName} (${dealing.insiderRole})`
     : dealing.insiderName;
-  const valueLabel = dealing.value != null ? fmt.formatValue(dealing.value) : "—";
+  const valueLabel =
+    dealing.value != null ? fmt.formatValue(dealing.value) : "—";
 
   return (
     <button
@@ -242,7 +261,9 @@ export function MarketRow<W>({
           </div>
         </div>
         <div className="flex items-start gap-3">
-          {showLogo && <CompanyLogo ticker={ticker} size={36} className="mt-0.5" />}
+          {showLogo && (
+            <CompanyLogo className="mt-0.5" size={36} ticker={ticker} />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary shrink-0">
@@ -250,7 +271,9 @@ export function MarketRow<W>({
               </span>
               <span className="text-sm font-medium truncate">{company}</span>
             </div>
-            <div className="text-xs text-muted truncate mt-1">{insiderLine}</div>
+            <div className="text-xs text-muted truncate mt-1">
+              {insiderLine}
+            </div>
           </div>
           <div className="shrink-0 text-base font-medium tabular-nums leading-tight text-right">
             {valueLabel}
@@ -261,30 +284,32 @@ export function MarketRow<W>({
             )}
           </div>
         </div>
-        {singlePerf ? (
-          (showAlpha ? alpha != null : stockPct != null) && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {showAlpha ? (
-                <>
-                  <DeltaBadge value={alpha!} suffix="pp" />
-                  <span className="text-[10px] text-muted/70">vs {benchmarkLabel}</span>
-                </>
-              ) : (
-                <DeltaBadge value={stockPct!} />
-              )}
-            </div>
-          )
-        ) : (
-          (stockPct != null || alpha != null) && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {stockPct != null && <DeltaBadge value={stockPct} />}
-              {alpha != null && <DeltaBadge value={alpha} suffix="pp" />}
-              {alpha != null && (
-                <span className="text-[10px] text-muted/70">vs {benchmarkLabel}</span>
-              )}
-            </div>
-          )
-        )}
+        {singlePerf
+          ? (showAlpha ? alpha != null : stockPct != null) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {showAlpha ? (
+                  <>
+                    <DeltaBadge suffix="pp" value={alpha!} />
+                    <span className="text-[10px] text-muted/70">
+                      vs {benchmarkLabel}
+                    </span>
+                  </>
+                ) : (
+                  <DeltaBadge value={stockPct!} />
+                )}
+              </div>
+            )
+          : (stockPct != null || alpha != null) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {stockPct != null && <DeltaBadge value={stockPct} />}
+                {alpha != null && <DeltaBadge suffix="pp" value={alpha} />}
+                {alpha != null && (
+                  <span className="text-[10px] text-muted/70">
+                    vs {benchmarkLabel}
+                  </span>
+                )}
+              </div>
+            )}
       </div>
 
       {/* ── Desktop (md+) ── */}
@@ -307,10 +332,14 @@ export function MarketRow<W>({
           </span>
         </div>
         <div className="flex-1 min-w-0 px-4 py-4 flex items-center gap-3 border-r border-black/[0.06] dark:border-white/[0.06]">
-          {showLogo && <CompanyLogo ticker={ticker} size={36} />}
+          {showLogo && <CompanyLogo size={36} ticker={ticker} />}
           <div className="flex-1 min-w-0">
-            <div className="text-base font-medium truncate leading-snug">{company}</div>
-            <div className="text-sm text-muted truncate mt-0.5">{insiderLine}</div>
+            <div className="text-base font-medium truncate leading-snug">
+              {company}
+            </div>
+            <div className="text-sm text-muted truncate mt-0.5">
+              {insiderLine}
+            </div>
           </div>
         </div>
         <div className="w-32 shrink-0 px-4 py-4 flex flex-col items-end justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
@@ -324,18 +353,32 @@ export function MarketRow<W>({
         {singlePerf ? (
           <div className="w-32 shrink-0 px-3 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
             {showAlpha ? (
-              alpha != null ? <DeltaBadge value={alpha} suffix="pp" /> : <span className="text-xs text-muted/50">—</span>
+              alpha != null ? (
+                <DeltaBadge suffix="pp" value={alpha} />
+              ) : (
+                <span className="text-xs text-muted/50">—</span>
+              )
+            ) : stockPct != null ? (
+              <DeltaBadge value={stockPct} />
             ) : (
-              stockPct != null ? <DeltaBadge value={stockPct} /> : <span className="text-xs text-muted/50">—</span>
+              <span className="text-xs text-muted/50">—</span>
             )}
           </div>
         ) : (
           <>
             <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-              {stockPct != null ? <DeltaBadge value={stockPct} /> : <span className="text-xs text-muted/50">—</span>}
+              {stockPct != null ? (
+                <DeltaBadge value={stockPct} />
+              ) : (
+                <span className="text-xs text-muted/50">—</span>
+              )}
             </div>
             <div className="w-24 shrink-0 px-2 py-4 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-              {alpha != null ? <DeltaBadge value={alpha} suffix="pp" /> : <span className="text-xs text-muted/50">—</span>}
+              {alpha != null ? (
+                <DeltaBadge suffix="pp" value={alpha} />
+              ) : (
+                <span className="text-xs text-muted/50">—</span>
+              )}
             </div>
           </>
         )}

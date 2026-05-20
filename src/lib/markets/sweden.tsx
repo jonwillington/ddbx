@@ -9,11 +9,10 @@
 //
 // Localised CSV fields (nature, role) are mapped to English at the edge here.
 // Person and company names stay in Swedish with their diacritics — names are
-// names. The internal /eu page (src/pages/eu-preview.tsx) is the raw-table
-// debug view; this is the public-facing UI.
+// names.
 
-import { PriceFormat } from "@/components/position-card";
-import { api } from "@/lib/api";
+import type { HolidaySource } from "@/lib/bank-holidays";
+import type { MarketSession } from "@/lib/market-status";
 import type {
   MarketConfig,
   MarketDealing,
@@ -21,6 +20,44 @@ import type {
   Tone,
 } from "@/lib/markets/types";
 import type { EuDealing } from "@/types/ddbx";
+
+import { api } from "@/lib/api";
+import { PriceFormat } from "@/components/position-card";
+
+/** Nasdaq Stockholm — continuous trading 09:00–17:30 Europe/Stockholm,
+ *  closing call at 17:25, official close at 17:30. We use the official
+ *  close. Christmas Eve, New Year's Eve, Midsummer Eve are 13:00 half-days
+ *  but date-of-week varies; left unmodelled for now. */
+export const NASDAQ_STOCKHOLM: MarketSession = {
+  timeZone: "Europe/Stockholm",
+  openMinute: 9 * 60,
+  closeMinute: 17 * 60 + 30,
+};
+
+/** Swedish public holidays observed by Nasdaq Stockholm — static map.
+ *  Update when the year rolls over. Source: nasdaqomxnordic.com/tradinghours. */
+export const SE_EXCHANGE_HOLIDAYS: HolidaySource = {
+  kind: "static",
+  map: {
+    "2026-01-01": "Nyårsdagen",
+    "2026-01-06": "Trettondedag jul",
+    "2026-04-03": "Långfredagen",
+    "2026-04-06": "Annandag påsk",
+    "2026-05-01": "Första maj",
+    "2026-05-14": "Kristi himmelsfärdsdag",
+    "2026-06-19": "Midsommarafton",
+    "2026-12-24": "Julafton",
+    "2026-12-25": "Juldagen",
+    "2026-12-31": "Nyårsafton",
+    "2027-01-01": "Nyårsdagen",
+    "2027-01-06": "Trettondedag jul",
+    "2027-03-26": "Långfredagen",
+    "2027-03-29": "Annandag påsk",
+    "2027-05-06": "Kristi himmelsfärdsdag",
+    "2027-06-25": "Midsommarafton",
+    "2027-12-24": "Julafton",
+  },
+};
 
 /** SEK formatter bundle. Swedish stocks trade in decimal kronor; values are
  *  already in major units (SEK), so quoteToValue = 1 and normalizeLivePrice
@@ -45,7 +82,11 @@ const SEK_FORMAT: PriceFormat = {
  *  like "Lösen ökning" / "Lösen minskning") to an English label and a
  *  visual tone. Ordered so the longest, most specific prefix wins. */
 const NATURE_MAP: Array<{ prefix: string; label: string; tone: Tone }> = [
-  { prefix: "interntransaktion", label: "Internal transaction", tone: "neutral" },
+  {
+    prefix: "interntransaktion",
+    label: "Internal transaction",
+    tone: "neutral",
+  },
   { prefix: "förvärv", label: "Acquisition", tone: "buy" },
   { prefix: "teckning", label: "Subscription", tone: "buy" },
   { prefix: "avyttring", label: "Disposal", tone: "sell" },
@@ -70,17 +111,20 @@ function normaliseSwedish(s: string): string {
 
 function translateNature(nature: string): { label: string; tone: Tone } {
   const n = normaliseSwedish(nature);
+
   for (const entry of NATURE_MAP) {
-    if (n.startsWith(entry.prefix)) return { label: entry.label, tone: entry.tone };
+    if (n.startsWith(entry.prefix))
+      return { label: entry.label, tone: entry.tone };
   }
+
   return { label: nature || "—", tone: "neutral" };
 }
 
 const ROLE_MAP: Record<string, string> = {
-  "styrelseledamot": "Board member",
-  "styrelseordförande": "Board chair",
-  "styrelsesuppleant": "Deputy board member",
-  "vd": "CEO",
+  styrelseledamot: "Board member",
+  styrelseordförande: "Board chair",
+  styrelsesuppleant: "Deputy board member",
+  vd: "CEO",
   "verkställande direktör": "CEO",
   "verkställande direktör (vd)": "CEO",
   "vice vd": "Deputy CEO",
@@ -89,9 +133,9 @@ const ROLE_MAP: Record<string, string> = {
     "Other governance member",
   "arbetstagarrepresentant i styrelsen eller arbetstagarsuppleant":
     "Employee representative",
-  "ekonomichef": "CFO",
+  ekonomichef: "CFO",
   "ekonomichef/finanschef/finansdirektör": "CFO",
-  "revisor": "Auditor",
+  revisor: "Auditor",
 };
 
 /** Role can be a single value or a comma-separated list ("Vice VD,
@@ -102,10 +146,16 @@ const ROLE_MAP: Record<string, string> = {
 function translateRole(role: string | undefined): string | undefined {
   if (!role) return undefined;
   const direct = ROLE_MAP[normaliseSwedish(role)];
+
   if (direct) return direct;
-  const parts = role.split(",").map((p) => p.trim()).filter(Boolean);
+  const parts = role
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
   if (parts.length === 0) return undefined;
   const mapped = parts.map((p) => ROLE_MAP[normaliseSwedish(p)] ?? p);
+
   return mapped.join(" · ");
 }
 
@@ -126,8 +176,8 @@ function translateRole(role: string | undefined): string | undefined {
  *  buy. */
 export interface EuRowGroup {
   key: string;
-  legs: EuDealing[];         // sorted disclosed_date DESC
-  primary: EuDealing;        // most-recent leg — drives display metadata
+  legs: EuDealing[]; // sorted disclosed_date DESC
+  primary: EuDealing; // most-recent leg — drives display metadata
   total_shares: number;
   /** Sum of `leg.price * leg.volume` across legs with a non-null price.
    *  null when every leg was footnoted. Native currency (SEK/EUR). */
@@ -136,12 +186,13 @@ export interface EuRowGroup {
    *  every leg was footnoted. */
   weighted_price: number | null;
   leg_count: number;
-  disclosed_date: string;     // MAX across legs
-  trade_date: string;         // MAX across legs
+  disclosed_date: string; // MAX across legs
+  trade_date: string; // MAX across legs
 }
 
 function groupRows(rows: EuDealing[]): EuRowGroup[] {
   const map = new Map<string, EuRowGroup>();
+
   for (const r of rows) {
     const key = [
       r.lei,
@@ -153,6 +204,7 @@ function groupRows(rows: EuDealing[]): EuRowGroup[] {
       r.is_amendment ? "amd" : "ok",
     ].join("|");
     let g = map.get(key);
+
     if (!g) {
       g = {
         key,
@@ -173,7 +225,8 @@ function groupRows(rows: EuDealing[]): EuRowGroup[] {
     if (r.price != null) {
       g.total_value = (g.total_value ?? 0) + r.price * r.volume;
     }
-    if (r.disclosed_date > g.disclosed_date) g.disclosed_date = r.disclosed_date;
+    if (r.disclosed_date > g.disclosed_date)
+      g.disclosed_date = r.disclosed_date;
     if (r.trade_date > g.trade_date) g.trade_date = r.trade_date;
     if (r.disclosed_date >= g.primary.disclosed_date) g.primary = r;
   }
@@ -181,6 +234,7 @@ function groupRows(rows: EuDealing[]): EuRowGroup[] {
     g.legs.sort((a, b) => (b.disclosed_date > a.disclosed_date ? 1 : -1));
     let pxSum = 0;
     let qtySum = 0;
+
     for (const leg of g.legs) {
       if (leg.price != null) {
         pxSum += leg.price * leg.volume;
@@ -189,6 +243,7 @@ function groupRows(rows: EuDealing[]): EuRowGroup[] {
     }
     g.weighted_price = qtySum > 0 ? pxSum / qtySum : null;
   }
+
   // Preserve API order (disclosed DESC).
   return Array.from(map.values()).sort((a, b) =>
     b.disclosed_date > a.disclosed_date ? 1 : -1,
@@ -205,10 +260,12 @@ function groupRows(rows: EuDealing[]): EuRowGroup[] {
 function isCleanBuyGroup(g: EuRowGroup): boolean {
   const d = g.primary;
   const t = translateNature(d.nature).tone;
+
   if (t !== "buy") return false;
   if (d.reporter.is_closely_associated) return false;
   if (d.is_share_programme) return false;
   if (d.is_amendment) return false;
+
   return true;
 }
 
@@ -216,6 +273,7 @@ function toMarketDealing(g: EuRowGroup): MarketDealing<EuRowGroup> {
   const d = g.primary;
   const action = translateNature(d.nature);
   const suffix = d.reporter.is_closely_associated ? " (PCA)" : "";
+
   return {
     key: g.key,
     // Drawer deep-link id — primary leg's deterministic id. Re-resolves to
@@ -252,20 +310,28 @@ const CHIP_BASE =
 
 const CHIP_TONES: Record<"weak" | "neutral", string> = {
   weak: "bg-amber-200/15 text-amber-900/70 border-amber-400/25 dark:text-amber-200/60 dark:border-amber-300/20",
-  neutral: "bg-transparent text-[#b0a898] border-[#d8d0c6]/60 dark:text-foreground/45",
+  neutral:
+    "bg-transparent text-[#b0a898] border-[#d8d0c6]/60 dark:text-foreground/45",
 };
 
-function SwedenRowActionCell({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
+function SwedenRowActionCell({
+  dealing,
+}: {
+  dealing: MarketDealing<EuRowGroup>;
+}) {
   // Group keys carry PCA / programme / amendment, so reading the primary
   // leg's flags is representative of the entire group.
   const d = dealing.raw.primary;
   const chips: Array<{ label: string; tone: "weak" | "neutral" }> = [];
+
   // PCA and Programme weaken the signal — surfaced as the only chips that
   // earn space in the row (matches US's "Amendment / Late" discipline).
-  if (d.reporter.is_closely_associated) chips.push({ label: "PCA", tone: "weak" });
+  if (d.reporter.is_closely_associated)
+    chips.push({ label: "PCA", tone: "weak" });
   if (d.is_share_programme) chips.push({ label: "Programme", tone: "weak" });
   if (d.is_amendment) chips.push({ label: "Amendment", tone: "neutral" });
   if (chips.length === 0) return null;
+
   return (
     <div className="flex flex-wrap gap-1 justify-center">
       {chips.map((c) => (
@@ -294,7 +360,10 @@ function fmtNativeMoney(n: number | null, ccy: string): string {
 
 function fmtNativePrice(n: number | null, ccy: string): string {
   if (n == null) return "—";
-  const num = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 }).format(n);
+  const num = new Intl.NumberFormat("en-GB", {
+    maximumFractionDigits: 2,
+  }).format(n);
+
   return `${num} ${ccy}`;
 }
 
@@ -303,9 +372,13 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
   const d = g.primary;
   const action = translateNature(d.nature);
   const flags: Array<{ label: string; tone: "weak" | "neutral" }> = [];
-  if (d.reporter.is_closely_associated) flags.push({ label: "PCA filing", tone: "weak" });
-  if (d.is_share_programme) flags.push({ label: "Share programme", tone: "weak" });
-  if (d.is_first_time_report) flags.push({ label: "First-time report", tone: "neutral" });
+
+  if (d.reporter.is_closely_associated)
+    flags.push({ label: "PCA filing", tone: "weak" });
+  if (d.is_share_programme)
+    flags.push({ label: "Share programme", tone: "weak" });
+  if (d.is_first_time_report)
+    flags.push({ label: "First-time report", tone: "neutral" });
   if (d.is_amendment) flags.push({ label: "Amendment", tone: "neutral" });
   const multiLeg = g.leg_count > 1;
 
@@ -332,7 +405,10 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
       {flags.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {flags.map((f) => (
-            <span key={f.label} className={`${CHIP_BASE} ${CHIP_TONES[f.tone]}`}>
+            <span
+              key={f.label}
+              className={`${CHIP_BASE} ${CHIP_TONES[f.tone]}`}
+            >
               {f.label}
             </span>
           ))}
@@ -355,8 +431,8 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-sm">
           <Field label="Name" value={d.instrument_name || "—"} />
           <Field label="Type" value={d.instrument_type || "—"} />
-          <Field label="ISIN" value={d.isin} mono />
-          <Field label="LEI" value={d.lei} mono />
+          <Field mono label="ISIN" value={d.isin} />
+          <Field mono label="LEI" value={d.lei} />
           {d.venue && <Field label="Venue" value={d.venue} />}
           <Field label="Currency" value={d.currency || "—"} />
         </div>
@@ -378,9 +454,14 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
             </thead>
             <tbody className="tabular-nums">
               {g.legs.map((leg) => (
-                <tr key={leg.id} className="border-t border-black/[0.04] dark:border-white/[0.06]">
+                <tr
+                  key={leg.id}
+                  className="border-t border-black/[0.04] dark:border-white/[0.06]"
+                >
                   <td className="py-1">{leg.trade_date.slice(0, 10)}</td>
-                  <td className="py-1 text-right">{leg.volume.toLocaleString("en-GB")}</td>
+                  <td className="py-1 text-right">
+                    {leg.volume.toLocaleString("en-GB")}
+                  </td>
                   <td className="py-1 text-right">
                     {fmtNativePrice(leg.price, leg.currency)}
                   </td>
@@ -397,17 +478,19 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
         </div>
       )}
 
-      {d.reporter.filing_entity && d.reporter.filing_entity !== d.reporter.name && (
-        <div className="rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3 text-sm">
-          <div className="text-xs uppercase tracking-wide font-semibold text-muted mb-1">
-            Filing entity
+      {d.reporter.filing_entity &&
+        d.reporter.filing_entity !== d.reporter.name && (
+          <div className="rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-surface px-4 py-3 text-sm">
+            <div className="text-xs uppercase tracking-wide font-semibold text-muted mb-1">
+              Filing entity
+            </div>
+            <div className="text-foreground/85">{d.reporter.filing_entity}</div>
+            <div className="text-xs text-muted mt-1">
+              (FI: Anmälningsskyldig — the legal entity that filed on behalf of
+              the PDMR)
+            </div>
           </div>
-          <div className="text-foreground/85">{d.reporter.filing_entity}</div>
-          <div className="text-xs text-muted mt-1">
-            (FI: Anmälningsskyldig — the legal entity that filed on behalf of the PDMR)
-          </div>
-        </div>
-      )}
+        )}
 
       <details className="text-xs text-muted">
         <summary className="cursor-pointer hover:text-foreground transition-colors">
@@ -418,9 +501,9 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
           <Field label="Role (raw)" value={d.reporter.role} />
           <Field label="Status" value={d.status || "—"} />
           <Field label="Volume unit" value={d.volume_unit || "—"} />
-          <Field label="Disclosed" value={d.disclosed_date} mono />
-          <Field label="Trade date" value={d.trade_date} mono />
-          <Field label="ID" value={d.id} mono />
+          <Field mono label="Disclosed" value={d.disclosed_date} />
+          <Field mono label="Trade date" value={d.trade_date} />
+          <Field mono label="ID" value={d.id} />
         </dl>
         <pre className="mt-3 overflow-x-auto rounded bg-black/85 dark:bg-black/60 p-3 text-[11px] text-slate-100 leading-snug">
           {JSON.stringify(d, null, 2)}
@@ -430,11 +513,23 @@ function SwedenDetailBody({ dealing }: { dealing: MarketDealing<EuRowGroup> }) {
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div>
-      <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">{label}</dt>
-      <dd className={`text-sm font-medium truncate ${mono ? "font-mono" : ""}`}>{value}</dd>
+      <dt className="text-[10px] text-muted uppercase tracking-wide mb-0.5">
+        {label}
+      </dt>
+      <dd className={`text-sm font-medium truncate ${mono ? "font-mono" : ""}`}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -444,14 +539,16 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 export const SwedenMarket: MarketConfig<EuRowGroup> = {
   id: "se",
   title: "Sweden director dealings (preview)",
+  documentTitle: "ddbx · Director Dealings — Swedish PDMR Disclosures",
+  session: NASDAQ_STOCKHOLM,
+  holidays: SE_EXCHANGE_HOLIDAYS,
   description: (
     <>
       Finansinspektionen <em>Insynsregister</em> — Sweden&apos;s MAR Article 19
       register of trades by PDMRs (Persons Discharging Managerial
       Responsibilities) and their close associates. Hourly ingest from FI; no
-      analysis layer yet.{" "}
-      <strong className="text-foreground/75">Signal</strong> = direct PDMR
-      acquisitions outside any share programme.{" "}
+      analysis layer yet. <strong className="text-foreground/75">Signal</strong>{" "}
+      = direct PDMR acquisitions outside any share programme.{" "}
       <strong className="text-foreground/75">All filings</strong> includes
       disposals, grants, pledges and closely-associated (PCA) filings.
     </>
@@ -506,6 +603,7 @@ export const SwedenMarket: MarketConfig<EuRowGroup> = {
           ? `${r.dealings.length} raw legs collapsed into ${groups.length} filings`
           : undefined,
     };
+
     return { dealings: selected.map(toMarketDealing), stats };
   },
   RowActionCell: SwedenRowActionCell,
@@ -523,19 +621,21 @@ export const SwedenMarket: MarketConfig<EuRowGroup> = {
   renderEmptyState: ({ view, stats, setView }) => {
     const total = stats?.total ?? 0;
     const all = stats?.viewCounts.all ?? 0;
+
     if (view === "signal") {
       return (
         <>
           No direct PDMR buys in the latest scan.{" "}
           <button
-            onClick={() => setView("all")}
             className="text-foreground/70 underline underline-offset-2 hover:text-foreground"
+            onClick={() => setView("all")}
           >
             Show all {all} filings
           </button>
         </>
       );
     }
+
     return (
       <>
         No Swedish dealings stored yet. The hourly cron fills this at :20 past

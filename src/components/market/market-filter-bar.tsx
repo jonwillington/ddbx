@@ -40,11 +40,11 @@ export function MarketFilterBar({
         ))}
       </div>
       <input
+        className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
+        placeholder={searchPlaceholder}
         type="text"
         value={search}
         onChange={(e) => onSearch(e.target.value)}
-        placeholder={searchPlaceholder}
-        className="w-72 rounded-full border border-separator bg-transparent px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-[#6b5038]/50 transition-colors"
       />
       {trailing && <div className="ml-auto">{trailing}</div>}
     </div>

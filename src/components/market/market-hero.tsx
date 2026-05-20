@@ -97,12 +97,15 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
 
       {/* Left side panel — orbs anchored at the right edge so they drift
           out toward the gutter rather than into the headline. */}
-      <div aria-hidden className="hidden md:block absolute inset-y-0 left-0 w-[28%] overflow-hidden z-0 pointer-events-none">
+      <div
+        aria-hidden
+        className="hidden md:block absolute inset-y-0 left-0 w-[28%] overflow-hidden z-0 pointer-events-none"
+      >
         <svg
           aria-hidden
           className="absolute inset-0 w-full h-full"
-          viewBox="0 0 100 100"
           preserveAspectRatio="none"
+          viewBox="0 0 100 100"
         >
           <polyline
             className="hero-line hero-line-a"
@@ -122,35 +125,71 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
         <div
           className="hero-orb hero-orb-a"
           style={{
-            right: "-20%", top: "-30%", width: 320, height: 320,
-            background: "radial-gradient(circle, #b8a898 0%, rgba(184,168,152,0) 70%)",
+            right: "-20%",
+            top: "-30%",
+            width: 320,
+            height: 320,
+            background:
+              "radial-gradient(circle, #b8a898 0%, rgba(184,168,152,0) 70%)",
           }}
         />
         <div
           className="hero-orb hero-orb-c"
           style={{
-            right: "10%", top: "30%", width: 260, height: 260,
-            background: "radial-gradient(circle, #a89880 0%, rgba(168,152,128,0) 70%)",
+            right: "10%",
+            top: "30%",
+            width: 260,
+            height: 260,
+            background:
+              "radial-gradient(circle, #a89880 0%, rgba(168,152,128,0) 70%)",
           }}
         />
         <div
           className="hero-orb hero-orb-e"
           style={{
-            right: "-10%", top: "0%", width: 240, height: 240,
-            background: "radial-gradient(circle, transparent 46%, #b0a090 49%, #b0a090 51%, transparent 56%)",
+            right: "-10%",
+            top: "0%",
+            width: 240,
+            height: 240,
+            background:
+              "radial-gradient(circle, transparent 46%, #b0a090 49%, #b0a090 51%, transparent 56%)",
           }}
         />
-        <div className="hero-glow hero-glow-a" style={{ right: "20%", top: "30%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
-        <div className="hero-dot  hero-dot-a"  style={{ right: "20%", top: "30%", width: 10, height: 10, background: "#8B6040", marginRight: 5, marginTop: 5 }} />
+        <div
+          className="hero-glow hero-glow-a"
+          style={{
+            right: "20%",
+            top: "30%",
+            width: 20,
+            height: 20,
+            border: "1px solid #8B6040",
+            background: "transparent",
+          }}
+        />
+        <div
+          className="hero-dot  hero-dot-a"
+          style={{
+            right: "20%",
+            top: "30%",
+            width: 10,
+            height: 10,
+            background: "#8B6040",
+            marginRight: 5,
+            marginTop: 5,
+          }}
+        />
       </div>
 
       {/* Right side panel — mirror, anchored at the left edge. */}
-      <div aria-hidden className="hidden md:block absolute inset-y-0 right-0 w-[28%] overflow-hidden z-0 pointer-events-none">
+      <div
+        aria-hidden
+        className="hidden md:block absolute inset-y-0 right-0 w-[28%] overflow-hidden z-0 pointer-events-none"
+      >
         <svg
           aria-hidden
           className="absolute inset-0 w-full h-full"
-          viewBox="0 0 100 100"
           preserveAspectRatio="none"
+          viewBox="0 0 100 100"
         >
           <polyline
             className="hero-line hero-line-c"
@@ -170,21 +209,71 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
         <div
           className="hero-orb hero-orb-b"
           style={{
-            left: "-15%", top: "-25%", width: 280, height: 280,
-            background: "radial-gradient(circle, #c4b5a5 0%, rgba(196,181,165,0) 70%)",
+            left: "-15%",
+            top: "-25%",
+            width: 280,
+            height: 280,
+            background:
+              "radial-gradient(circle, #c4b5a5 0%, rgba(196,181,165,0) 70%)",
           }}
         />
         <div
           className="hero-orb hero-orb-d"
           style={{
-            left: "20%", top: "25%", width: 360, height: 360,
-            background: "radial-gradient(circle, transparent 47%, #9a8878 49%, #9a8878 51%, transparent 55%)",
+            left: "20%",
+            top: "25%",
+            width: 360,
+            height: 360,
+            background:
+              "radial-gradient(circle, transparent 47%, #9a8878 49%, #9a8878 51%, transparent 55%)",
           }}
         />
-        <div className="hero-glow hero-glow-b" style={{ left: "15%", top: "60%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
-        <div className="hero-dot  hero-dot-b"  style={{ left: "15%", top: "60%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
-        <div className="hero-glow hero-glow-c" style={{ left: "45%", top: "20%", width: 20, height: 20, border: "1px solid #8B6040", background: "transparent" }} />
-        <div className="hero-dot  hero-dot-c"  style={{ left: "45%", top: "20%", width: 10, height: 10, background: "#8B6040", marginLeft: 5, marginTop: 5 }} />
+        <div
+          className="hero-glow hero-glow-b"
+          style={{
+            left: "15%",
+            top: "60%",
+            width: 20,
+            height: 20,
+            border: "1px solid #8B6040",
+            background: "transparent",
+          }}
+        />
+        <div
+          className="hero-dot  hero-dot-b"
+          style={{
+            left: "15%",
+            top: "60%",
+            width: 10,
+            height: 10,
+            background: "#8B6040",
+            marginLeft: 5,
+            marginTop: 5,
+          }}
+        />
+        <div
+          className="hero-glow hero-glow-c"
+          style={{
+            left: "45%",
+            top: "20%",
+            width: 20,
+            height: 20,
+            border: "1px solid #8B6040",
+            background: "transparent",
+          }}
+        />
+        <div
+          className="hero-dot  hero-dot-c"
+          style={{
+            left: "45%",
+            top: "20%",
+            width: 10,
+            height: 10,
+            background: "#8B6040",
+            marginLeft: 5,
+            marginTop: 5,
+          }}
+        />
       </div>
 
       <div className="relative z-10 py-10 md:py-16 px-4 text-center">
@@ -193,7 +282,9 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
           style={{ maxWidth: 550 }}
         >
           Which directors have been buying shares in{" "}
-          <span className="text-[#6b5038] dark:text-[#c4a882]">{marketLabel}</span>{" "}
+          <span className="text-[#6b5038] dark:text-[#c4a882]">
+            {marketLabel}
+          </span>{" "}
           companies?
         </h2>
       </div>

@@ -7,6 +7,7 @@ import type {
   Rating,
   UkNewsItem,
   UsDealing,
+  UsDirectorDetail,
 } from "@/types/ddbx";
 
 export interface EuScrapeResult {
@@ -44,7 +45,9 @@ export interface IngestResult {
 
 const WORKER_BASE = (() => {
   // Strip the trailing `/api` so admin routes (`/__us-*`) hit the worker root.
-  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
+  const apiBase =
+    (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
+
   return apiBase.endsWith("/api") ? apiBase.slice(0, -4) : apiBase;
 })();
 
@@ -70,6 +73,7 @@ export const api = {
   portfolio: (fy?: number) =>
     get<Portfolio>(fy != null ? `/portfolio?fy=${fy}` : `/portfolio`),
   director: (id: string) => get<DirectorDetail>(`/directors/${id}`),
+  usDirector: (id: string) => get<UsDirectorDetail>(`/directors/us/${id}`),
   latestPrices: (tickers: string[]) =>
     get<{ prices: LatestPrice[] }>(
       `/prices/latest?tickers=${tickers.join(",")}`,
@@ -102,11 +106,13 @@ export const api = {
     } = {},
   ) => {
     const qs = new URLSearchParams();
+
     if (opts.limit != null) qs.set("limit", String(opts.limit));
     if (opts.code) qs.set("code", opts.code);
     if (opts.ticker) qs.set("ticker", opts.ticker);
     if (opts.view) qs.set("view", opts.view);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
+
     return get<{ dealings: UsDealing[]; stats: UsDealingsStats }>(
       `/us-dealings${suffix}`,
     );
@@ -117,7 +123,9 @@ export const api = {
     const res = await fetch(`${WORKER_BASE}/__us-ingest?limit=${limit}`, {
       method: "POST",
     });
+
     if (!res.ok) throw new Error(`/__us-ingest ${res.status}`);
+
     return (await res.json()) as IngestResult;
   },
   euScrape: async (from: string, to: string): Promise<EuScrapeResult> => {
@@ -129,15 +137,21 @@ export const api = {
     const res = await fetch(`${WORKER_BASE}/__eu-scrape?${qs.toString()}`, {
       method: "POST",
     });
+
     if (!res.ok) throw new Error(`/__eu-scrape ${res.status}`);
+
     return (await res.json()) as EuScrapeResult;
   },
-  euDealings: (opts: { limit?: number; since?: string; market?: "SE" } = {}) => {
+  euDealings: (
+    opts: { limit?: number; since?: string; market?: "SE" } = {},
+  ) => {
     const qs = new URLSearchParams();
+
     if (opts.limit != null) qs.set("limit", String(opts.limit));
     if (opts.since) qs.set("since", opts.since);
     if (opts.market) qs.set("market", opts.market);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
+
     return get<{ dealings: EuDealing[]; stats: EuDealingsStats }>(
       `/eu-dealings${suffix}`,
     );
@@ -159,4 +173,5 @@ export type {
   Rating,
   UkNewsItem,
   UsDealing,
+  UsDirectorDetail,
 };

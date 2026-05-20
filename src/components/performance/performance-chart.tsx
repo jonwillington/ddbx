@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const STRAT_COLOR = "#6b5038"; // brand brown, matches the active-link tint
 const BENCH_COLOR = "#a1a1aa"; // muted grey
-// Match the site's canonical positive/negative palette (see dealing-detail-panel,
+// Match the site's canonical positive/negative palette (see market-row,
 // evidence-table, hero-card). Light/dark variants are picked at render time.
 const POS_LIGHT = "#1e6b18";
 const POS_DARK = "#5cd84a";
@@ -192,12 +192,18 @@ export function PerformanceChart({ result, viewMode, onScrub }: Props) {
   const entryMarkerIndexes = useMemo<number[]>(() => {
     if (n === 0) return [];
     const idxByDate = new Map<string, number>();
-    dates.forEach((d, i) => { if (!idxByDate.has(d)) idxByDate.set(d, i); });
+
+    dates.forEach((d, i) => {
+      if (!idxByDate.has(d)) idxByDate.set(d, i);
+    });
     const seen = new Set<number>();
+
     for (const c of result.contributors) {
       const idx = idxByDate.get(c.entryDate);
+
       if (idx != null) seen.add(idx);
     }
+
     return [...seen].sort((a, b) => a - b);
   }, [n, dates, result.contributors]);
 
@@ -423,6 +429,7 @@ export function PerformanceChart({ result, viewMode, onScrub }: Props) {
           const cx = xFor(idx);
           const baseY = PAD_TOP + chartH - 1;
           const topY = baseY - 5;
+
           return (
             <path
               key={`entry-${idx}`}

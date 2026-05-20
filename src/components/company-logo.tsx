@@ -13,6 +13,7 @@ function logoUrl(ticker: string, sizePx: number): string {
   // Oversample like iOS — keeps the request URL stable regardless of DPR
   // so cached responses re-use across @1x/@2x viewports.
   const pixelSize = Math.max(48, Math.round(sizePx * 3));
+
   return `https://img.logo.dev/ticker/${encodeURIComponent(stripped)}?token=${LOGO_DEV_TOKEN}&size=${pixelSize}&format=png&retina=true`;
 }
 
@@ -32,17 +33,23 @@ interface CompanyLogoProps {
  * ticker monogram when the network image fails or fires nothing useful.
  * Mirrors `CompanyLogo` in the iOS app.
  */
-export function CompanyLogo({ ticker, size = 40, className }: CompanyLogoProps) {
+export function CompanyLogo({
+  ticker,
+  size = 40,
+  className,
+}: CompanyLogoProps) {
   const [failed, setFailed] = useState(false);
   const src = logoUrl(ticker, size);
 
-  useEffect(() => { setFailed(false); }, [src]);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
 
   return (
     <span
+      aria-hidden="true"
       className={`inline-flex items-center justify-center shrink-0 overflow-hidden rounded-full border border-[#d0c8be]/50 dark:border-border/50 bg-[#f1ebe2] dark:bg-surface-secondary ${className ?? ""}`}
       style={{ width: size, height: size }}
-      aria-hidden="true"
     >
       {failed ? (
         <span
@@ -53,15 +60,15 @@ export function CompanyLogo({ ticker, size = 40, className }: CompanyLogoProps) 
         </span>
       ) : (
         <img
-          src={src}
           alt=""
-          width={size}
+          className="w-full h-full object-contain"
+          decoding="async"
           height={size}
           loading="lazy"
-          decoding="async"
           referrerPolicy="no-referrer"
+          src={src}
+          width={size}
           onError={() => setFailed(true)}
-          className="w-full h-full object-contain"
         />
       )}
     </span>
@@ -77,10 +84,10 @@ export function LogoDevAttribution({ className }: { className?: string }) {
     <div className={`text-xs text-muted ${className ?? ""}`}>
       Logos provided by{" "}
       <a
-        href={LOGO_DEV_ATTRIBUTION_URL}
-        target="_blank"
-        rel="noopener noreferrer"
         className="font-medium hover:text-foreground transition-colors"
+        href={LOGO_DEV_ATTRIBUTION_URL}
+        rel="noopener noreferrer"
+        target="_blank"
       >
         Logo.dev
       </a>

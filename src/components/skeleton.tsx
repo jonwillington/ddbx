@@ -10,8 +10,10 @@ interface SkeletonProps {
 
 export function Skeleton({ className = "", h, w, circle }: SkeletonProps) {
   const style: React.CSSProperties = {};
+
   if (h != null) style.height = typeof h === "number" ? `${h}px` : h;
   if (w != null) style.width = typeof w === "number" ? `${w}px` : w;
   if (circle) style.borderRadius = "9999px";
-  return <div className={`skeleton ${className}`} style={style} aria-hidden />;
+
+  return <div aria-hidden className={`skeleton ${className}`} style={style} />;
 }

@@ -241,9 +241,10 @@ async function performCompute(args: ComputeArgs): Promise<ComputeOutcome> {
 
   const result = computeResult({ ...sharedArgs, deals: filtered });
 
-  const sectorResults = config.mode === "byIndustry"
-    ? computeSectorResults({ ...sharedArgs, deals: filtered })
-    : [];
+  const sectorResults =
+    config.mode === "byIndustry"
+      ? computeSectorResults({ ...sharedArgs, deals: filtered })
+      : [];
 
   return { result, sectorResults };
 }

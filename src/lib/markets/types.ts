@@ -16,8 +16,9 @@
 // edge, two wire contracts."
 
 import type { ComponentType, ReactNode } from "react";
-
 import type { PriceFormat } from "@/components/position-card";
+import type { MarketSession } from "@/lib/market-status";
+import type { HolidaySource } from "@/lib/bank-holidays";
 import type { Rating } from "@/types/ddbx";
 
 /** Triage label string. Markets are free to use their own taxonomies — the
@@ -148,6 +149,10 @@ export interface MarketConfig<W = unknown> {
 
   /** Page title — e.g. "US Form 4 (preview)". */
   title: string;
+  /** Full HTML `<title>` for the dealings page. The shared DocumentTitle
+   *  reads this from the active market — e.g. "ddbx · Director Dealings —
+   *  UK Insider Transactions". */
+  documentTitle: string;
   /** Explainer paragraph under the title. Markdown-y JSX is fine. */
   description: ReactNode;
   /** Short market label substituted into the shared hero headline
@@ -159,6 +164,14 @@ export interface MarketConfig<W = unknown> {
 
   /** Currency formatter bundle — used everywhere money is rendered. */
   priceFormat: PriceFormat;
+
+  /** Optional trading-session shape — feeds the shared TodayEmpty state and
+   *  any session-aware UI. UK supplies LSE; markets without a session
+   *  concept can omit and the shell falls back to generic copy. */
+  session?: MarketSession;
+  /** Optional exchange-holiday source. UK uses GOV.UK England-and-Wales;
+   *  US could supply a static NYSE map; SE similar for Nasdaq Stockholm. */
+  holidays?: HolidaySource;
 
   /** Live-price normalization. Backend stores ticker closes in a column
    *  called `close_pence` regardless of market; for UK that's already in

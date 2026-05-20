@@ -1,4 +1,5 @@
 import type { EvidencePoint } from "@/types/ddbx";
+
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/16/solid";
 
 export function EvidenceTable({
@@ -11,16 +12,15 @@ export function EvidenceTable({
   tone: "for" | "against";
 }) {
   const icon = tone === "for" ? "✓" : "✗";
-  const iconColor = tone === "for"
-    ? "text-[#1e6b18] dark:text-[#5cd84a]"
-    : "text-[#8b2020] dark:text-[#e84d4d]";
+  const iconColor =
+    tone === "for"
+      ? "text-[#1e6b18] dark:text-[#5cd84a]"
+      : "text-[#8b2020] dark:text-[#e84d4d]";
 
   if (points.length === 0) {
     return (
       <div>
-        <h4 className="text-lg font-bold mb-4">
-          {title}
-        </h4>
+        <h4 className="text-lg font-bold mb-4">{title}</h4>
         <p className="text-xs text-muted italic">None provided.</p>
       </div>
     );
@@ -28,19 +28,20 @@ export function EvidenceTable({
 
   return (
     <div>
-      <h4 className="text-lg font-bold mb-4">
-        {title}
-      </h4>
+      <h4 className="text-lg font-bold mb-4">{title}</h4>
       <div className="divide-y divide-black/10 dark:divide-white/10 border-b border-black/10 dark:border-white/10">
         {points.map((p, i) => {
           const headline = (p as any).headline ?? (p as any).point ?? "";
           const detail = (p as any).detail ?? "";
-          const sourceLabel = (p as any).source_label ?? (p as any).source ?? "";
+          const sourceLabel =
+            (p as any).source_label ?? (p as any).source ?? "";
           const sourceUrl: string | undefined = (p as any).source_url;
 
           return (
             <div key={i} className="flex gap-3 py-4">
-              <span className={`${iconColor} text-sm leading-relaxed shrink-0`}>{icon}</span>
+              <span className={`${iconColor} text-sm leading-relaxed shrink-0`}>
+                {icon}
+              </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold leading-snug">{headline}</p>
                 {detail && (
@@ -52,10 +53,10 @@ export function EvidenceTable({
                   <p className="text-xs mt-2">
                     {sourceUrl ? (
                       <a
-                        href={sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         className="inline-flex items-center gap-0.5 text-[#6b5038] dark:text-[#a8804e] hover:underline underline-offset-2"
+                        href={sourceUrl}
+                        rel="noopener noreferrer"
+                        target="_blank"
                       >
                         {sourceLabel}
                         <ArrowTopRightOnSquareIcon className="w-3 h-3 shrink-0" />

@@ -2,13 +2,19 @@
 // Fetches all dealings once and feeds them into usePerformance(); the hook
 // owns the strategy config, price/benchmark/FX caches, and recompute loop.
 // This component is purely orchestration: data wiring + sheet state.
+//
+// Market-aware: /portfolio + /performance are UK (back-compat); the
+// /:market/performance routes render a "coming soon" panel for non-UK
+// markets until ddbx-data ships per-market strategy backings.
 
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 import DefaultLayout from "@/layouts/default";
 import { Skeleton } from "@/components/skeleton";
-import { title } from "@/components/primitives";
+import { subtitle, title } from "@/components/primitives";
 import { api, type Dealing } from "@/lib/api";
+import { marketForPath } from "@/lib/markets/registry";
 import {
   AMOUNTS,
   BENCHMARKS,
@@ -65,11 +71,37 @@ function buildOptions<T extends string>(
 }
 
 export default function PerformancePage() {
+  const location = useLocation();
+  const market = marketForPath(location.pathname);
+
+  if (market.id !== "uk") {
+    return (
+      <DefaultLayout>
+        <section className="py-8 space-y-3">
+          <h1 className={`${title({ size: "sm" })} !block`}>
+            Performance — {market.label}
+          </h1>
+          <p className={subtitle({ class: "mt-2" })}>
+            Coming soon. The performance pipeline (analyst-screened picks, hold
+            simulation, sector attribution, benchmark alpha) currently only
+            covers the UK. {market.label} will land once ddbx-data exposes the
+            matching strategy backing.
+          </p>
+        </section>
+      </DefaultLayout>
+    );
+  }
+
+  return <UkPerformancePage />;
+}
+
+function UkPerformancePage() {
   const [dealings, setDealings] = useState<Dealing[] | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const isTradingDay = useMemo(() => {
     const dow = new Date().getDay();
+
     return dow >= 1 && dow <= 5;
   }, []);
 
@@ -194,8 +226,8 @@ export default function PerformancePage() {
               </>
             ) : (
               <SectorLeaderboard
-                rows={perf.sectorResults}
                 isComputing={perf.isComputing}
+                rows={perf.sectorResults}
                 onSelect={setDrilldownSector}
               />
             )}
@@ -280,13 +312,13 @@ function ModeToggle({
       {(["overall", "byIndustry"] as const).map((m) => (
         <button
           key={m}
-          type="button"
-          onClick={() => onChange(m)}
           className={`px-3 py-1 rounded-full font-medium transition-colors ${
             value === m
               ? "bg-[#6b5038]/15 text-[#6b5038] dark:text-[#a8804e]"
               : "text-muted hover:text-foreground"
           }`}
+          type="button"
+          onClick={() => onChange(m)}
         >
           {m === "overall" ? "Overall" : "By Industry"}
         </button>

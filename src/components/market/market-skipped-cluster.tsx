@@ -1,8 +1,8 @@
-import { ChevronDownIcon, TrashIcon } from "@heroicons/react/24/outline";
 import type { ComponentType } from "react";
-
 import type { PriceFormat } from "@/components/position-card";
 import type { MarketDealing } from "@/lib/markets/types";
+
+import { ChevronDownIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 import { MarketRow } from "./market-row";
 import { shortDate } from "./market-utils";
@@ -64,7 +64,9 @@ export function MarketSkippedCluster<W>({
         <div className="md:hidden px-4 py-3.5">
           <div className="flex items-center gap-2 mb-2">
             <TrashIcon className="w-3.5 h-3.5 text-muted/50 shrink-0" />
-            <span className="text-xs text-foreground/50 font-medium">{dateLabel}</span>
+            <span className="text-xs text-foreground/50 font-medium">
+              {dateLabel}
+            </span>
             <ChevronDownIcon
               className={`w-4 h-4 text-muted shrink-0 ml-auto transition-transform duration-200 ${
                 open ? "rotate-180" : ""
@@ -81,7 +83,9 @@ export function MarketSkippedCluster<W>({
               </span>
             ))}
             {tickers.length > 4 && (
-              <span className="text-xs text-muted/70">+{tickers.length - 4} more</span>
+              <span className="text-xs text-muted/70">
+                +{tickers.length - 4} more
+              </span>
             )}
           </div>
           <div className="text-xs text-muted/70 mt-1.5">
@@ -111,13 +115,15 @@ export function MarketSkippedCluster<W>({
                   </span>
                 ))}
                 {tickers.length > 5 && (
-                  <span className="text-xs text-muted/70">+{tickers.length - 5} more</span>
+                  <span className="text-xs text-muted/70">
+                    +{tickers.length - 5} more
+                  </span>
                 )}
               </div>
               <div className="text-xs text-muted/70 mt-1.5">
                 {dealings.length} other disclosure
-                {dealings.length === 1 ? "" : "s"} from this day — none met
-                our criteria to analyse further
+                {dealings.length === 1 ? "" : "s"} from this day — none met our
+                criteria to analyse further
               </div>
             </div>
             <ChevronDownIcon
@@ -134,17 +140,17 @@ export function MarketSkippedCluster<W>({
           {visible.map((d) => (
             <MarketRow
               key={d.key}
-              dealing={d}
-              selected={selectedKey === d.key}
-              onSelect={() => onSelect(d)}
-              stockCurrentMajor={stockCurrent(d.ticker)}
-              benchmarkEntry={benchmarkEntry(d)}
-              benchmarkCurrent={benchmarkCurrent}
-              fmt={fmt}
-              benchmarkLabel={benchmarkLabel}
               RowActionCell={RowActionCell}
+              benchmarkCurrent={benchmarkCurrent}
+              benchmarkEntry={benchmarkEntry(d)}
+              benchmarkLabel={benchmarkLabel}
+              dealing={d}
+              fmt={fmt}
               metricMode={metricMode}
+              selected={selectedKey === d.key}
               showLogo={showLogo}
+              stockCurrentMajor={stockCurrent(d.ticker)}
+              onSelect={() => onSelect(d)}
             />
           ))}
           {remaining > 0 && (

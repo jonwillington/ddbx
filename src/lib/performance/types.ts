@@ -5,7 +5,10 @@ import type { SectorNormalized } from "@/types/ddbx";
 
 export type PerformanceMode = "overall" | "byIndustry";
 
-export const PERFORMANCE_MODES: Record<PerformanceMode, { displayName: string }> = {
+export const PERFORMANCE_MODES: Record<
+  PerformanceMode,
+  { displayName: string }
+> = {
   overall: { displayName: "Overall" },
   byIndustry: { displayName: "By Industry" },
 };

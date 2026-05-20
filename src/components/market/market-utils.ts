@@ -5,9 +5,9 @@
 import type { MarketDealing } from "@/lib/markets/types";
 
 export interface DayBucket<W> {
-  weekday: string;     // "MON"
-  day: string;         // "4th"
-  key: string;         // ISO disclosed date
+  weekday: string; // "MON"
+  day: string; // "4th"
+  key: string; // ISO disclosed date
   dealings: MarketDealing<W>[];
   /** Split of `dealings` per the market's isSkipped predicate. When the
    *  market doesn't supply one, `suggested === dealings` and `skipped`
@@ -17,9 +17,9 @@ export interface DayBucket<W> {
 }
 
 export interface MonthBucket<W> {
-  label: string;       // "May"
+  label: string; // "May"
   year: number;
-  key: string;         // "May-2026"
+  key: string; // "May-2026"
   days: DayBucket<W>[];
   count: number;
   suggestedCount: number;
@@ -42,15 +42,19 @@ export function bucketByMonth<W>(
   const locale = options?.locale ?? "en-US";
   const isSkipped = options?.isSkipped;
   const months: MonthBucket<W>[] = [];
+
   for (const d of dealings) {
     const iso = d.disclosedDate.slice(0, 10);
+
     if (iso === todayIso) continue;
     const date = new Date(iso);
+
     if (Number.isNaN(date.getTime())) continue;
     const monthLabel = date.toLocaleString(locale, { month: "long" });
     const year = date.getFullYear();
     const monthKey = `${monthLabel}-${year}`;
     let bucket = months.find((m) => m.key === monthKey);
+
     if (!bucket) {
       bucket = {
         label: monthLabel,
@@ -64,8 +68,12 @@ export function bucketByMonth<W>(
       months.push(bucket);
     }
     let day = bucket.days.find((db) => db.key === iso);
+
     if (!day) {
-      const weekday = date.toLocaleString(locale, { weekday: "short" }).toUpperCase();
+      const weekday = date
+        .toLocaleString(locale, { weekday: "short" })
+        .toUpperCase();
+
       day = {
         weekday,
         day: ordinal(date.getDate()),
@@ -78,6 +86,7 @@ export function bucketByMonth<W>(
     }
     day.dealings.push(d);
     const skipped = isSkipped ? isSkipped(d) : false;
+
     if (skipped) {
       day.skipped.push(d);
       bucket.skippedCount++;
@@ -87,12 +96,15 @@ export function bucketByMonth<W>(
     }
     bucket.count++;
   }
+
   return months;
 }
 
 export function ordinal(n: number): string {
   const v = n % 100;
+
   if (v >= 11 && v <= 13) return `${n}th`;
+
   return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
 }
 
@@ -106,7 +118,10 @@ export function stockReturnPct(entry: number, currentMajor: number): number {
   return ((currentMajor - entry) / entry) * 100;
 }
 
-export function benchmarkReturnPct(entryClose: number, currentClose: number): number {
+export function benchmarkReturnPct(
+  entryClose: number,
+  currentClose: number,
+): number {
   return ((currentClose - entryClose) / entryClose) * 100;
 }
 
@@ -116,20 +131,31 @@ export function benchmarkReturnPct(entryClose: number, currentClose: number): nu
 export function deltaStyle(delta: number): { bg: string; text: string } {
   const abs = Math.abs(delta);
   const t = Math.min(abs / 30, 1);
+
   if (delta >= 0) {
     const bgAlpha = (0.08 + t * 0.22).toFixed(2);
     const l = Math.round(42 - t * 18);
-    const c = (0.10 + t * 0.14).toFixed(3);
-    return { bg: `oklch(${l}% ${c} 155 / ${bgAlpha})`, text: `oklch(${l}% ${c} 155)` };
+    const c = (0.1 + t * 0.14).toFixed(3);
+
+    return {
+      bg: `oklch(${l}% ${c} 155 / ${bgAlpha})`,
+      text: `oklch(${l}% ${c} 155)`,
+    };
   }
   const bgAlpha = (0.08 + t * 0.22).toFixed(2);
   const l = Math.round(45 - t * 16);
-  const c = (0.10 + t * 0.14).toFixed(3);
-  return { bg: `oklch(${l}% ${c} 18 / ${bgAlpha})`, text: `oklch(${l}% ${c} 18)` };
+  const c = (0.1 + t * 0.14).toFixed(3);
+
+  return {
+    bg: `oklch(${l}% ${c} 18 / ${bgAlpha})`,
+    text: `oklch(${l}% ${c} 18)`,
+  };
 }
 
 export function shortDate(iso: string, locale = "en-US"): string {
   const d = new Date(iso);
+
   if (Number.isNaN(d.getTime())) return iso;
+
   return d.toLocaleDateString(locale, { day: "numeric", month: "short" });
 }

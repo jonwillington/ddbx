@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { api } from "./api";
 
 /**
@@ -9,6 +10,7 @@ import { api } from "./api";
 export function useDataVersion(onNewData: () => void, intervalMs = 30_000) {
   const knownRef = useRef<string | null>(null);
   const cbRef = useRef(onNewData);
+
   cbRef.current = onNewData;
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
@@ -19,6 +21,7 @@ export function useDataVersion(onNewData: () => void, intervalMs = 30_000) {
       try {
         const { latest, total } = await api.version();
         const fingerprint = `${latest}:${total}`;
+
         if (active) setLastChecked(new Date());
         if (knownRef.current === null) {
           knownRef.current = fingerprint;
@@ -33,7 +36,11 @@ export function useDataVersion(onNewData: () => void, intervalMs = 30_000) {
 
     check();
     const id = setInterval(check, intervalMs);
-    return () => { active = false; clearInterval(id); };
+
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
   }, [intervalMs]);
 
   return lastChecked;

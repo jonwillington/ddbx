@@ -48,10 +48,11 @@ export function PositionCard({
   // back to the reported share count rather than guess. The same band works
   // for both UK (GBP, post the 5k disclosure floor) and US (USD).
   const computedFromShares = shares * entry * fmt.quoteToValue;
-  const sharesRatio = computedFromShares > 0 && originalValue > 0
-    ? Math.max(computedFromShares, originalValue) /
-      Math.min(computedFromShares, originalValue)
-    : 1;
+  const sharesRatio =
+    computedFromShares > 0 && originalValue > 0
+      ? Math.max(computedFromShares, originalValue) /
+        Math.min(computedFromShares, originalValue)
+      : 1;
   const plausible = (v: number) => v >= 5_000 && v <= 10_000_000;
   const effectiveShares =
     sharesRatio < 1.05 || entry <= 0 || originalValue <= 0
@@ -83,50 +84,74 @@ export function PositionCard({
   return (
     <div className={`grid gap-3 grid-cols-2 ${cols}`}>
       <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Entry</div>
-        <div className="text-2xl font-bold tabular-nums">{fmt.formatPrice(entry)}</div>
-        <div className="text-xs text-muted mt-1">{fmt.formatValue(originalValue)}</div>
+        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">
+          Entry
+        </div>
+        <div className="text-2xl font-bold tabular-nums">
+          {fmt.formatPrice(entry)}
+        </div>
+        <div className="text-xs text-muted mt-1">
+          {fmt.formatValue(originalValue)}
+        </div>
       </div>
 
       <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Now</div>
-        <div className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}>
+        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">
+          Now
+        </div>
+        <div
+          className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}
+        >
           {fmt.formatPrice(current)}
         </div>
-        <div className="text-xs text-muted mt-1">{fmt.formatValue(currentValue)}</div>
+        <div className="text-xs text-muted mt-1">
+          {fmt.formatValue(currentValue)}
+        </div>
       </div>
 
       <div className={`rounded-xl px-4 py-4 ${up ? upBg : downBg}`}>
-        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">Return</div>
-        <div className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}>
+        <div className="text-[10px] text-muted uppercase tracking-wider mb-2">
+          Return
+        </div>
+        <div
+          className={`text-2xl font-bold tabular-nums ${up ? upText : downText}`}
+        >
           {fmtPct(stockPct)}
         </div>
-        <div className={`text-xs font-medium mt-1 opacity-70 ${up ? upText : downText}`}>
-          {gainSign}{fmt.formatValue(gainLoss)}
+        <div
+          className={`text-xs font-medium mt-1 opacity-70 ${up ? upText : downText}`}
+        >
+          {gainSign}
+          {fmt.formatValue(gainLoss)}
         </div>
       </div>
 
-      {benchmark && (
-        benchmarkPct != null ? (
+      {benchmark &&
+        (benchmarkPct != null ? (
           <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-            <div className="text-[10px] text-muted uppercase tracking-wider mb-2">vs {benchmark.label}</div>
+            <div className="text-[10px] text-muted uppercase tracking-wider mb-2">
+              vs {benchmark.label}
+            </div>
             <div className="text-2xl font-bold tabular-nums text-foreground/50">
               {fmtPct(benchmarkPct)}
             </div>
             {alphaPct != null && (
-              <div className={`text-xs font-semibold mt-1 ${ahead ? upText : downText}`}>
+              <div
+                className={`text-xs font-semibold mt-1 ${ahead ? upText : downText}`}
+              >
                 {fmtPp(alphaPct)} alpha
               </div>
             )}
           </div>
         ) : (
           <div className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-4 py-4">
-            <div className="text-[10px] text-muted uppercase tracking-wider mb-2">vs {benchmark.label}</div>
+            <div className="text-[10px] text-muted uppercase tracking-wider mb-2">
+              vs {benchmark.label}
+            </div>
             <Skeleton className="h-8 w-20 mt-1" />
             <Skeleton className="h-3 w-16 mt-2" />
           </div>
-        )
-      )}
+        ))}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 // (centered, red/green), and a strategy-vs-benchmark return line on the right.
 
 import type { SectorResult } from "@/lib/performance/types";
+
 import {
   alphaReturnPct,
   benchmarkReturnPct,
@@ -18,6 +19,7 @@ interface Props {
 
 export function SectorLeaderboard({ rows, isComputing, onSelect }: Props) {
   const isFirstLoad = rows.length === 0 && isComputing;
+
   if (isFirstLoad) {
     return (
       <section>
@@ -34,17 +36,24 @@ export function SectorLeaderboard({ rows, isComputing, onSelect }: Props) {
       </section>
     );
   }
-  const maxAbsAlpha = rows.reduce((m, r) => Math.max(m, Math.abs(sectorAlphaPp(r))), 0);
+  const maxAbsAlpha = rows.reduce(
+    (m, r) => Math.max(m, Math.abs(sectorAlphaPp(r))),
+    0,
+  );
 
   return (
-    <section className={isComputing ? "opacity-60 transition-opacity" : "transition-opacity"}>
+    <section
+      className={
+        isComputing ? "opacity-60 transition-opacity" : "transition-opacity"
+      }
+    >
       <Header />
       <div className="rounded-xl border border-separator bg-surface/40 divide-y divide-separator/60">
         {rows.map((row) => (
           <SectorRow
             key={row.sector}
-            row={row}
             maxAbsAlpha={maxAbsAlpha}
+            row={row}
             onClick={() => onSelect(row)}
           />
         ))}
@@ -65,7 +74,9 @@ function Header() {
 function EmptyState() {
   return (
     <div className="rounded-xl border border-separator bg-surface/40 px-4 py-10 text-center">
-      <p className="text-sm text-muted">No sector-classified deals in this window.</p>
+      <p className="text-sm text-muted">
+        No sector-classified deals in this window.
+      </p>
     </div>
   );
 }
@@ -74,7 +85,10 @@ function SkeletonList() {
   return (
     <div className="rounded-xl border border-separator bg-surface/40 divide-y divide-separator/60">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
+        <div
+          key={i}
+          className="px-4 py-3 flex items-center gap-3 animate-pulse"
+        >
           <div className="flex-1 space-y-2">
             <div className="h-3.5 w-32 bg-foreground/10 rounded" />
             <div className="h-2.5 w-16 bg-foreground/10 rounded" />
@@ -108,21 +122,24 @@ function SectorRow({
 
   return (
     <button
-      type="button"
       className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors"
+      type="button"
       onClick={onClick}
     >
       <div className="flex-1 min-w-0 space-y-1">
         <div className="text-sm font-semibold truncate">{row.sector}</div>
         <div className="text-[11px] text-muted">{dealsLabel}</div>
-        <AlphaBar value={alphaPp} maxAbs={maxAbsAlpha} positive={positive} />
+        <AlphaBar maxAbs={maxAbsAlpha} positive={positive} value={alphaPp} />
       </div>
       <div className="text-right shrink-0 space-y-0.5">
         <div
           className="text-sm font-semibold tabular-nums"
-          style={{ color: positive ? "oklch(36% 0.16 155)" : "oklch(38% 0.16 18)" }}
+          style={{
+            color: positive ? "oklch(36% 0.16 155)" : "oklch(38% 0.16 18)",
+          }}
         >
-          {alphaSign}{Math.abs(alphaPp).toFixed(1)}pp
+          {alphaSign}
+          {Math.abs(alphaPp).toFixed(1)}pp
         </div>
         <div className="text-[11px] text-muted flex items-baseline gap-1 justify-end">
           <span className="font-mono tabular-nums">{formatPct(stratPct)}</span>
@@ -130,14 +147,34 @@ function SectorRow({
           <span className="font-mono tabular-nums">{formatPct(benchPct)}</span>
         </div>
       </div>
-      <svg viewBox="0 0 8 12" className="w-2 h-3 shrink-0 text-muted/50" fill="currentColor" aria-hidden>
-        <path d="M2 1l4 5-4 5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <svg
+        aria-hidden
+        className="w-2 h-3 shrink-0 text-muted/50"
+        fill="currentColor"
+        viewBox="0 0 8 12"
+      >
+        <path
+          d="M2 1l4 5-4 5"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+        />
       </svg>
     </button>
   );
 }
 
-function AlphaBar({ value, maxAbs, positive }: { value: number; maxAbs: number; positive: boolean }) {
+function AlphaBar({
+  value,
+  maxAbs,
+  positive,
+}: {
+  value: number;
+  maxAbs: number;
+  positive: boolean;
+}) {
   const normalised = maxAbs > 0 ? Math.min(1, Math.abs(value) / maxAbs) : 0;
   const halfPercent = normalised * 50;
   const color = positive ? "oklch(45% 0.14 155)" : "oklch(45% 0.14 18)";
@@ -159,6 +196,7 @@ function AlphaBar({ value, maxAbs, positive }: { value: number; maxAbs: number; 
 
 function formatPct(p: number): string {
   const sign = p >= 0 ? "+" : "−";
+
   return `${sign}${Math.abs(p * 100).toFixed(1)}%`;
 }
 
