@@ -4,6 +4,7 @@ import { DocumentTitle } from "@/components/document-title";
 import PerformancePage from "@/pages/performance";
 import DirectorPage from "@/pages/director";
 import EuPreviewPage from "@/pages/eu-preview";
+import SwedenPreviewPage from "@/pages/sweden-preview";
 import UsPreviewPage from "@/pages/us-preview";
 import UkPreviewPage from "@/pages/uk-preview";
 
@@ -25,6 +26,8 @@ function App() {
         <Route element={<UsPreviewPage />} path="/us" />
         <Route element={<EuPreviewPage />} path="/eu-preview" />
         <Route element={<EuPreviewPage />} path="/eu" />
+        <Route element={<SwedenPreviewPage />} path="/se-preview" />
+        <Route element={<SwedenPreviewPage />} path="/se" />
         <Route element={<UkPreviewPage />} path="/uk-preview" />
       </Routes>
     </>

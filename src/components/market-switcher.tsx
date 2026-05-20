@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDownIcon, CheckIcon } from "@heroicons/react/24/outline";
-import { GB, US } from "country-flag-icons/react/3x2";
+import { GB, SE, US } from "country-flag-icons/react/3x2";
 import clsx from "clsx";
 
 type FlagIcon = typeof GB;
@@ -18,10 +18,12 @@ type Market = {
 const MARKETS: Market[] = [
   { code: "UK", label: "UK", Flag: GB, route: "/", enabled: true },
   { code: "US", label: "US", Flag: US, route: "/us", enabled: true },
+  { code: "SE", label: "SE", Flag: SE, route: "/se", enabled: true },
 ];
 
 function activeMarket(pathname: string): Market {
   if (pathname.startsWith("/us")) return MARKETS[1];
+  if (pathname.startsWith("/se")) return MARKETS[2];
   return MARKETS[0];
 }
 
