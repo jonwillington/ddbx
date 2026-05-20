@@ -188,6 +188,13 @@ export interface MarketConfig<W = unknown> {
    *  until pipeline/prices.ts learns SEK). Default true. */
   enableLivePrices?: boolean;
 
+  /** When false, MarketRow and MarketDetailDrawer suppress the CompanyLogo
+   *  bubble entirely (no empty circle, no monogram fallback). Use for
+   *  markets where logo.dev coverage is thin enough that the placeholder is
+   *  louder than nothing — verified for Sweden 2026-05-20: ~80% of seed-map
+   *  tickers resolve to the same generic placeholder. Default true. */
+  enableLogos?: boolean;
+
   /** Fetch dealings for a given view. Adapter does its own bucketing into
    *  MarketDealings before returning. */
   fetchDealings: (opts: { view: string }) => Promise<DealingsPayload<W>>;

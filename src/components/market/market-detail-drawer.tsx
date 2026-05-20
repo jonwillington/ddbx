@@ -19,6 +19,7 @@ export function MarketDetailDrawer<W>({
   gating,
   DummyDetailBody,
   AnalysisOverlay,
+  showLogo = true,
 }: {
   dealing: MarketDealing<W> | null;
   onClose: () => void;
@@ -30,6 +31,9 @@ export function MarketDetailDrawer<W>({
   gating?: GatingInfo;
   DummyDetailBody?: ComponentType<{ dealing: MarketDealing<W> }>;
   AnalysisOverlay?: ComponentType;
+  /** Mirror of the row prop — when false, the header + body logo bubbles
+   *  are suppressed. Wired from MarketConfig.enableLogos. Default true. */
+  showLogo?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -110,7 +114,7 @@ export function MarketDetailDrawer<W>({
                   : "border-transparent"
                 }`}
             >
-              <CompanyLogo ticker={ticker} size={32} />
+              {showLogo && <CompanyLogo ticker={ticker} size={32} />}
               <span className="font-mono text-xs bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded shrink-0">
                 {ticker}
               </span>
@@ -135,7 +139,7 @@ export function MarketDetailDrawer<W>({
             <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
               <div className="p-5 md:p-8 space-y-6">
                 <div className="flex items-center gap-4">
-                  <CompanyLogo ticker={ticker} size={56} />
+                  {showLogo && <CompanyLogo ticker={ticker} size={56} />}
                   <h1 className="text-3xl font-bold leading-tight tracking-tight flex-1 min-w-0">
                     {company}
                   </h1>

@@ -125,6 +125,7 @@ export function MarketPage<W>({
   // to fetch SEK closes). Avoids spamming Yahoo with .ST symbols it'd
   // return nothing for.
   const livePricesEnabled = config.enableLivePrices !== false;
+  const logosEnabled = config.enableLogos !== false;
   useEffect(() => {
     if (!livePricesEnabled) return;
     if (dealings.length === 0) return;
@@ -471,6 +472,7 @@ export function MarketPage<W>({
                   benchmarkLabel={config.benchmarkLabel}
                   RowActionCell={config.RowActionCell}
                   metricMode={rowMetricMode}
+                  showLogo={logosEnabled}
                   hideDate
                 />
               ))}
@@ -528,6 +530,7 @@ export function MarketPage<W>({
                   benchmarkLabel={config.benchmarkLabel}
                   RowActionCell={config.RowActionCell}
                   metricMode={rowMetricMode}
+                  showLogo={logosEnabled}
                 />
               ))}
             </div>
@@ -593,6 +596,7 @@ export function MarketPage<W>({
                                   benchmarkLabel={config.benchmarkLabel}
                                   RowActionCell={config.RowActionCell}
                                   metricMode={rowMetricMode}
+                                  showLogo={logosEnabled}
                                 />
                               ))}
                               {day.skipped.length > 0 && (
@@ -611,6 +615,7 @@ export function MarketPage<W>({
                                   benchmarkLabel={config.benchmarkLabel}
                                   RowActionCell={config.RowActionCell}
                                   metricMode={rowMetricMode}
+                                  showLogo={logosEnabled}
                                 />
                               )}
                             </Fragment>
@@ -663,6 +668,7 @@ export function MarketPage<W>({
         gating={gating}
         DummyDetailBody={config.DummyDetailBody}
         AnalysisOverlay={config.AnalysisOverlay}
+        showLogo={logosEnabled}
       />
 
       {config.MetricModeSheet && (

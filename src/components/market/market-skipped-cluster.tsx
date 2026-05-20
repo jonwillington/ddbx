@@ -26,6 +26,7 @@ export function MarketSkippedCluster<W>({
   benchmarkLabel,
   RowActionCell,
   metricMode,
+  showLogo,
 }: {
   dealings: MarketDealing<W>[];
   open: boolean;
@@ -42,6 +43,7 @@ export function MarketSkippedCluster<W>({
   benchmarkLabel: string;
   RowActionCell: ComponentType<{ dealing: MarketDealing<W> }>;
   metricMode?: { isVsMarket: boolean };
+  showLogo?: boolean;
 }) {
   if (dealings.length === 0) return null;
   const newest = dealings[0];
@@ -142,6 +144,7 @@ export function MarketSkippedCluster<W>({
               benchmarkLabel={benchmarkLabel}
               RowActionCell={RowActionCell}
               metricMode={metricMode}
+              showLogo={showLogo}
             />
           ))}
           {remaining > 0 && (

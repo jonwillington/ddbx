@@ -161,6 +161,10 @@ interface MarketRowProps<W> {
   benchmarkLabel: string;
   RowActionCell: ComponentType<{ dealing: MarketDealing<W> }>;
   hideDate?: boolean;
+  /** When false, the CompanyLogo bubble is suppressed entirely. Default true.
+   *  Set from MarketConfig.enableLogos by the shell — used by Sweden where
+   *  logo.dev coverage is too thin to bother. */
+  showLogo?: boolean;
   /** When set, the row renders a single Performance cell that flips between
    *  raw return and alpha based on `isVsMarket`. When omitted the row keeps
    *  the older two-cell (Return + vs Benchmark) layout. */
@@ -182,6 +186,7 @@ export function MarketRow<W>({
   benchmarkLabel,
   RowActionCell,
   hideDate,
+  showLogo = true,
   metricMode,
 }: MarketRowProps<W>) {
   const singlePerf = !!metricMode;
@@ -237,7 +242,7 @@ export function MarketRow<W>({
           </div>
         </div>
         <div className="flex items-start gap-3">
-          <CompanyLogo ticker={ticker} size={36} className="mt-0.5" />
+          {showLogo && <CompanyLogo ticker={ticker} size={36} className="mt-0.5" />}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary shrink-0">
@@ -302,7 +307,7 @@ export function MarketRow<W>({
           </span>
         </div>
         <div className="flex-1 min-w-0 px-4 py-4 flex items-center gap-3 border-r border-black/[0.06] dark:border-white/[0.06]">
-          <CompanyLogo ticker={ticker} size={36} />
+          {showLogo && <CompanyLogo ticker={ticker} size={36} />}
           <div className="flex-1 min-w-0">
             <div className="text-base font-medium truncate leading-snug">{company}</div>
             <div className="text-sm text-muted truncate mt-0.5">{insiderLine}</div>

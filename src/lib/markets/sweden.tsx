@@ -470,6 +470,12 @@ export const SwedenMarket: MarketConfig<EuRowGroup> = {
   benchmarkTicker: "^OMX",
   benchmarkLabel: "OMXS30",
   enableLivePrices: false,
+  // logo.dev's ticker → image mapping is heavily US-skewed; for the OMXS30 /
+  // First North seed-map tickers only ~4 of 25 (SAND, BRAV, EQT, SAVE) resolve
+  // to a real brand image — the rest return the same generic placeholder
+  // bytes (verified 2026-05-20). Suppressing the bubble keeps the row clean
+  // until we either find a Nordic logo source or vendor logos ourselves.
+  enableLogos: false,
   views: [
     { id: "signal", label: "Signal" },
     { id: "all", label: "All filings" },
