@@ -5,9 +5,18 @@ name: Check ddbx wire-format sync
 # is a consumer of the canonical); fix drift by running `npm run sync:types`
 # in this repo from a checkout of the matching ddbx-data commit.
 #
+# ddbx-data is a private sibling repo. The default GITHUB_TOKEN cannot
+# clone it; this workflow uses DDBX_DATA_PAT, a personal access token
+# stored as a repo secret. Until the secret is configured the job emits
+# a warning and skips — it does NOT fail. To enable strict gating:
+#
+#   1. Create a fine-grained PAT at https://github.com/settings/tokens
+#      with read-only access to jonwillington/ddbx-data (Contents).
+#   2. Store as DDBX_DATA_PAT in this repo's Settings → Secrets and
+#      variables → Actions → New repository secret.
+#
 # iOS will become a third consumer of the same canonical file; the same
-# check pattern can be added to ddbx-ios-app when Swift Codable structs
-# land.
+# pattern can be added to ddbx-ios-app when Swift Codable structs land.
 
 on:
   pull_request:
@@ -18,19 +27,36 @@ jobs:
   check-types:
     runs-on: ubuntu-latest
     steps:
+      - name: Check PAT presence
+        id: check-secret
+        env:
+          PAT: ${{ secrets.DDBX_DATA_PAT }}
+        run: |
+          if [ -z "$PAT" ]; then
+            echo "::warning::DDBX_DATA_PAT secret not configured — type-sync check skipped. See workflow file header for setup."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout ddbx-site
+        if: steps.check-secret.outputs.has_token == 'true'
         uses: actions/checkout@v4
         with:
           path: ddbx-site
 
       - name: Checkout ddbx-data (canonical types source)
+        if: steps.check-secret.outputs.has_token == 'true'
         uses: actions/checkout@v4
         with:
           repository: jonwillington/ddbx-data
+          token: ${{ secrets.DDBX_DATA_PAT }}
           path: ddbx-data
 
       - name: Check types sync
+        if: steps.check-secret.outputs.has_token == 'true'
         working-directory: ddbx-site
         env:
+          DDBX_DATA_PAT: ${{ secrets.DDBX_DATA_PAT }}
           DDBX_DATA_PATH: ${{ github.workspace }}/ddbx-data
         run: npm run check:types
