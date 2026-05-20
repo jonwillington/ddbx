@@ -90,6 +90,8 @@ export const api = {
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/uk"),
   usNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/us"),
+  seNews: () =>
+    get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/se"),
   version: () => get<{ latest: string | null; total: number }>("/version"),
   usDealings: (
     opts: {

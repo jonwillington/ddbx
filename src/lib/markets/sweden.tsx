@@ -512,7 +512,12 @@ export const SwedenMarket: MarketConfig<EuRowGroup> = {
   DetailBody: SwedenDetailBody,
   // No DetailPosition — Swedish instruments are keyed by ISIN; the
   // ticker-based price history endpoint doesn't cover them yet.
-  // No fetchNews — no Swedish news source wired yet.
+  // Swedish business-press feeds (DI, DN Ekonomi, SVT Ekonomi, Börsvärlden)
+  // — same RSS strip pattern as UK/US. Worker pipeline: pipeline/se-news.ts.
+  fetchNews: () => api.seNews(),
+  newsHeading: "Swedish market news",
+  newsFooterNote:
+    "Third-party headlines (Dagens industri, DN Ekonomi, SVT Ekonomi, Börsvärlden); opens in a new tab.",
   // No useGating — Sweden mirrors /us, no discretion mode.
   // No useMetricMode — no analysis layer to drive alpha-vs-raw toggles.
   renderEmptyState: ({ view, stats, setView }) => {
