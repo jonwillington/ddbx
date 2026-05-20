@@ -222,11 +222,13 @@ function toMarketDealing(g: EuRowGroup): MarketDealing<EuRowGroup> {
     // the same group on the next load (groupRows is deterministic on the
     // returned MarketDealings).
     id: d.id,
-    // MAR has no native ticker field, but the worker now stamps a Yahoo-style
-    // ticker on rows whose ISIN appears in the Stockholm lookup map (see
-    // pipeline/eu/isin-tickers.ts in ddbx-data). Fall back to the ISIN for
-    // names not yet in the map so the user always has *something* to copy.
-    ticker: d.ticker ?? d.isin,
+    // MAR has no native ticker field. The worker resolves ISIN → display
+    // symbol via the isin_tickers cache (hand-verified manual rows + OpenFIGI
+    // auto-discovery). When neither covers the ISIN we leave ticker undefined
+    // so MarketRow's "—" fallback kicks in — raw ISIN strings in the chip
+    // (12-char SE0… codes) made the grid look broken (verified visually
+    // 2026-05-20).
+    ticker: d.ticker ?? "",
     company: d.company,
     insiderName: d.reporter.name,
     insiderRole: translateRole(d.reporter.role),
