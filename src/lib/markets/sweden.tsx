@@ -463,15 +463,14 @@ export const SwedenMarket: MarketConfig<EuRowGroup> = {
   // shell's stock-return math works without conversion. (No price-history
   // wiring for ISIN-quoted Swedish instruments yet — DetailPosition omitted.)
   normalizeLivePrice: (close_pence) => close_pence,
-  // OMXS30 ticker on Yahoo. Not yet wired into /api/prices for SE — kept
-  // here so when ISIN-based price history lands, the benchmark slot is
-  // already labelled correctly. enableLivePrices below stops the shell
-  // from spamming /api/prices/latest with Swedish symbols while the
-  // worker has no SEK branch in pipeline/prices.ts (every fetch would
-  // return nothing and get re-polled).
+  // OMXS30 ticker on Yahoo. The worker's pipeline/prices.ts learned SEK
+  // on 2026-05-20 (raw SEK preserved, no GBp conversion) and the
+  // /api/prices/* endpoints resolve display → Yahoo (ERIC-B → ERIC-B.ST)
+  // server-side via the isin_tickers cache, so the frontend keeps passing
+  // display tickers and gets prices back keyed the same way.
   benchmarkTicker: "^OMX",
   benchmarkLabel: "OMXS30",
-  enableLivePrices: false,
+  enableLivePrices: true,
   // logo.dev's ticker → image mapping is heavily US-skewed; for the OMXS30 /
   // First North seed-map tickers only ~4 of 25 (SAND, BRAV, EQT, SAVE) resolve
   // to a real brand image — the rest return the same generic placeholder
