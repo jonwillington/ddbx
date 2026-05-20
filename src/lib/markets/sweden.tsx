@@ -133,9 +133,11 @@ function toMarketDealing(d: EuDealing): MarketDealing<EuDealing> {
   return {
     key: d.id,
     id: d.id,
-    // No clean ticker in MAR data — ISIN is the cross-border security ID.
-    // Surfaced in the row's ticker column so the user has *something* to copy.
-    ticker: d.isin,
+    // MAR has no native ticker field, but the worker now stamps a Yahoo-style
+    // ticker on rows whose ISIN appears in the Stockholm lookup map (see
+    // pipeline/eu/isin-tickers.ts in ddbx-data). Fall back to the ISIN for
+    // names not yet in the map so the user always has *something* to copy.
+    ticker: d.ticker ?? d.isin,
     company: d.company,
     insiderName: d.reporter.name,
     insiderRole: translateRole(d.reporter.role),
