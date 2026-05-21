@@ -452,9 +452,19 @@ export interface UsDirectorDetail {
 // the parser stays auditable against the underlying regulation rather than the
 // per-country localisation of the CSV.
 
-/** Source market. ISO 3166-1 alpha-2. Single source today; expected to grow as
- *  more NCAs come online. */
-export type EuMarket = "SE";
+/** Source market. ISO 3166-1 alpha-2. Single source today; expected to grow
+ *  as more NCAs come online. Runtime constant is the source of truth so
+ *  validators stay in lockstep with the type — add a new market by appending
+ *  to EU_MARKETS and the union widens automatically. */
+export const EU_MARKETS = ["SE", "NL"] as const;
+export type EuMarket = (typeof EU_MARKETS)[number];
+
+export function isEuMarket(v: unknown): v is EuMarket {
+  return (
+    typeof v === "string" &&
+    (EU_MARKETS as readonly string[]).includes(v)
+  );
+}
 
 export interface EuReporter {
   /** Free-form person name (PDMR — "Person discharging managerial
