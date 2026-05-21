@@ -78,6 +78,8 @@ export const api = {
   usDirector: (id: string) => get<UsDirectorDetail>(`/directors/us/${id}`),
   seDirector: (nameOrKey: string) =>
     get<EuDirectorDetail>(`/directors/se/${encodeURIComponent(nameOrKey)}`),
+  nlDirector: (nameOrKey: string) =>
+    get<EuDirectorDetail>(`/directors/nl/${encodeURIComponent(nameOrKey)}`),
   latestPrices: (tickers: string[]) =>
     get<{ prices: LatestPrice[] }>(
       `/prices/latest?tickers=${tickers.join(",")}`,
@@ -100,6 +102,8 @@ export const api = {
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/us"),
   seNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/se"),
+  nlNews: () =>
+    get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/nl"),
   version: () => get<{ latest: string | null; total: number }>("/version"),
   /** UK daily summary for a given YYYY-MM-DD. Returns null on 404 — the
    *  endpoint 404s for days the team hasn't written one for yet, which
@@ -160,7 +164,7 @@ export const api = {
     return (await res.json()) as EuScrapeResult;
   },
   euDealings: (
-    opts: { limit?: number; since?: string; market?: "SE" } = {},
+    opts: { limit?: number; since?: string; market?: "SE" | "NL" } = {},
   ) => {
     const qs = new URLSearchParams();
 

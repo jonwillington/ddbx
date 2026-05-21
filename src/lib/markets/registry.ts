@@ -9,14 +9,15 @@
 //      routes in src/App.tsx
 import type { MarketConfig } from "./types";
 
-import { GB, SE, US, type FlagComponent } from "country-flag-icons/react/3x2";
+import { GB, NL, SE, US, type FlagComponent } from "country-flag-icons/react/3x2";
 
+import { NetherlandsMarket } from "./netherlands";
 import { SwedenMarket } from "./sweden";
 import { UkMarket } from "./uk";
 import { UsMarket } from "./us";
 
 export interface MarketRegistryEntry {
-  /** MarketConfig.id — "uk" | "us" | "se". */
+  /** MarketConfig.id — "uk" | "us" | "se" | "nl". */
   id: string;
   /** Short code for the switcher chip. */
   code: string;
@@ -55,6 +56,14 @@ export const MARKETS: MarketRegistryEntry[] = [
     Flag: SE,
     config: SwedenMarket as MarketConfig,
   },
+  {
+    id: "nl",
+    code: "NL",
+    label: "NL",
+    route: "/nl",
+    Flag: NL,
+    config: NetherlandsMarket as MarketConfig,
+  },
 ];
 
 /** Resolve a route to its owning market. UK is the default for paths that
@@ -67,6 +76,8 @@ export function marketForPath(pathname: string): MarketRegistryEntry {
     return MARKETS.find((m) => m.id === "us") ?? uk;
   if (pathname.startsWith("/se-preview") || pathname.startsWith("/eu"))
     return MARKETS.find((m) => m.id === "se") ?? uk;
+  if (pathname.startsWith("/nl-preview"))
+    return MARKETS.find((m) => m.id === "nl") ?? uk;
 
   const match = MARKETS.filter((m) => m.route !== "/")
     .sort((a, b) => b.route.length - a.route.length)

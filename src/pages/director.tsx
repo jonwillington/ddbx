@@ -1,6 +1,6 @@
 // Per-director profile page. Market-aware: /directors/:id stays a UK-only
 // alias for back-compat; /:market/directors/:id is the canonical path going
-// forward. UK + US + SE all live as of 2026-05-20.
+// forward. UK + US + SE + NL all live as of 2026-05-21.
 import type { MarketDealing } from "@/lib/markets/types";
 
 import { useEffect, useMemo, useState } from "react";
@@ -31,6 +31,7 @@ import {
   groupRows as groupSeRows,
   toMarketDealing as toSeMarketDealing,
 } from "@/lib/markets/sweden";
+import { toMarketDealing as toNlMarketDealing } from "@/lib/markets/netherlands";
 
 type AnyDirectorDetail =
   | DirectorDetail
@@ -45,8 +46,10 @@ function isUsDetail(d: AnyDirectorDetail): d is UsDirectorDetail {
   return first != null && typeof first.filing_id === "string";
 }
 
-function isSeDetail(d: AnyDirectorDetail): d is EuDirectorDetail {
+function isEuDetail(d: AnyDirectorDetail): d is EuDirectorDetail {
   // EuDirectorDetail carries `market` on the response shape; UK/US don't.
+  // SE and NL share the same wire shape — discriminate via the `market`
+  // field, not the type guard.
   return (d as { market?: string }).market != null;
 }
 
@@ -57,19 +60,26 @@ function pct(n: number | null) {
 }
 
 /** Per-market adapter for `prior_picks → MarketDealing[]`. UK maps 1:1 from
- *  Dealing; US + SE fold tranche-split legs into RowGroups first, then map. */
+ *  Dealing; US + SE + NL fold tranche-split legs into RowGroups first, then
+ *  map. SE and NL share the EuDealing wire format so they reuse the same
+ *  groupRows; only the per-market toMarketDealing differs (Dutch vs Swedish
+ *  vocabulary). */
 function toMarketDealings(
   market: MarketRegistryEntry,
   detail: AnyDirectorDetail,
 ): MarketDealing[] {
-  if (market.id === "uk" && !isUsDetail(detail) && !isSeDetail(detail)) {
+  if (market.id === "uk" && !isUsDetail(detail) && !isEuDetail(detail)) {
     return detail.prior_picks.map(toUkMarketDealing);
   }
   if (market.id === "us" && isUsDetail(detail)) {
     return groupUsRows(detail.prior_picks).map(toUsMarketDealing);
   }
-  if (market.id === "se" && isSeDetail(detail)) {
+  if (market.id === "se" && isEuDetail(detail)) {
     return groupSeRows(detail.prior_picks).map(toSeMarketDealing);
+  }
+  if (market.id === "nl" && isEuDetail(detail)) {
+    // groupRows is market-blind — sweden's groupRows handles NL just as well.
+    return groupSeRows(detail.prior_picks).map(toNlMarketDealing);
   }
 
   return [];
@@ -97,7 +107,9 @@ export default function DirectorPage() {
         ? api.usDirector(id)
         : market.id === "se"
           ? api.seDirector(id)
-          : api.director(id);
+          : market.id === "nl"
+            ? api.nlDirector(id)
+            : api.director(id);
 
     fetcher
       .then((r) => setD(r as AnyDirectorDetail))
