@@ -734,7 +734,8 @@ export const UsMarket: MarketConfig<UsRowGroup> = {
   benchmarkTicker: SPY_TICKER,
   benchmarkLabel: SPY_LABEL,
   formatTickerDisplay: (ticker) => ticker,
-  isRowMuted: (d) => !d.isPurchase,
+  isRowMuted: (d) => !d.rating || !d.isPurchase,
+  isSkipped: (d) => !d.rating,
   views: [
     { id: "signal", label: "Signal" },
     { id: "interesting", label: "Interesting" },

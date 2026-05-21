@@ -13,7 +13,6 @@ import {
   PlayIcon,
 } from "@heroicons/react/24/outline";
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -28,6 +27,7 @@ import { MarketFilterBar, type MarketViewMode } from "./market-filter-bar";
 import { MarketHero } from "./market-hero";
 import {
   MarketDayHeader,
+  MarketDaySummaryRow,
   MarketRow,
   MarketRowHeader,
   MarketRowSkeleton,
@@ -523,12 +523,9 @@ export function MarketPage<W>({
         {/* Shared hero — first content under the navbar. Perf moved to
             /performance; the old title + description block is dropped
             because the hero IS the page heading. Per-market beta notice
-            is rendered as an animated overlay inside the hero so the
-            geometry doesn't shift between markets. */}
-        <MarketHero
-          marketLabel={config.marketLabel}
-          topNotice={config.topNotice}
-        />
+            renders via <BetaTag/> in App.tsx so it persists across route
+            changes instead of remounting with each MarketHero. */}
+        <MarketHero marketLabel={config.marketLabel} />
 
         {(config.views.length > 1 || config.ingest) && (
           <div className="flex flex-wrap items-center gap-3">
@@ -663,7 +660,11 @@ export function MarketPage<W>({
           ) : loading ? (
             <div className="divide-y divide-black/[0.06] dark:divide-separator">
               {Array.from({ length: 3 }).map((_, i) => (
-                <MarketRowSkeleton key={i} hideDate />
+                <MarketRowSkeleton
+                  key={i}
+                  hideDate
+                  valueColumnClass={config.priceFormat.valueColumnClass}
+                />
               ))}
             </div>
           ) : TodayEmptyComponent ? (
@@ -680,10 +681,14 @@ export function MarketPage<W>({
             <MarketRowHeader
               benchmarkLabel={config.benchmarkLabel}
               chartMode={chartMode}
+              valueColumnClass={config.priceFormat.valueColumnClass}
             />
             <div className="divide-y divide-black/[0.06] dark:divide-separator">
               {Array.from({ length: 8 }).map((_, i) => (
-                <MarketRowSkeleton key={i} />
+                <MarketRowSkeleton
+                  key={i}
+                  valueColumnClass={config.priceFormat.valueColumnClass}
+                />
               ))}
             </div>
           </div>
@@ -713,6 +718,7 @@ export function MarketPage<W>({
             <MarketRowHeader
               benchmarkLabel={config.benchmarkLabel}
               chartMode={chartMode}
+              valueColumnClass={config.priceFormat.valueColumnClass}
             />
             <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
               {byGain.map(({ dealing: d }) => (
@@ -777,31 +783,42 @@ export function MarketPage<W>({
                     <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
                       <MarketRowHeader
                         hideDate
+                        inset
                         benchmarkLabel={config.benchmarkLabel}
                         chartMode={chartMode}
+                        valueColumnClass={config.priceFormat.valueColumnClass}
                       />
-                      <div className="divide-y divide-black/[0.06] dark:divide-separator">
+                      <div className="px-3 py-3 space-y-2 bg-[#ece8e5] dark:bg-black/15 rounded-b-xl">
                         {month.days.map((day) => {
                           const hasContent =
                             day.suggested.length > 0 || day.skipped.length > 0;
 
+                          if (!hasContent) return null;
+
                           return (
-                            <Fragment key={day.key}>
-                              {hasContent && (
-                                <MarketDayHeader
-                                  day={day.day}
-                                  isToday={day.key === todayIso}
-                                  isoDate={day.key}
-                                  locale={config.locale}
-                                  skippedCount={day.skipped.length}
-                                  suggestedCount={day.suggested.length}
-                                  summary={dailySummaries.get(day.key) ?? undefined}
-                                  weekday={day.weekday}
-                                  onOpenSummary={() =>
-                                    setOpenSummaryDate(day.key)
-                                  }
-                                />
-                              )}
+                            <div
+                              key={day.key}
+                              className="rounded-xl overflow-hidden bg-white dark:bg-surface-secondary divide-y divide-black/[0.06] dark:divide-separator"
+                            >
+                              <MarketDayHeader
+                                day={day.day}
+                                isoDate={day.key}
+                                locale={config.locale}
+                                skippedCount={day.skipped.length}
+                                suggestedCount={day.suggested.length}
+                                weekday={day.weekday}
+                              />
+                              {config.id === "uk" &&
+                                dailySummaries.get(day.key) && (
+                                  <MarketDaySummaryRow
+                                    headline={dailySummaries.get(day.key)!.headline}
+                                    isToday={day.key === todayIso}
+                                    valueColumnClass={
+                                      config.priceFormat.valueColumnClass
+                                    }
+                                    onOpen={() => setOpenSummaryDate(day.key)}
+                                  />
+                                )}
                               {day.suggested.map((d) => (
                                 <MarketRow
                                   key={d.key}
@@ -846,7 +863,7 @@ export function MarketPage<W>({
                                   onSelect={() => setSelectedKey(d.key)}
                                 />
                               ))}
-                            </Fragment>
+                            </div>
                           );
                         })}
                       </div>

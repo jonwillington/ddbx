@@ -7,6 +7,10 @@ export interface PriceFormat {
   formatPrice: (n: number) => string;
   formatValue: (n: number) => string;
   quoteToValue: number;
+  /** Optional Tailwind width class for the Value column in market row tables.
+   *  Defaults to `w-24` when omitted; SEK widens it to fit the currency prefix
+   *  + larger digit counts. */
+  valueColumnClass?: string;
 }
 
 export interface BenchmarkProps {

@@ -16,14 +16,23 @@ export function MarketRowHeader({
   hideDate = false,
   benchmarkLabel,
   chartMode,
+  inset = false,
+  valueColumnClass = "w-24",
 }: {
   hideDate?: boolean;
   benchmarkLabel: string;
   chartMode: ChartMode;
+  /** When true, the header columns are nudged inward by px-3 to align with
+   *  the rounded day cards in the chronological view. */
+  inset?: boolean;
+  /** Tailwind width class for the Value column — wider for SEK. */
+  valueColumnClass?: string;
 }) {
   const perfLabel = chartMode.axis === "market" ? `vs ${benchmarkLabel}` : "Return";
   return (
-    <div className="hidden md:flex items-center text-[10px] uppercase tracking-wider text-muted/80 font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] rounded-t-xl">
+    <div
+      className={`hidden md:flex items-center text-[10px] uppercase tracking-wider text-muted/80 font-medium select-none border-b border-black/[0.08] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.05] rounded-t-xl ${inset ? "px-3" : ""}`}
+    >
       {!hideDate && (
         <div className="w-28 shrink-0 px-3 py-1.5 border-r border-black/[0.06] dark:border-white/[0.06]">
           Disclosed
@@ -35,7 +44,7 @@ export function MarketRowHeader({
       <div className="flex-1 min-w-0 px-3 py-1.5 border-r border-black/[0.06] dark:border-white/[0.06]">
         Company / Insider
       </div>
-      <div className="w-24 shrink-0 px-3 py-1.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]">
+      <div className={`${valueColumnClass} shrink-0 px-3 py-1.5 text-right border-r border-black/[0.06] dark:border-white/[0.06]`}>
         Value
       </div>
       <div className="w-24 shrink-0 px-2 py-1.5 text-center border-r border-black/[0.06] dark:border-white/[0.06]">
@@ -52,9 +61,7 @@ export function MarketRowHeader({
 /** Sticky day separator rendered between each day inside an open month.
  *  Mirrors the month header's overhang treatment — same surface colour,
  *  sticky at the height of the month bar so consecutive day headers
- *  swap places as the user scrolls without ever stacking. When a daily
- *  summary is available, the headline collapses inline with a sparkles
- *  affordance — tap opens the full sheet. */
+ *  swap places as the user scrolls without ever stacking. */
 export function MarketDayHeader({
   weekday,
   day,
@@ -62,9 +69,6 @@ export function MarketDayHeader({
   locale = "en-US",
   suggestedCount,
   skippedCount,
-  summary,
-  isToday,
-  onOpenSummary,
 }: {
   weekday: string;
   day: string;
@@ -72,60 +76,135 @@ export function MarketDayHeader({
   locale?: string;
   suggestedCount: number;
   skippedCount: number;
-  summary?: { headline: string };
-  isToday?: boolean;
-  onOpenSummary?: () => void;
 }) {
   const dateObj = new Date(isoDate);
   const monthLabel = !Number.isNaN(dateObj.getTime())
     ? dateObj.toLocaleString(locale, { month: "short" })
     : "";
 
+  const dateLine = (
+    <span className="flex items-center gap-3 min-w-0">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 shrink-0">
+        {weekday}
+      </span>
+      <span className="text-xs font-semibold text-foreground/80 tabular-nums shrink-0">
+        {day} {monthLabel}
+      </span>
+    </span>
+  );
+  const counts = (
+    <span className="text-[10px] text-muted/80 tabular-nums shrink-0">
+      {suggestedCount}
+      {skippedCount > 0 && (
+        <span className="text-muted/50">
+          {" · "}
+          {skippedCount} skipped
+        </span>
+      )}
+    </span>
+  );
+
   return (
-    <div className="sticky top-[180px] z-[5] bg-[#faf7f2] dark:bg-surface border-y border-black/[0.06] dark:border-white/[0.06]">
-      <div className="flex items-center gap-3 px-4 md:px-5 py-1.5 bg-black/[0.025] dark:bg-white/[0.03]">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 shrink-0">
-          {weekday}
-        </span>
-        <span className="text-xs font-semibold text-foreground/80 tabular-nums shrink-0">
-          {day} {monthLabel}
-        </span>
-        {summary && onOpenSummary && (
-          <button
-            className="flex-1 min-w-0 flex items-center gap-1.5 text-left text-[#6b5038] dark:text-[#c4a882] hover:text-[#4a3520] dark:hover:text-[#e6cba0] transition-colors"
-            type="button"
-            onClick={onOpenSummary}
-          >
-            <svg
-              aria-hidden="true"
-              className="w-3 h-3 shrink-0"
-              fill="none"
-              viewBox="0 0 16 16"
-            >
-              <path
-                d="M8 1.5l1.2 3.3L12.5 6l-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2L8 1.5zM13 10l.6 1.7 1.7.6-1.7.6L13 14.6l-.6-1.7L10.7 12.3l1.7-.6L13 10z"
-                fill="currentColor"
-              />
-            </svg>
-            <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">
-              {isToday ? "Today's summary" : "Day in review"}
-            </span>
-            <span className="text-xs font-medium text-foreground/75 truncate">
-              {summary.headline}
-            </span>
-          </button>
-        )}
-        <span className="ml-auto text-[10px] text-muted/80 tabular-nums shrink-0">
-          {suggestedCount}
-          {skippedCount > 0 && (
-            <span className="text-muted/50">
-              {" · "}
-              {skippedCount} skipped
-            </span>
-          )}
-        </span>
+    <div className="bg-black/[0.04] dark:bg-white/[0.05]">
+      {/* Mobile — flush left */}
+      <div className="md:hidden flex items-center gap-3 px-4 py-1.5">
+        {dateLine}
+        <span className="ml-auto">{counts}</span>
+      </div>
+      {/* Desktop — date aligns with the avatar column in the row below */}
+      <div className="hidden md:flex items-stretch">
+        <div className="w-20 shrink-0" />
+        <div className="flex-1 min-w-0 px-3 py-1.5 flex items-center">
+          {dateLine}
+        </div>
+        <div className="shrink-0 px-3 py-1.5 flex items-center">{counts}</div>
       </div>
     </div>
+  );
+}
+
+/** Iridescent gradient bubble used in place of a company logo on the
+ *  day-summary row — signals "this is AI-generated context, not a deal". */
+function AiAvatar({ size = 28 }: { size?: number }) {
+  return (
+    <div
+      className="rounded-full flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400"
+      style={{ width: size, height: size }}
+    >
+      <svg
+        aria-hidden="true"
+        className="text-white"
+        fill="none"
+        height={size * 0.5}
+        viewBox="0 0 16 16"
+        width={size * 0.5}
+      >
+        <path
+          d="M8 1.5l1.2 3.3L12.5 6l-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2L8 1.5zM13 10l.6 1.7 1.7.6-1.7.6L13 14.6l-.6-1.7L10.7 12.3l1.7-.6L13 10z"
+          fill="currentColor"
+        />
+      </svg>
+    </div>
+  );
+}
+
+/** Standalone "Day in review" row, rendered at the top of each day inside
+ *  an open month. Mirrors MarketRow's column geometry so it slots into the
+ *  same table — no ticker, AI-style avatar in place of the company logo,
+ *  headline in the company/insider slot. The whole row is the click target
+ *  for opening the daily summary sheet. */
+export function MarketDaySummaryRow({
+  isToday,
+  headline,
+  onOpen,
+  valueColumnClass = "w-24",
+}: {
+  isToday?: boolean;
+  headline: string;
+  onOpen: () => void;
+  valueColumnClass?: string;
+}) {
+  const label = isToday ? "Today's summary" : "Day in review";
+
+  return (
+    <button
+      className="w-full text-left transition-colors hover:bg-black/[0.03] dark:hover:bg-white/5"
+      type="button"
+      onClick={onOpen}
+    >
+      {/* ── Mobile (<md) ── */}
+      <div className="md:hidden px-3 py-2.5 flex items-center gap-2.5">
+        <AiAvatar />
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6b5038] dark:text-[#c4a882] leading-tight">
+            {label}
+          </div>
+          <div className="text-[13px] font-medium text-foreground/90 mt-0.5 truncate">
+            {headline}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Desktop (md+) ── */}
+      <div className="hidden md:flex items-stretch">
+        <div className="w-20 shrink-0 px-2 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]" />
+        <div className="flex-1 min-w-0 px-3 py-2.5 flex items-center gap-2.5 border-r border-black/[0.06] dark:border-white/[0.06]">
+          <AiAvatar />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6b5038] dark:text-[#c4a882] leading-tight">
+              {label}
+            </div>
+            <div className="text-[13px] font-medium text-foreground/90 mt-0.5 truncate">
+              {headline}
+            </div>
+          </div>
+        </div>
+        <div className={`${valueColumnClass} shrink-0 px-3 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]`} />
+        <div className="w-24 shrink-0 px-2 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]" />
+        <div className="w-24 shrink-0 px-2 py-2.5 border-r border-black/[0.06] dark:border-white/[0.06]" />
+        <div className="w-40 shrink-0 px-2 py-2.5" />
+      </div>
+    </button>
   );
 }
 
@@ -134,8 +213,10 @@ export function MarketDayHeader({
  *  layout doesn't jump when data arrives. */
 export function MarketRowSkeleton({
   hideDate = false,
+  valueColumnClass = "w-24",
 }: {
   hideDate?: boolean;
+  valueColumnClass?: string;
 }) {
   return (
     <div className="w-full">
@@ -178,7 +259,7 @@ export function MarketRowSkeleton({
             <Skeleton className="h-3 w-2/5 rounded" />
           </div>
         </div>
-        <div className="w-24 shrink-0 px-3 py-2.5 flex flex-col items-end justify-center gap-1 border-r border-black/[0.06] dark:border-white/[0.06]">
+        <div className={`${valueColumnClass} shrink-0 px-3 py-2.5 flex flex-col items-end justify-center gap-1 border-r border-black/[0.06] dark:border-white/[0.06]`}>
           <Skeleton className="h-4 w-16 rounded" />
         </div>
         <div className="w-24 shrink-0 px-2 py-2.5 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
@@ -402,7 +483,7 @@ export function MarketRow<W>({
             </div>
           </div>
         </div>
-        <div className="w-24 shrink-0 px-3 py-2.5 flex flex-col items-end justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+        <div className={`${fmt.valueColumnClass ?? "w-24"} shrink-0 px-3 py-2.5 flex flex-col items-end justify-center border-r border-black/[0.06] dark:border-white/[0.06]`}>
           <div className="text-sm font-semibold tabular-nums">{valueLabel}</div>
           {dealing.legCount > 1 && (
             <div className="text-[10px] text-muted tabular-nums mt-0.5">

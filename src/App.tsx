@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 
+import { BetaTag } from "@/components/market/beta-tag";
 import { DocumentTitle } from "@/components/document-title";
 import PerformancePage from "@/pages/performance";
 import DirectorPage from "@/pages/director";
@@ -9,8 +10,9 @@ import UkPreviewPage from "@/pages/uk-preview";
 
 function App() {
   return (
-    <>
+    <div className="relative">
       <DocumentTitle />
+      <BetaTag />
       <Routes>
         <Route element={<UkPreviewPage />} path="/" />
         <Route element={<UkPreviewPage />} path="/dealings/:id" />
@@ -31,7 +33,7 @@ function App() {
         <Route element={<SwedenPreviewPage />} path="/se" />
         <Route element={<UkPreviewPage />} path="/uk-preview" />
       </Routes>
-    </>
+    </div>
   );
 }
 

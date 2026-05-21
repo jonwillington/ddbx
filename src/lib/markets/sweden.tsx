@@ -73,6 +73,7 @@ const SEK_FORMAT: PriceFormat = {
       maximumFractionDigits: 0,
     }).format(n),
   quoteToValue: 1,
+  valueColumnClass: "w-32",
 };
 
 /* ─── Swedish → English translation ──────────────────────────────────── */

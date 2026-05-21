@@ -11,29 +11,14 @@
  *  every market — the optional beta notice is rendered absolutely at the
  *  top so it doesn't push the headline around, and slides in instead of
  *  popping when the user navigates to a beta market. */
-import type { ReactNode } from "react";
-
 export function MarketHero({
   marketLabel,
-  topNotice,
 }: {
   marketLabel: string;
-  topNotice?: ReactNode;
 }) {
   return (
     <header className="relative w-screen left-1/2 -translate-x-1/2 -mt-4 md:-mt-6 min-h-[300px] md:min-h-[380px] flex flex-col overflow-hidden animate-content-in">
       <style>{`
-        @keyframes hero-notice-in {
-          from { opacity: 0; transform: translate3d(-50%, -120%, 0); }
-          to   { opacity: 1; transform: translate3d(-50%, 0, 0); }
-        }
-        .hero-notice {
-          animation: hero-notice-in 480ms cubic-bezier(0.16, 0.84, 0.34, 1) both;
-          will-change: opacity, transform;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .hero-notice { animation: none !important; transform: translate(-50%, 0) !important; opacity: 1 !important; }
-        }
         @keyframes hero-spotlight-breathe {
           0%, 100% { opacity: 0.85; transform: scale(1); }
           50%      { opacity: 1;    transform: scale(1.04); }
@@ -402,23 +387,7 @@ export function MarketHero({
         />
       </div>
 
-      {/* Optional beta / advisory notice — absolutely positioned so it
-          floats on top of the hero without changing its height. Slides
-          down on mount so navigating into a beta market reads as a
-          smooth banner drop rather than a layout flash. */}
-      {topNotice && (
-        <div
-          key="topNotice"
-          className="hero-notice absolute left-1/2 top-4 md:top-6 z-[7] inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-100/85 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800/60 backdrop-blur-sm px-3.5 py-1 text-sm shadow-sm"
-        >
-          <span className="rounded-full bg-amber-500/25 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-200">
-            Beta
-          </span>
-          {topNotice}
-        </div>
-      )}
-
-      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-10 md:py-16 text-center">
+<div className="relative z-10 flex-1 flex items-center justify-center px-4 py-10 md:py-16 text-center">
         <h2
           className="mx-auto text-balance text-3xl font-semibold tracking-tight leading-[1.05] md:text-[52px]"
           style={{ maxWidth: 550 }}
