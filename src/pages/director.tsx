@@ -10,6 +10,7 @@ import { MarketDetailDrawer } from "@/components/market/market-detail-drawer";
 import { MarketRow, MarketRowHeader } from "@/components/market/market-row";
 import { Skeleton } from "@/components/skeleton";
 import DefaultLayout from "@/layouts/default";
+import { useDashboardMetricMode } from "@/lib/dashboard-metric-mode";
 import { subtitle, title } from "@/components/primitives";
 import {
   api,
@@ -81,6 +82,11 @@ export default function DirectorPage() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [d, setD] = useState<AnyDirectorDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const metric = useDashboardMetricMode();
+  const chartMode = useMemo(
+    () => ({ axis: metric.comparison, anchor: metric.anchor }),
+    [metric.comparison, metric.anchor],
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -180,13 +186,17 @@ export default function DirectorPage() {
             <p className="text-sm text-muted">No prior picks on record yet.</p>
           ) : (
             <div className="bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden">
-              <MarketRowHeader benchmarkLabel={market.config.benchmarkLabel} />
+              <MarketRowHeader
+                benchmarkLabel={market.config.benchmarkLabel}
+                chartMode={chartMode}
+              />
               <div className="divide-y divide-black/[0.06] dark:divide-separator">
                 {dealings.map((dealing) => (
                   <MarketRow
                     key={dealing.key}
                     RowActionCell={market.config.RowActionCell}
                     benchmarkLabel={market.config.benchmarkLabel}
+                    chartMode={chartMode}
                     dealing={dealing}
                     fmt={market.config.priceFormat}
                     selected={selectedKey === dealing.key}

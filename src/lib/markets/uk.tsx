@@ -5,13 +5,11 @@
 // skipped-cluster collapsing, LSE-status empty state) all hang off this
 // MarketConfig — the shell in `components/market/` is market-agnostic.
 
-import type { ComponentProps } from "react";
 import type {
   GatingInfo,
   MarketConfig,
   MarketDealing,
   MarketStats,
-  MetricModeInfo,
   Tone,
 } from "@/lib/markets/types";
 import type { Dealing, Rating, TriageVerdict } from "@/types/ddbx";
@@ -22,14 +20,12 @@ import { InformationCircleIcon as InformationCircleOutlineIcon } from "@heroicon
 import { BlurredAnalysisOverlay } from "@/components/discretion/blurred-analysis-overlay";
 import { DUMMY_ANALYSIS } from "@/components/discretion/dummy-analysis";
 import { EvidenceTable } from "@/components/evidence-table";
-import { MetricModeSheet } from "@/components/metric-mode-sheet";
 import { MiniPriceChart } from "@/components/mini-price-chart";
 import { PositionCard, type PriceFormat } from "@/components/position-card";
 import { RatingBadge } from "@/components/rating-badge";
 import { RatingChecklistView } from "@/components/rating-checklist-view";
 import { api } from "@/lib/api";
 import { UK_BANK_HOLIDAYS_SOURCE } from "@/lib/bank-holidays";
-import { useDashboardMetricMode } from "@/lib/dashboard-metric-mode";
 import { isSuggestedDealing } from "@/lib/dealing-classify";
 import { useDiscretion } from "@/lib/discretion";
 import { LSE } from "@/lib/market-status";
@@ -374,40 +370,6 @@ function useUkGating(): GatingInfo {
   };
 }
 
-/* ─── Metric-mode hook adapter ───────────────────────────────────────── */
-
-// MarketPage expects { isVsMarket, anchorsOnDisclosure, shortLabel }; the
-// canonical UK hook exposes those plus the setters the sheet talks to. The
-// sheet reads useDashboardMetricMode itself, so we just project the fields
-// MarketPage actually consumes.
-function useUkMetricMode(): MetricModeInfo {
-  const m = useDashboardMetricMode();
-
-  return {
-    isVsMarket: m.isVsMarket,
-    anchorsOnDisclosure: m.anchorsOnDisclosure,
-    shortLabel: m.shortLabel,
-  };
-}
-
-// UK wrapper for the generic metric-mode sheet — supplies FTSE / RNS copy.
-// Markets that opt into useMetricMode supply their own thin wrapper with
-// their benchmark + disclosure-register names.
-function UkMetricModeSheet(
-  props: Omit<
-    ComponentProps<typeof MetricModeSheet>,
-    "benchmarkName" | "disclosureRegisterLabel"
-  >,
-) {
-  return (
-    <MetricModeSheet
-      {...props}
-      benchmarkName="FTSE All-Share"
-      disclosureRegisterLabel="RNS"
-    />
-  );
-}
-
 /* ─── MarketConfig ───────────────────────────────────────────────────── */
 
 // Rating-keyed hero pills. Live UK dashboard has this as a four-way
@@ -503,8 +465,6 @@ export const UkMarket: MarketConfig<Dealing> = {
   RowActionCell: UkRowActionCell,
   DetailBody: UkDetailBody,
   DetailPosition: UkDetailPosition,
-  useMetricMode: useUkMetricMode,
-  MetricModeSheet: UkMetricModeSheet,
   // Rows that didn't earn an Opus rating (or were rated routine-only) collapse
   // into a per-day cluster the user can expand. Mirrors the live dashboard's
   // "X analysed · Y skipped" split.

@@ -1,4 +1,5 @@
 import type {
+  DailySummaryResponse,
   Dealing,
   DirectorDetail,
   EuDealing,
@@ -100,6 +101,19 @@ export const api = {
   seNews: () =>
     get<{ items: UkNewsItem[]; fetched_at: string | null }>("/news/se"),
   version: () => get<{ latest: string | null; total: number }>("/version"),
+  /** UK daily summary for a given YYYY-MM-DD. Returns null on 404 — the
+   *  endpoint 404s for days the team hasn't written one for yet, which
+   *  is expected, not an error the UI should surface. */
+  dailySummary: async (date: string): Promise<DailySummaryResponse | null> => {
+    const res = await fetch(
+      `${BASE}/daily-summary?date=${encodeURIComponent(date)}`,
+    );
+
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`/daily-summary ${res.status}`);
+
+    return (await res.json()) as DailySummaryResponse;
+  },
   usDealings: (
     opts: {
       limit?: number;
@@ -168,6 +182,7 @@ export interface EuDealingsStats {
 }
 
 export type {
+  DailySummaryResponse,
   Dealing,
   DirectorDetail,
   EuDealing,

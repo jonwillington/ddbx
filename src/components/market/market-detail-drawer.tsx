@@ -85,7 +85,10 @@ export function MarketDetailDrawer<W>({
     gating?.enabled === true && !!dealing && !gating.hasFullAccess(dealing.id);
   const BodyComponent = gated && DummyDetailBody ? DummyDetailBody : DetailBody;
 
-  const ticker = dealing?.ticker || "—";
+  // Raw form (with any `.L` suffix) is what CompanyLogo / Logo.dev want;
+  // strip for any place we render the ticker as a chip/label.
+  const rawTicker = dealing?.ticker || "—";
+  const ticker = rawTicker.replace(/\.L$/, "");
   const company = dealing?.company || "—";
   const insiderLine = dealing
     ? dealing.insiderRole
@@ -119,7 +122,7 @@ export function MarketDetailDrawer<W>({
                     : "border-transparent"
                 }`}
             >
-              {showLogo && <CompanyLogo size={32} ticker={ticker} />}
+              {showLogo && <CompanyLogo size={32} ticker={rawTicker} />}
               <span className="font-mono text-xs bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded shrink-0">
                 {ticker}
               </span>
@@ -148,7 +151,7 @@ export function MarketDetailDrawer<W>({
             >
               <div className="p-5 md:p-8 space-y-6">
                 <div className="flex items-center gap-4">
-                  {showLogo && <CompanyLogo size={56} ticker={ticker} />}
+                  {showLogo && <CompanyLogo size={56} ticker={rawTicker} />}
                   <h1 className="text-3xl font-bold leading-tight tracking-tight flex-1 min-w-0">
                     {company}
                   </h1>

@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
 import type { PriceFormat } from "@/components/position-card";
-import type { MarketDealing } from "@/lib/markets/types";
+import type { ChartMode, MarketDealing } from "@/lib/markets/types";
 
 import { ChevronDownIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 import { MarketRow } from "./market-row";
+import { type SparkBar } from "./market-row-spark";
 import { shortDate } from "./market-utils";
 
 /** Collapsible cluster used by the chronological view to group the day's
@@ -25,8 +26,10 @@ export function MarketSkippedCluster<W>({
   fmt,
   benchmarkLabel,
   RowActionCell,
-  metricMode,
+  chartMode,
   showLogo,
+  stockBars,
+  benchmarkBars,
 }: {
   dealings: MarketDealing<W>[];
   open: boolean;
@@ -42,8 +45,10 @@ export function MarketSkippedCluster<W>({
   fmt: PriceFormat;
   benchmarkLabel: string;
   RowActionCell: ComponentType<{ dealing: MarketDealing<W> }>;
-  metricMode?: { isVsMarket: boolean };
+  chartMode: ChartMode;
   showLogo?: boolean;
+  stockBars: Record<string, SparkBar[]>;
+  benchmarkBars: SparkBar[];
 }) {
   if (dealings.length === 0) return null;
   const newest = dealings[0];
@@ -61,10 +66,10 @@ export function MarketSkippedCluster<W>({
         onClick={onToggle}
       >
         {/* Mobile */}
-        <div className="md:hidden px-4 py-3.5">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="md:hidden px-3 py-2.5">
+          <div className="flex items-center gap-2 mb-1.5">
             <TrashIcon className="w-3.5 h-3.5 text-muted/50 shrink-0" />
-            <span className="text-xs text-foreground/50 font-medium">
+            <span className="text-[11px] text-foreground/50 font-medium">
               {dateLabel}
             </span>
             <ChevronDownIcon
@@ -73,61 +78,61 @@ export function MarketSkippedCluster<W>({
               }`}
             />
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1">
             {tickers.slice(0, 4).map((t, i) => (
               <span
                 key={i}
-                className="font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted"
+                className="font-mono text-[11px] px-1.5 py-0 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted"
               >
                 {t}
               </span>
             ))}
             {tickers.length > 4 && (
-              <span className="text-xs text-muted/70">
+              <span className="text-[11px] text-muted/70">
                 +{tickers.length - 4} more
               </span>
             )}
           </div>
-          <div className="text-xs text-muted/70 mt-1.5">
+          <div className="text-[11px] text-muted/70 mt-1">
             None met our criteria to analyse further
           </div>
         </div>
 
         {/* Desktop */}
         <div className="hidden md:flex items-stretch">
-          <div className="w-32 shrink-0 px-4 py-4 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
-            <div className="text-sm text-foreground/90 font-medium leading-tight">
+          <div className="w-28 shrink-0 px-3 py-2.5 flex items-center border-r border-black/[0.06] dark:border-white/[0.06]">
+            <div className="text-xs text-foreground/90 font-medium leading-tight">
               {dateLabel}
             </div>
           </div>
-          <div className="w-24 shrink-0 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
-            <TrashIcon className="w-4 h-4 text-muted/50" />
+          <div className="w-20 shrink-0 flex items-center justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
+            <TrashIcon className="w-3.5 h-3.5 text-muted/50" />
           </div>
-          <div className="flex-1 min-w-0 px-4 py-4 flex items-center">
+          <div className="flex-1 min-w-0 px-3 py-2.5 flex items-center">
             <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1">
                 {tickers.slice(0, 5).map((t, i) => (
                   <span
                     key={i}
-                    className="font-mono text-xs px-1.5 py-0.5 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted"
+                    className="font-mono text-[11px] px-1.5 py-0 rounded border bg-[#e8e0d5]/60 dark:bg-surface-secondary/60 border-[#d0c8be]/50 dark:border-border/50 text-muted"
                   >
                     {t}
                   </span>
                 ))}
                 {tickers.length > 5 && (
-                  <span className="text-xs text-muted/70">
+                  <span className="text-[11px] text-muted/70">
                     +{tickers.length - 5} more
                   </span>
                 )}
               </div>
-              <div className="text-xs text-muted/70 mt-1.5">
+              <div className="text-[11px] text-muted/70 mt-1">
                 {dealings.length} other disclosure
                 {dealings.length === 1 ? "" : "s"} from this day — none met our
                 criteria to analyse further
               </div>
             </div>
             <ChevronDownIcon
-              className={`w-5 h-5 text-muted shrink-0 ml-4 transition-transform duration-200 ${
+              className={`w-4 h-4 text-muted shrink-0 ml-3 transition-transform duration-200 ${
                 open ? "rotate-180" : ""
               }`}
             />
@@ -141,14 +146,16 @@ export function MarketSkippedCluster<W>({
             <MarketRow
               key={d.key}
               RowActionCell={RowActionCell}
+              benchmarkBars={benchmarkBars}
               benchmarkCurrent={benchmarkCurrent}
               benchmarkEntry={benchmarkEntry(d)}
               benchmarkLabel={benchmarkLabel}
+              chartMode={chartMode}
               dealing={d}
               fmt={fmt}
-              metricMode={metricMode}
               selected={selectedKey === d.key}
               showLogo={showLogo}
+              stockBars={stockBars[d.ticker]}
               stockCurrentMajor={stockCurrent(d.ticker)}
               onSelect={() => onSelect(d)}
             />

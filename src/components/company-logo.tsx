@@ -9,12 +9,15 @@ const LOGO_DEV_TOKEN = "pk_aFXx8Wx5TrenY0XbJuUMrA";
 const LOGO_DEV_ATTRIBUTION_URL = "https://logo.dev";
 
 function logoUrl(ticker: string, sizePx: number): string {
-  const stripped = ticker.replace(/\.L$/, "");
+  // Keep the LSE `.L` suffix in the URL — Logo.dev's database is keyed on
+  // exchange-qualified symbols for UK rows. Stripping it returns either a
+  // generic placeholder (HSBA, ULVR, LLOY, BARC) or the wrong company
+  // (TSCO → Tractor Supply, IAG → Insurance Australia). Matches iOS.
   // Oversample like iOS — keeps the request URL stable regardless of DPR
   // so cached responses re-use across @1x/@2x viewports.
   const pixelSize = Math.max(48, Math.round(sizePx * 3));
 
-  return `https://img.logo.dev/ticker/${encodeURIComponent(stripped)}?token=${LOGO_DEV_TOKEN}&size=${pixelSize}&format=png&retina=true`;
+  return `https://img.logo.dev/ticker/${encodeURIComponent(ticker)}?token=${LOGO_DEV_TOKEN}&size=${pixelSize}&format=png&retina=true`;
 }
 
 function monogram(ticker: string): string {

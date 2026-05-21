@@ -159,3 +159,43 @@ export function shortDate(iso: string, locale = "en-US"): string {
 
   return d.toLocaleDateString(locale, { day: "numeric", month: "short" });
 }
+
+/** Cached per-row return numbers — derived purely from the inputs the shell
+ *  has already computed for the live-price + benchmark fetches. The
+ *  sparkline column and the right-most Performance cell both read from
+ *  this so they can never disagree. */
+export interface RowMetric {
+  /** Stock's own return %, anchored at the dealing's entry price. */
+  stockPct: number | null;
+  /** Benchmark return % over the same window. */
+  benchPct: number | null;
+  /** stockPct − benchPct, in percentage points. */
+  alpha: number | null;
+}
+
+export function computeRowMetric<W>({
+  dealing,
+  stockCurrentMajor,
+  benchmarkEntry,
+  benchmarkCurrent,
+}: {
+  dealing: MarketDealing<W>;
+  stockCurrentMajor: number | undefined;
+  benchmarkEntry: number | undefined;
+  benchmarkCurrent: number | undefined;
+}): RowMetric {
+  const stockPct =
+    dealing.entryPrice != null &&
+    stockCurrentMajor != null &&
+    dealing.entryPrice > 0
+      ? stockReturnPct(dealing.entryPrice, stockCurrentMajor)
+      : null;
+  const benchPct =
+    benchmarkEntry != null && benchmarkCurrent != null && benchmarkEntry > 0
+      ? benchmarkReturnPct(benchmarkEntry, benchmarkCurrent)
+      : null;
+  const alpha =
+    stockPct != null && benchPct != null ? stockPct - benchPct : null;
+
+  return { stockPct, benchPct, alpha };
+}

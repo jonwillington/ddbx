@@ -1,4 +1,5 @@
 import type {
+  ChartMode,
   IngestSummary,
   MarketConfig,
   MarketDealing,
@@ -11,12 +12,30 @@ import {
   ChevronDownIcon,
   PlayIcon,
 } from "@heroicons/react/24/outline";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
+import {
+  DailySummaryBanner,
+  DailySummarySheet,
+} from "./daily-summary-banner";
+import { MarketChartModeToggle } from "./market-chart-mode-toggle";
 import { MarketDetailDrawer } from "./market-detail-drawer";
 import { MarketFilterBar, type MarketViewMode } from "./market-filter-bar";
 import { MarketHero } from "./market-hero";
-import { MarketRow, MarketRowHeader, MarketRowSkeleton } from "./market-row";
+import {
+  MarketDayHeader,
+  MarketRow,
+  MarketRowHeader,
+  MarketRowSkeleton,
+} from "./market-row";
+import { type SparkBar } from "./market-row-spark";
 import { MarketSkippedCluster } from "./market-skipped-cluster";
 import { MarketTodayDrawer } from "./market-today-drawer";
 import { MarketTodayEmpty } from "./market-today-empty";
@@ -24,6 +43,11 @@ import { bucketByMonth, todayKeyIso } from "./market-utils";
 
 import DefaultLayout from "@/layouts/default";
 import { api } from "@/lib/api";
+import {
+  modeFromAxes,
+  useDashboardMetricMode,
+} from "@/lib/dashboard-metric-mode";
+import { useDailySummaries } from "@/lib/markets/use-daily-summaries";
 
 /** The full shell that every market page mounts. Reads everything from
  *  MarketConfig — adding a new market means writing a new MarketConfig and
@@ -67,17 +91,28 @@ export function MarketPage<W>({
   const [heroFilterId, setHeroFilterId] = useState<string | null>(
     config.defaultHeroFilter ?? config.heroFilters?.[0]?.id ?? null,
   );
-  const [metricSheetOpen, setMetricSheetOpen] = useState(false);
   const [openSkipped, setOpenSkipped] = useState<Set<string>>(new Set());
+  /** When non-null, the daily-summary sheet is open for this date. */
+  const [openSummaryDate, setOpenSummaryDate] = useState<string | null>(null);
   const [skippedVisible, setSkippedVisible] = useState<Record<string, number>>(
     {},
   );
 
-  // Hooks must be called unconditionally — when the market doesn't opt in we
-  // still need a stable hook position, so call a no-op fallback. Markets
-  // without useMetricMode keep the older two-cell perf layout.
-  const useMetricMode = config.useMetricMode;
-  const metricInfo = useMetricMode ? useMetricMode() : null;
+  // Global chart mode — drives the inline sparkline AND the right-most
+  // Performance cell. Persisted in localStorage via the dashboard metric
+  // mode hook (also gives us cross-tab sync). Replaces the older
+  // per-market `useMetricMode`.
+  const metric = useDashboardMetricMode();
+  const chartMode: ChartMode = useMemo(
+    () => ({ axis: metric.comparison, anchor: metric.anchor }),
+    [metric.comparison, metric.anchor],
+  );
+  const setChartMode = useCallback(
+    (next: ChartMode) => {
+      metric.setMode(modeFromAxes(next.axis, next.anchor));
+    },
+    [metric],
+  );
   const useGating = config.useGating;
   const gating = useGating ? useGating() : undefined;
 
@@ -86,6 +121,14 @@ export function MarketPage<W>({
   /** Benchmark daily closes keyed by ISO date — raw values from the
    *  prices table (index points). */
   const [benchEntries, setBenchEntries] = useState<Record<string, number>>({});
+  /** Benchmark daily closes as a sorted bar array — same data as
+   *  benchEntries but kept as a list so the sparkline can walk it
+   *  with a pointer. */
+  const [benchmarkBars, setBenchmarkBars] = useState<SparkBar[]>([]);
+  /** Per-ticker daily close history for the inline sparkline. Populated
+   *  asynchronously as the per-ticker fetches resolve; the sparkline
+   *  renders a `—` placeholder until its ticker lands. */
+  const [stockBars, setStockBars] = useState<Record<string, SparkBar[]>>({});
 
   const [news, setNews] = useState<NewsPayload | null>(
     config.fetchNews ? null : null,
@@ -174,19 +217,61 @@ export function MarketPage<W>({
       .catch(() => {});
   }, [dealings, config.benchmarkTicker, livePricesEnabled]);
 
-  // Benchmark daily-close history — pre-loaded once per market.
+  // Benchmark daily-close history — pre-loaded once per market. Kept in
+  // two shapes: a date-keyed map for `benchmarkEntry()` lookups, and a
+  // sorted bar array the sparkline walks with a pointer.
   useEffect(() => {
     if (!livePricesEnabled) return;
     api
       .priceHistory(config.benchmarkTicker, 365)
       .then((bars) => {
         const map: Record<string, number> = {};
+        const sparkBars: SparkBar[] = bars.map((b) => ({
+          date: b.date,
+          close: b.close_pence,
+        }));
 
         for (const b of bars) map[b.date] = b.close_pence;
         setBenchEntries(map);
+        setBenchmarkBars(sparkBars);
       })
       .catch(() => {});
   }, [config.benchmarkTicker, livePricesEnabled]);
+
+  // Per-ticker daily-close history for the sparkline column. Fired in
+  // parallel against /api/prices/history (worker checks D1 cache first,
+  // falls back to Yahoo). Tracked via a ref so the effect only re-runs
+  // when the dealings list itself changes — the setStockBars writes
+  // would otherwise feedback-loop the effect.
+  const stockBarsRequested = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!livePricesEnabled) return;
+    if (dealings.length === 0) return;
+    const tickers = Array.from(
+      new Set(dealings.map((d) => d.ticker).filter(Boolean)),
+    );
+
+    for (const ticker of tickers) {
+      if (stockBarsRequested.current.has(ticker)) continue;
+      stockBarsRequested.current.add(ticker);
+      api
+        .priceHistory(ticker, 365)
+        .then((bars) => {
+          const sparkBars: SparkBar[] = bars.map((b) => ({
+            date: b.date,
+            close: b.close_pence,
+          }));
+
+          setStockBars((prev) => ({ ...prev, [ticker]: sparkBars }));
+        })
+        .catch(() => {
+          // Stash an empty array so we don't keep retrying a tombstone'd
+          // ticker on every dealings poll.
+          setStockBars((prev) => ({ ...prev, [ticker]: [] }));
+        });
+    }
+  }, [dealings, livePricesEnabled]);
 
   // News — optional. Refresh on the same cadence as the main poll so the
   // strip stays live.
@@ -259,6 +344,24 @@ export function MarketPage<W>({
     [filteredDealings, todayIso, config.isSkipped],
   );
 
+  // Daily summaries — UK-only today. The hook collects the unique ISO
+  // dates in the open months and fetches a per-date payload in parallel,
+  // caching across remounts. Other markets get an empty map back and the
+  // banner slot stays empty.
+  const summaryDates = useMemo(() => {
+    const dates = new Set<string>();
+
+    for (const m of monthBuckets) {
+      for (const d of m.days) {
+        if (d.suggested.length > 0) dates.add(d.key);
+      }
+    }
+    if (todayDealings.length > 0) dates.add(todayIso);
+
+    return Array.from(dates);
+  }, [monthBuckets, todayDealings, todayIso]);
+  const dailySummaries = useDailySummaries(config.id, summaryDates);
+
   useEffect(() => {
     if (openMonths === null && monthBuckets.length > 0) {
       setOpenMonths(new Set(monthBuckets.map((m) => m.key)));
@@ -276,11 +379,10 @@ export function MarketPage<W>({
     [prices, config],
   );
 
-  // When the market opts into useMetricMode and the user picks the
-  // disclosure anchor, we look up the benchmark close on the disclosure
-  // date first (and fall back to trade-day). Otherwise the older trade-day
-  // preference stands.
-  const anchorsOnDisclosure = metricInfo?.anchorsOnDisclosure ?? false;
+  // When the user picks the disclosure anchor we look up the benchmark
+  // close on the disclosure date first (and fall back to trade-day).
+  // Otherwise the older trade-day preference stands.
+  const anchorsOnDisclosure = chartMode.anchor === "disclosure";
   const benchmarkEntry = useCallback(
     (d: MarketDealing<W>): number | undefined => {
       const tradeIso = d.tradeDate.slice(0, 10);
@@ -322,31 +424,13 @@ export function MarketPage<W>({
 
   const currentView = config.views.find((v) => v.id === view);
 
-  const metricChip = metricInfo ? (
-    <button
-      className="inline-flex items-center gap-1.5 rounded-full bg-[#6b5038]/10 px-3 py-1 text-xs font-semibold text-[#6b5038] hover:bg-[#6b5038]/15 transition-colors"
-      type="button"
-      onClick={() => setMetricSheetOpen(true)}
-    >
-      {metricInfo.shortLabel}
-      <svg
-        aria-hidden="true"
-        className="w-3 h-3"
-        fill="none"
-        viewBox="0 0 16 16"
-      >
-        <path
-          d="M2 4.5h12M5 8h8m-5 3.5h2"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="1.6"
-        />
-      </svg>
-    </button>
-  ) : null;
-  const rowMetricMode = metricInfo
-    ? { isVsMarket: metricInfo.isVsMarket }
-    : undefined;
+  const chartModeToggle = (
+    <MarketChartModeToggle
+      benchmarkLabel={config.benchmarkLabel}
+      mode={chartMode}
+      onChange={setChartMode}
+    />
+  );
 
   /* ───────── Handlers ────────────────────────────────────────────────── */
 
@@ -556,14 +640,16 @@ export function MarketPage<W>({
                   key={d.key}
                   hideDate
                   RowActionCell={config.RowActionCell}
+                  benchmarkBars={benchmarkBars}
                   benchmarkCurrent={benchmarkCurrent}
                   benchmarkEntry={benchmarkEntry(d)}
                   benchmarkLabel={config.benchmarkLabel}
+                  chartMode={chartMode}
                   dealing={d}
                   fmt={config.priceFormat}
-                  metricMode={rowMetricMode}
                   selected={selectedKey === d.key}
                   showLogo={logosEnabled}
+                  stockBars={stockBars[d.ticker]}
                   stockCurrentMajor={stockCurrent(d.ticker)}
                   onSelect={() => setSelectedKey(d.key)}
                 />
@@ -572,7 +658,7 @@ export function MarketPage<W>({
           ) : loading ? (
             <div className="divide-y divide-black/[0.06] dark:divide-separator">
               {Array.from({ length: 3 }).map((_, i) => (
-                <MarketRowSkeleton key={i} hideDate singlePerf={!!metricInfo} />
+                <MarketRowSkeleton key={i} hideDate />
               ))}
             </div>
           ) : TodayEmptyComponent ? (
@@ -588,11 +674,11 @@ export function MarketPage<W>({
           <div className="bg-[#faf7f2] dark:bg-surface rounded-xl overflow-hidden animate-content-in">
             <MarketRowHeader
               benchmarkLabel={config.benchmarkLabel}
-              singlePerf={!!metricInfo}
+              chartMode={chartMode}
             />
             <div className="divide-y divide-black/[0.06] dark:divide-separator">
               {Array.from({ length: 8 }).map((_, i) => (
-                <MarketRowSkeleton key={i} singlePerf={!!metricInfo} />
+                <MarketRowSkeleton key={i} />
               ))}
             </div>
           </div>
@@ -605,28 +691,30 @@ export function MarketPage<W>({
           <div className="bg-[#faf7f2] dark:bg-surface rounded-xl animate-content-in">
             <MarketFilterBar
               search={search}
-              trailing={metricChip}
+              trailing={chartModeToggle}
               viewMode={viewMode}
               onSearch={setSearch}
               onViewMode={setViewMode}
             />
             <MarketRowHeader
               benchmarkLabel={config.benchmarkLabel}
-              singlePerf={!!metricInfo}
+              chartMode={chartMode}
             />
             <div className="divide-y divide-black/[0.06] dark:divide-separator overflow-hidden rounded-b-xl">
               {byGain.map(({ dealing: d }) => (
                 <MarketRow
                   key={d.key}
                   RowActionCell={config.RowActionCell}
+                  benchmarkBars={benchmarkBars}
                   benchmarkCurrent={benchmarkCurrent}
                   benchmarkEntry={benchmarkEntry(d)}
                   benchmarkLabel={config.benchmarkLabel}
+                  chartMode={chartMode}
                   dealing={d}
                   fmt={config.priceFormat}
-                  metricMode={rowMetricMode}
                   selected={selectedKey === d.key}
                   showLogo={logosEnabled}
+                  stockBars={stockBars[d.ticker]}
                   stockCurrentMajor={stockCurrent(d.ticker)}
                   onSelect={() => setSelectedKey(d.key)}
                 />
@@ -647,6 +735,7 @@ export function MarketPage<W>({
                     <div className="bg-[#faf7f2] dark:bg-surface rounded-t-xl border-b border-[#e8e0d5]/50 dark:border-separator/30">
                       <MarketFilterBar
                         search={search}
+                        trailing={chartModeToggle}
                         viewMode={viewMode}
                         onSearch={setSearch}
                         onViewMode={setViewMode}
@@ -682,26 +771,54 @@ export function MarketPage<W>({
                     <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
                       <MarketRowHeader
                         benchmarkLabel={config.benchmarkLabel}
-                        singlePerf={!!metricInfo}
+                        chartMode={chartMode}
                       />
                       <div className="divide-y divide-black/[0.06] dark:divide-separator">
                         {month.days.map((day) => {
                           const clusterKey = `${month.key}-${day.key}`;
+                          const hasContent =
+                            day.suggested.length > 0 || day.skipped.length > 0;
 
                           return (
                             <Fragment key={day.key}>
+                              {hasContent && (
+                                <MarketDayHeader
+                                  banner={(() => {
+                                    const s = dailySummaries.get(day.key);
+
+                                    if (!s) return undefined;
+
+                                    return (
+                                      <DailySummaryBanner
+                                        isToday={day.key === todayIso}
+                                        summary={s}
+                                        onOpen={() =>
+                                          setOpenSummaryDate(day.key)
+                                        }
+                                      />
+                                    );
+                                  })()}
+                                  day={day.day}
+                                  isoDate={day.key}
+                                  skippedCount={day.skipped.length}
+                                  suggestedCount={day.suggested.length}
+                                  weekday={day.weekday}
+                                />
+                              )}
                               {day.suggested.map((d) => (
                                 <MarketRow
                                   key={d.key}
                                   RowActionCell={config.RowActionCell}
+                                  benchmarkBars={benchmarkBars}
                                   benchmarkCurrent={benchmarkCurrent}
                                   benchmarkEntry={benchmarkEntry(d)}
                                   benchmarkLabel={config.benchmarkLabel}
+                                  chartMode={chartMode}
                                   dealing={d}
                                   fmt={config.priceFormat}
-                                  metricMode={rowMetricMode}
                                   selected={selectedKey === d.key}
                                   showLogo={logosEnabled}
+                                  stockBars={stockBars[d.ticker]}
                                   stockCurrentMajor={stockCurrent(d.ticker)}
                                   onSelect={() => setSelectedKey(d.key)}
                                 />
@@ -709,15 +826,17 @@ export function MarketPage<W>({
                               {day.skipped.length > 0 && (
                                 <MarketSkippedCluster
                                   RowActionCell={config.RowActionCell}
+                                  benchmarkBars={benchmarkBars}
                                   benchmarkCurrent={benchmarkCurrent}
                                   benchmarkEntry={benchmarkEntry}
                                   benchmarkLabel={config.benchmarkLabel}
+                                  chartMode={chartMode}
                                   dealings={day.skipped}
                                   fmt={config.priceFormat}
-                                  metricMode={rowMetricMode}
                                   open={openSkipped.has(clusterKey)}
                                   selectedKey={selectedKey}
                                   showLogo={logosEnabled}
+                                  stockBars={stockBars}
                                   stockCurrent={stockCurrent}
                                   visibleCount={skippedVisible[clusterKey] ?? 5}
                                   onSelect={(d) => setSelectedKey(d.key)}
@@ -785,12 +904,16 @@ export function MarketPage<W>({
         onClose={() => setSelectedKey(null)}
       />
 
-      {config.MetricModeSheet && (
-        <config.MetricModeSheet
-          open={metricSheetOpen}
-          onClose={() => setMetricSheetOpen(false)}
-        />
-      )}
+      <DailySummarySheet
+        date={openSummaryDate}
+        onClose={() => setOpenSummaryDate(null)}
+        onSelectDeal={(deal) => {
+          // UK MarketDealing.key === dealing.id; this surface is UK-only
+          // because /api/daily-summary is UK-only.
+          setOpenSummaryDate(null);
+          setSelectedKey(deal.id);
+        }}
+      />
     </DefaultLayout>
   );
 }
