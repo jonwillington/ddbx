@@ -16,6 +16,16 @@ import { SwedenMarket } from "./sweden";
 import { UkMarket } from "./uk";
 import { UsMarket } from "./us";
 
+export type MarketRegion = "europe" | "north-america";
+
+export const REGION_LABEL: Record<MarketRegion, string> = {
+  europe: "Europe",
+  "north-america": "North America",
+};
+
+/** Order regions render in the switcher dropdown. */
+export const REGION_ORDER: MarketRegion[] = ["europe", "north-america"];
+
 export interface MarketRegistryEntry {
   /** MarketConfig.id — "uk" | "us" | "se" | "nl". */
   id: string;
@@ -27,6 +37,8 @@ export interface MarketRegistryEntry {
   route: string;
   /** Flag icon component. */
   Flag: FlagComponent;
+  /** Region the market lives in — drives switcher grouping. */
+  region: MarketRegion;
   /** The MarketConfig itself — what MarketPage consumes. */
   config: MarketConfig;
 }
@@ -38,6 +50,7 @@ export const MARKETS: MarketRegistryEntry[] = [
     label: "UK",
     route: "/",
     Flag: GB,
+    region: "europe",
     config: UkMarket as MarketConfig,
   },
   {
@@ -46,6 +59,7 @@ export const MARKETS: MarketRegistryEntry[] = [
     label: "US",
     route: "/us",
     Flag: US,
+    region: "north-america",
     config: UsMarket as MarketConfig,
   },
   {
@@ -54,6 +68,7 @@ export const MARKETS: MarketRegistryEntry[] = [
     label: "SE",
     route: "/se",
     Flag: SE,
+    region: "europe",
     config: SwedenMarket as MarketConfig,
   },
   {
@@ -62,6 +77,7 @@ export const MARKETS: MarketRegistryEntry[] = [
     label: "NL",
     route: "/nl",
     Flag: NL,
+    region: "europe",
     config: NetherlandsMarket as MarketConfig,
   },
 ];

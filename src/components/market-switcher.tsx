@@ -1,15 +1,32 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDownIcon, CheckIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 
-import { MARKETS, marketForPath } from "@/lib/markets/registry";
+import {
+  MARKETS,
+  REGION_LABEL,
+  REGION_ORDER,
+  marketForPath,
+  type MarketRegion,
+  type MarketRegistryEntry,
+} from "@/lib/markets/registry";
 
 export function MarketSwitcher() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const current = marketForPath(location.pathname);
+  const sections = useMemo<
+    { region: MarketRegion; markets: MarketRegistryEntry[] }[]
+  >(
+    () =>
+      REGION_ORDER.map((region) => ({
+        region,
+        markets: MARKETS.filter((m) => m.region === region),
+      })).filter((s) => s.markets.length > 0),
+    [],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -52,32 +69,40 @@ export function MarketSwitcher() {
 
       {open && (
         <div
-          className="absolute left-0 mt-2 w-28 rounded-xl border border-separator bg-[#f5f0e8] dark:bg-background shadow-lg overflow-hidden z-50"
+          className="absolute left-0 mt-2 w-36 rounded-xl border border-separator bg-[#f5f0e8] dark:bg-background shadow-lg overflow-hidden z-50 py-1"
           role="listbox"
         >
-          {MARKETS.map((m) => {
-            const isCurrent = m.code === current.code;
-            const baseCls =
-              "flex items-center gap-2 w-full px-2.5 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors";
+          {sections.map((section, i) => (
+            <Fragment key={section.region}>
+              {i > 0 && (
+                <div className="my-1 border-t border-separator/60" />
+              )}
+              <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/45">
+                {REGION_LABEL[section.region]}
+              </div>
+              {section.markets.map((m) => {
+                const isCurrent = m.code === current.code;
 
-            return (
-              <Link
-                key={m.code}
-                className={baseCls}
-                to={m.route}
-                onClick={() => setOpen(false)}
-              >
-                <m.Flag
-                  aria-hidden
-                  className="h-3.5 w-5 rounded-sm object-cover"
-                />
-                <span className="flex-1 text-left">{m.label}</span>
-                {isCurrent && (
-                  <CheckIcon className="w-3.5 h-3.5 text-foreground/60" />
-                )}
-              </Link>
-            );
-          })}
+                return (
+                  <Link
+                    key={m.code}
+                    className="flex items-center gap-2 w-full px-2.5 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    to={m.route}
+                    onClick={() => setOpen(false)}
+                  >
+                    <m.Flag
+                      aria-hidden
+                      className="h-3.5 w-5 rounded-sm object-cover"
+                    />
+                    <span className="flex-1 text-left">{m.label}</span>
+                    {isCurrent && (
+                      <CheckIcon className="w-3.5 h-3.5 text-foreground/60" />
+                    )}
+                  </Link>
+                );
+              })}
+            </Fragment>
+          ))}
         </div>
       )}
     </div>
