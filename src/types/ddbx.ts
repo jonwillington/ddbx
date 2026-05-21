@@ -8,6 +8,167 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
+// ============================================================================
+// Market registry
+// ============================================================================
+// Single source of truth for which markets the worker knows about and what
+// each one supports. Consumed by GET /api/markets so clients (iOS, ddbx-site)
+// can render the right surfaces without hardcoding per-market branches.
+//
+// Adding a market: append to MARKETS and add a MARKET_CONFIG entry. The
+// Record<Market, …> shape makes the new entry a type error until populated.
+// EU_MARKETS / MARKET_POLICY further down stay in lockstep when the new
+// market is region:"EU" — see the comment on EU_MARKETS below.
+
+export const MARKETS = ["UK", "US", "SE", "NL"] as const;
+export type Market = (typeof MARKETS)[number];
+
+export function isMarket(v: unknown): v is Market {
+  return typeof v === "string" && (MARKETS as readonly string[]).includes(v);
+}
+
+export interface MarketConfig {
+  /** ISO-style market code. Matches the keys of MARKET_CONFIG. */
+  code: Market;
+  /** Display name. */
+  name: string;
+  /** Region groups markets that share a wire format and pipeline shape.
+   *  "UK" and "US" are one-market regions; "EU" covers all MAR-jurisdiction
+   *  members and shares the EuDealing wire format. */
+  region: "UK" | "US" | "EU";
+  /** Primary listing currency (ISO 4217). Note: for UK this is the canonical
+   *  product currency; an LSE-listed company can still disclose in EUR/USD —
+   *  see the comment block on Dealing.currency below. */
+  currency: string;
+  /** Which wire format this market's dealings ride on. */
+  wireType: "Dealing" | "UsDealing" | "EuDealing";
+  /** What an insider/director identifier looks like in URLs and detail keys.
+   *  - "opaque-hash": UK's `d-{16-char}` synthetic key
+   *  - "cik": SEC 10-digit zero-padded reporter CIK
+   *  - "normalized-name": lowercase + diacritic-folded reporter name (SE, NL)
+   *  Lets clients build deep-link URLs and dedupe directors without sniffing. */
+  directorIdKind: "opaque-hash" | "cik" | "normalized-name";
+  /** Canonical endpoint paths a client should hit for this market. Resolved
+   *  server-side so consumers don't hardcode the current naming asymmetry
+   *  (`/api/dealings` vs `/api/us-dealings` vs `/api/eu-dealings?market=…`). */
+  endpoints: {
+    /** List endpoint. */
+    dealings: string;
+    /** Detail-by-id endpoint. Undefined when the market has no detail view
+     *  (US, EU today — list-only). */
+    dealing?: string;
+    /** Director / insider detail-by-id endpoint. */
+    directorDetail: string;
+    /** Per-market news feed. */
+    news: string;
+  };
+  /** Capability flags — which product surfaces this market currently lights
+   *  up. Read once at client boot, not hardcoded per surface. Flip a flag
+   *  here when the corresponding backend layer ships. */
+  capabilities: {
+    /** Per-dealing deep analysis (Analysis joined onto rows). */
+    analysis: boolean;
+    /** Performance / backtest harness — /api/performance equivalent. */
+    performance: boolean;
+    /** Portfolio surface — /api/portfolio equivalent. */
+    portfolio: boolean;
+    /** AI-generated morning / afternoon daily summary. */
+    dailySummary: boolean;
+    /** Per-market news feed (refreshUk/Us/Se/NlNews + /api/news/*). */
+    news: boolean;
+    /** Has automated tweet output (daily summaries, weekly movers). */
+    tweets: boolean;
+  };
+}
+
+export const MARKET_CONFIG: Record<Market, MarketConfig> = {
+  UK: {
+    code: "UK",
+    name: "United Kingdom",
+    region: "UK",
+    currency: "GBP",
+    wireType: "Dealing",
+    directorIdKind: "opaque-hash",
+    endpoints: {
+      dealings: "/api/dealings",
+      dealing: "/api/dealings/:id",
+      directorDetail: "/api/directors/:id",
+      news: "/api/news/uk",
+    },
+    capabilities: {
+      analysis: true,
+      performance: true,
+      portfolio: true,
+      dailySummary: true,
+      news: true,
+      tweets: true,
+    },
+  },
+  US: {
+    code: "US",
+    name: "United States",
+    region: "US",
+    currency: "USD",
+    wireType: "UsDealing",
+    directorIdKind: "cik",
+    endpoints: {
+      dealings: "/api/us-dealings",
+      directorDetail: "/api/directors/us/:id",
+      news: "/api/news/us",
+    },
+    capabilities: {
+      analysis: true,
+      performance: false,
+      portfolio: false,
+      dailySummary: false,
+      news: true,
+      tweets: false,
+    },
+  },
+  SE: {
+    code: "SE",
+    name: "Sweden",
+    region: "EU",
+    currency: "SEK",
+    wireType: "EuDealing",
+    directorIdKind: "normalized-name",
+    endpoints: {
+      dealings: "/api/eu-dealings?market=SE",
+      directorDetail: "/api/directors/se/:id",
+      news: "/api/news/se",
+    },
+    capabilities: {
+      analysis: false,
+      performance: false,
+      portfolio: false,
+      dailySummary: false,
+      news: true,
+      tweets: false,
+    },
+  },
+  NL: {
+    code: "NL",
+    name: "Netherlands",
+    region: "EU",
+    currency: "EUR",
+    wireType: "EuDealing",
+    directorIdKind: "normalized-name",
+    endpoints: {
+      dealings: "/api/eu-dealings?market=NL",
+      directorDetail: "/api/directors/nl/:id",
+      news: "/api/news/nl",
+    },
+    capabilities: {
+      analysis: false,
+      performance: false,
+      portfolio: false,
+      dailySummary: false,
+      news: true,
+      tweets: false,
+    },
+  },
+};
+
 export type Rating =
   | "significant"
   | "noteworthy"
@@ -91,6 +252,19 @@ export interface DirectorSummary {
   tenure_years?: number;
 }
 
+// DealingCurrency is the *disclosure* currency on a UK-pipeline row: an
+// LSE-listed company can file its PDMR notification in EUR or USD (notably
+// dollar-reporters and overseas ADRs cross-listed in London), in which case
+// the worker preserves the raw figure in `price_native` and FX-converts to
+// the canonical GBP-pence in `price_pence` / `value_gbp`.
+//
+// IMPORTANT — not the same axis as `EuDealing.currency`:
+// - `Dealing.currency = "EUR"` ⇒ an LSE-listed issuer whose RNS happened to
+//   report in EUR. Still a UK-pipeline row, still surfaced via /api/dealings.
+// - `EuDealing.currency = "EUR"` ⇒ a Euronext-Amsterdam (or other EU venue)
+//   listing under MAR Article 19. Different pipeline, different table,
+//   /api/eu-dealings.
+// Treat them as distinct concepts even though the string overlaps.
 export type DealingCurrency = "GBP" | "EUR" | "USD";
 
 export interface Dealing {
@@ -381,9 +555,10 @@ export interface UsDealing {
   footnotes?: Record<string, string>;
 
   /** Haiku triage verdict for the parent filing+code group. Joined in by
-   *  the read API — not part of the raw Form 4 payload. */
-  triage_verdict?: UsTriageVerdict;
-  triage_reason?: string;
+   *  the read API — not part of the raw Form 4 payload. Same nested shape as
+   *  `Dealing.triage` / `EuDealing.triage` so clients have one consistent
+   *  way to read triage across markets. */
+  triage?: { verdict: UsTriageVerdict; reason: string };
 
   /** Deep analysis result for the parent filing+code+reporter group, when
    *  one exists. Joined in by the read API from us_analyses; absent (or null)

@@ -120,8 +120,8 @@ export function groupRows(rows: UsDealing[]): UsRowGroup[] {
         total_shares: 0,
         total_value: null,
         leg_count: 0,
-        triage_verdict: r.triage_verdict,
-        triage_reason: r.triage_reason,
+        triage_verdict: r.triage?.verdict,
+        triage_reason: r.triage?.reason,
         analysis: r.analysis ?? null,
       };
       map.set(key, g);
