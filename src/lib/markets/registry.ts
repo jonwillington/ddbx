@@ -60,9 +60,19 @@ export const MARKETS: MarketRegistryEntry[] = [
 /** Resolve a route to its owning market. UK is the default for paths that
  *  don't match a more specific market prefix. */
 export function marketForPath(pathname: string): MarketRegistryEntry {
-  if (pathname.startsWith("/us")) return MARKETS[1];
-  if (pathname.startsWith("/se") || pathname.startsWith("/eu"))
-    return MARKETS[2];
+  const uk = MARKETS.find((m) => m.id === "uk");
 
-  return MARKETS[0];
+  if (!uk) throw new Error("UK market must be registered");
+  if (pathname.startsWith("/us-preview"))
+    return MARKETS.find((m) => m.id === "us") ?? uk;
+  if (pathname.startsWith("/se-preview") || pathname.startsWith("/eu"))
+    return MARKETS.find((m) => m.id === "se") ?? uk;
+
+  const match = MARKETS.filter((m) => m.route !== "/")
+    .sort((a, b) => b.route.length - a.route.length)
+    .find((m) => pathname === m.route || pathname.startsWith(`${m.route}/`));
+
+  if (match) return match;
+
+  return uk;
 }

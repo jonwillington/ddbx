@@ -4,13 +4,15 @@
 // render dummy text under a CSS blur with an "open the app" CTA. Performance
 // data (price chart + position card) is never blurred.
 //
-// State is persisted to localStorage under "ddbx.discretion.viewState" and
-// resets at UK midnight. Toggle the whole feature with VITE_DISCRETION_MODE=off.
+// State is persisted per market and resets at that market's midnight. Toggle
+// the whole feature with VITE_DISCRETION_MODE=off.
 
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "ddbx.discretion.viewState";
+const STORAGE_KEY_PREFIX = "ddbx.discretion.viewState";
 const EVENT_NAME = "ddbx:discretion:change";
+const DEFAULT_MARKET_ID = "uk";
+const DEFAULT_TIME_ZONE = "Europe/London";
 
 export const LIST_CAP = 3;
 export const FREE_DRAWER_QUOTA = 1;
@@ -22,12 +24,21 @@ interface ViewState {
   viewedDealIds: string[];
 }
 
-/** YYYY-MM-DD in Europe/London. en-CA gives ISO order without locale-specific punctuation. */
-export function getTodayUK(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+function storageKey(marketId: string): string {
+  return `${STORAGE_KEY_PREFIX}.${marketId}`;
 }
 
-function emptyState(date = getTodayUK()): ViewState {
+/** YYYY-MM-DD in a market timezone. en-CA gives ISO order without locale-specific punctuation. */
+export function getTodayInTimeZone(timeZone = DEFAULT_TIME_ZONE): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone });
+}
+
+/** Back-compat helper for UK callers. */
+export function getTodayUK(): string {
+  return getTodayInTimeZone(DEFAULT_TIME_ZONE);
+}
+
+function emptyState(date = getTodayInTimeZone()): ViewState {
   return { date, viewedDealIds: [] };
 }
 
@@ -41,12 +52,19 @@ function isViewState(v: unknown): v is ViewState {
   return o.viewedDealIds.every((x) => typeof x === "string");
 }
 
-function readState(): ViewState {
+function readState(
+  marketId = DEFAULT_MARKET_ID,
+  timeZone = DEFAULT_TIME_ZONE,
+): ViewState {
   if (typeof window === "undefined") return emptyState();
-  const today = getTodayUK();
+  const today = getTodayInTimeZone(timeZone);
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(storageKey(marketId)) ??
+      (marketId === DEFAULT_MARKET_ID
+        ? window.localStorage.getItem(STORAGE_KEY_PREFIX)
+        : null);
 
     if (!raw) return emptyState(today);
     const parsed: unknown = JSON.parse(raw);
@@ -60,21 +78,28 @@ function readState(): ViewState {
   }
 }
 
-function writeState(state: ViewState): void {
+function writeState(state: ViewState, marketId = DEFAULT_MARKET_ID): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(storageKey(marketId), JSON.stringify(state));
   } catch {
     // localStorage unavailable / quota — fall through; gating becomes per-tab only.
   }
   window.dispatchEvent(new CustomEvent(EVENT_NAME));
 }
 
-export function recordView(dealId: string): void {
-  const state = readState();
+export function recordView(
+  dealId: string,
+  marketId = DEFAULT_MARKET_ID,
+  timeZone = DEFAULT_TIME_ZONE,
+): void {
+  const state = readState(marketId, timeZone);
 
   if (state.viewedDealIds.includes(dealId)) return;
-  writeState({ ...state, viewedDealIds: [...state.viewedDealIds, dealId] });
+  writeState(
+    { ...state, viewedDealIds: [...state.viewedDealIds, dealId] },
+    marketId,
+  );
 }
 
 export interface Discretion {
@@ -86,11 +111,19 @@ export interface Discretion {
   hasFullAccess: (dealId: string) => boolean;
 }
 
-export function useDiscretion(): Discretion {
-  const [state, setState] = useState<ViewState>(() => readState());
+export function useDiscretion({
+  marketId = DEFAULT_MARKET_ID,
+  timeZone = DEFAULT_TIME_ZONE,
+}: {
+  marketId?: string;
+  timeZone?: string;
+} = {}): Discretion {
+  const [state, setState] = useState<ViewState>(() =>
+    readState(marketId, timeZone),
+  );
 
   useEffect(() => {
-    const refresh = () => setState(readState());
+    const refresh = () => setState(readState(marketId, timeZone));
 
     window.addEventListener(EVENT_NAME, refresh);
     window.addEventListener("storage", refresh);
@@ -99,13 +132,13 @@ export function useDiscretion(): Discretion {
       window.removeEventListener(EVENT_NAME, refresh);
       window.removeEventListener("storage", refresh);
     };
-  }, []);
+  }, [marketId, timeZone]);
 
   return {
     enabled: DISCRETION_ENABLED,
     listCap: LIST_CAP,
     viewedDealIds: state.viewedDealIds,
-    recordView,
+    recordView: (dealId) => recordView(dealId, marketId, timeZone),
     hasFullAccess: (dealId: string) => {
       if (!DISCRETION_ENABLED) return true;
       const first = state.viewedDealIds[0];

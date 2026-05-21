@@ -108,9 +108,13 @@ export function ordinal(n: number): string {
   return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
 }
 
-/** ISO `YYYY-MM-DD` for the local day. Markets resolve "today" in whatever
- *  timezone they care about by passing a custom Date in. */
-export function todayKeyIso(now = new Date()): string {
+/** ISO `YYYY-MM-DD` for the market's day. `en-CA` gives ISO order without
+ *  locale-specific punctuation. */
+export function todayKeyIso(timeZone?: string, now = new Date()): string {
+  if (timeZone) {
+    return now.toLocaleDateString("en-CA", { timeZone });
+  }
+
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 

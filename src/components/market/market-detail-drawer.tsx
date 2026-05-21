@@ -21,6 +21,7 @@ export function MarketDetailDrawer<W>({
   DummyDetailBody,
   AnalysisOverlay,
   showLogo = true,
+  formatTickerDisplay,
 }: {
   dealing: MarketDealing<W> | null;
   onClose: () => void;
@@ -35,6 +36,8 @@ export function MarketDetailDrawer<W>({
   /** Mirror of the row prop — when false, the header + body logo bubbles
    *  are suppressed. Wired from MarketConfig.enableLogos. Default true. */
   showLogo?: boolean;
+  /** Human-readable ticker formatter from MarketConfig. */
+  formatTickerDisplay?: (ticker: string) => string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -85,10 +88,8 @@ export function MarketDetailDrawer<W>({
     gating?.enabled === true && !!dealing && !gating.hasFullAccess(dealing.id);
   const BodyComponent = gated && DummyDetailBody ? DummyDetailBody : DetailBody;
 
-  // Raw form (with any `.L` suffix) is what CompanyLogo / Logo.dev want;
-  // strip for any place we render the ticker as a chip/label.
   const rawTicker = dealing?.ticker || "—";
-  const ticker = rawTicker.replace(/\.L$/, "");
+  const ticker = formatTickerDisplay ? formatTickerDisplay(rawTicker) : rawTicker;
   const company = dealing?.company || "—";
   const insiderLine = dealing
     ? dealing.insiderRole

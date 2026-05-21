@@ -43,7 +43,7 @@ export function MiniPriceChart({
    *  land as cents in the prices table while Form 4's `price` is in
    *  major-dollars. Mismatched units make the chart squish the line
    *  against the top of the y-axis. */
-  normalizeClose?: (closePence: number) => number;
+  normalizeClose?: (closePence: number, date: string) => number | null;
 }) {
   const [period, setPeriod] = useState<Period>("since");
   const [allBars, setAllBars] = useState<{ date: string; close: number }[]>([]);
@@ -60,7 +60,14 @@ export function MiniPriceChart({
       .priceHistory(tickerForApi, 365)
       .then((bars) =>
         setAllBars(
-          bars.map((b) => ({ date: b.date, close: normalize(b.close_pence) })),
+          bars
+            .map((b) => ({
+              date: b.date,
+              close: normalize(b.close_pence, b.date),
+            }))
+            .filter(
+              (b): b is { date: string; close: number } => b.close != null,
+            ),
         ),
       )
       .catch(() => {});

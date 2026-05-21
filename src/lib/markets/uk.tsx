@@ -103,7 +103,13 @@ function UkRowActionCell({ dealing }: { dealing: MarketDealing<Dealing> }) {
   // Mirror UK's existing chip discipline: rating badge when an analysis is
   // attached, nothing otherwise. The market-row's muted state (driven by
   // isPurchase + rating) communicates "skipped / unanalysed" visually.
-  if (!dealing.rating) return null;
+  if (!dealing.rating) {
+    return (
+      <span className="inline-flex items-center justify-center rounded-md border border-[#d8d0c6]/55 bg-transparent px-2 py-0.5 text-[11px] text-[#a89e8c] dark:text-foreground/40">
+        Skipped
+      </span>
+    );
+  }
 
   return <RatingBadge rating={dealing.rating} />;
 }
@@ -361,7 +367,7 @@ function UkDummyDetailBody({ dealing }: { dealing: MarketDealing<Dealing> }) {
 /* ─── Gating hook adapter ────────────────────────────────────────────── */
 
 function useUkGating(): GatingInfo {
-  const d = useDiscretion();
+  const d = useDiscretion({ marketId: "uk", timeZone: LSE.timeZone });
 
   return {
     enabled: d.enabled,
@@ -403,6 +409,7 @@ export const UkMarket: MarketConfig<Dealing> = {
     </>
   ),
   marketLabel: "UK",
+  locale: "en-GB",
   priceFormat: GBP_FORMAT,
   // For LSE tickers /api/prices already stores pence (close_pence is literal
   // pence), and Dealing.price_pence is pence too, so the major unit on
@@ -410,6 +417,8 @@ export const UkMarket: MarketConfig<Dealing> = {
   normalizeLivePrice: (close_pence) => close_pence,
   benchmarkTicker: FTSE_TICKER,
   benchmarkLabel: FTSE_LABEL,
+  formatTickerDisplay: (ticker) => ticker.replace(/\.L$/, ""),
+  isRowMuted: (d) => !d.rating || !d.isPurchase,
   // Single view — UK doesn't have pipeline stages the way US does, so the
   // tab strip is hidden (MarketPage shows it only when len > 1).
   views: [{ id: "all", label: "All" }],

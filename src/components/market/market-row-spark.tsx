@@ -47,11 +47,22 @@ export function MarketRowSpark({
       ? disclosedDate.slice(0, 10)
       : tradeDate.slice(0, 10);
 
-  // Stock bars on or after the anchor. Need at least two to draw a line.
-  const stockPost = bars.filter((b) => b.date >= anchor);
+  // Prefer the post-anchor line. For same-day buys we often only have one
+  // close after the trade/disclosure, so include a short pre-anchor lookback
+  // and mark the cutoff instead of showing an empty trend cell.
+  const postCount = bars.filter((b) => b.date >= anchor).length;
+  const stockPost =
+    postCount >= 2 ? bars.filter((b) => b.date >= anchor) : bars.slice(-28);
 
   if (stockPost.length < 2) return empty;
-  const stockBase = stockPost[0].close;
+  const anchorIdx = (() => {
+    const idx = stockPost.findIndex((b) => b.date >= anchor);
+
+    if (idx >= 0) return idx;
+
+    return stockPost.length - 1;
+  })();
+  const stockBase = stockPost[anchorIdx]?.close ?? stockPost[0].close;
 
   if (stockBase <= 0) return empty;
 
@@ -114,6 +125,7 @@ export function MarketRowSpark({
   const last = series[n - 1];
   const { text } = deltaStyle(last);
   const baselineY = height - ((0 - min) / range) * height;
+  const cutoffX = (anchorIdx / (n - 1)) * width;
 
   return (
     <svg
@@ -133,6 +145,18 @@ export function MarketRowSpark({
         y1={baselineY}
         y2={baselineY}
       />
+      {postCount < 2 && (
+        <line
+          stroke="currentColor"
+          strokeDasharray="2 2"
+          strokeOpacity={0.35}
+          strokeWidth={0.75}
+          x1={cutoffX}
+          x2={cutoffX}
+          y1={0}
+          y2={height}
+        />
+      )}
       <polyline
         fill="none"
         points={points}

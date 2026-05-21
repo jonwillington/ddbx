@@ -82,7 +82,9 @@ export default function DirectorPage() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [d, setD] = useState<AnyDirectorDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const metric = useDashboardMetricMode();
+  const metric = useDashboardMetricMode(market.id);
+  const useGating = market.config.useGating;
+  const gating = useGating ? useGating() : undefined;
   const chartMode = useMemo(
     () => ({ axis: metric.comparison, anchor: metric.anchor }),
     [metric.comparison, metric.anchor],
@@ -198,7 +200,10 @@ export default function DirectorPage() {
                     benchmarkLabel={market.config.benchmarkLabel}
                     chartMode={chartMode}
                     dealing={dealing}
+                    formatTickerDisplay={market.config.formatTickerDisplay}
                     fmt={market.config.priceFormat}
+                    isMuted={market.config.isRowMuted}
+                    locale={market.config.locale}
                     selected={selectedKey === dealing.key}
                     showLogo={market.config.enableLogos !== false}
                     onSelect={() => setSelectedKey(dealing.key)}
@@ -215,7 +220,9 @@ export default function DirectorPage() {
         DetailPosition={market.config.DetailPosition}
         DummyDetailBody={market.config.DummyDetailBody}
         dealing={selectedDealing}
+        formatTickerDisplay={market.config.formatTickerDisplay}
         fmt={market.config.priceFormat}
+        gating={gating}
         showLogo={market.config.enableLogos !== false}
         onClose={() => setSelectedKey(null)}
       />

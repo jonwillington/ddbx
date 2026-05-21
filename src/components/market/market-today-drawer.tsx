@@ -41,6 +41,10 @@ interface MarketTodayDrawerProps<W> {
   /** True while the initial dealings fetch is in flight. Lets the drawer
    *  render skeleton rows instead of the empty state. */
   loading?: boolean;
+  /** Human-readable ticker formatter from MarketConfig. */
+  formatTickerDisplay?: (ticker: string) => string;
+  /** Market-specific row dimming rule. */
+  isRowMuted?: (d: MarketDealing<W>) => boolean;
 }
 
 /** Persistent right-hand drawer, lg+ only. Each market mounts its own
@@ -56,6 +60,8 @@ export function MarketTodayDrawer<W>({
   selectedKey,
   TodayEmpty,
   loading = false,
+  formatTickerDisplay,
+  isRowMuted,
 }: MarketTodayDrawerProps<W>) {
   const hasNewsSource = news !== undefined;
   const prevNewsUrlsRef = useRef<Set<string> | null>(null);
@@ -114,7 +120,9 @@ export function MarketTodayDrawer<W>({
                   <TodayRow
                     key={d.key}
                     dealing={d}
+                    formatTickerDisplay={formatTickerDisplay}
                     fmt={fmt}
+                    isMuted={isRowMuted}
                     selected={selectedKey === d.key}
                     onSelect={() => onSelect(d)}
                   />
@@ -183,14 +191,22 @@ function TodayRow<W>({
   selected,
   onSelect,
   fmt,
+  formatTickerDisplay,
+  isMuted,
 }: {
   dealing: MarketDealing<W>;
   selected: boolean;
   onSelect: () => void;
   fmt: PriceFormat;
+  formatTickerDisplay?: (ticker: string) => string;
+  isMuted?: (d: MarketDealing<W>) => boolean;
 }) {
   const valueLabel =
     dealing.value != null ? fmt.formatValue(dealing.value) : "—";
+  const ticker = formatTickerDisplay
+    ? formatTickerDisplay(dealing.ticker || "—")
+    : dealing.ticker || "—";
+  const muted = isMuted ? isMuted(dealing) : !dealing.isPurchase;
 
   return (
     <button
@@ -198,14 +214,14 @@ function TodayRow<W>({
         selected
           ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]"
           : "hover:bg-black/[0.03] dark:hover:bg-white/5"
-      } ${!dealing.isPurchase ? "opacity-60" : ""}`}
+      } ${muted ? "opacity-60" : ""}`}
       onClick={onSelect}
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-[#e8e0d5] dark:bg-surface-secondary shrink-0">
-              {(dealing.ticker || "—").replace(/\.L$/, "")}
+              {ticker}
             </span>
             <span className="text-sm font-medium truncate">
               {dealing.company || "—"}

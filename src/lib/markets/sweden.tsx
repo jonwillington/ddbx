@@ -554,6 +554,7 @@ export const SwedenMarket: MarketConfig<EuRowGroup> = {
     </>
   ),
   marketLabel: "Swedish",
+  locale: "en-GB",
   topNotice: "Swedish dealings are in BETA.",
   priceFormat: SEK_FORMAT,
   // Live SEK prices land in the same major unit as EuDealing.price, so the
@@ -567,6 +568,8 @@ export const SwedenMarket: MarketConfig<EuRowGroup> = {
   // display tickers and gets prices back keyed the same way.
   benchmarkTicker: "^OMX",
   benchmarkLabel: "OMXS30",
+  formatTickerDisplay: (ticker) => ticker,
+  isRowMuted: (d) => !d.isPurchase,
   enableLivePrices: true,
   // logo.dev's ticker → image mapping is heavily US-skewed; for the OMXS30 /
   // First North seed-map tickers only ~4 of 25 (SAND, BRAV, EQT, SAVE) resolve

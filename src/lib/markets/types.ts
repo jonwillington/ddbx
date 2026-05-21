@@ -158,6 +158,9 @@ export interface MarketConfig<W = unknown> {
   /** Short market label substituted into the shared hero headline
    *  ("Which directors have been buying shares in {marketLabel} companies?"). */
   marketLabel: string;
+  /** Locale used for market-owned dates/numbers in the shared shell. Defaults
+   *  to en-US when omitted. */
+  locale?: string;
   /** Optional banner rendered above the hero — used by markets in
    *  early-access / beta to disclose data confidence. */
   topNotice?: ReactNode;
@@ -179,7 +182,15 @@ export interface MarketConfig<W = unknown> {
    *  observed live. Adapters supply the function that converts a raw close
    *  to the same major unit as MarketDealing.entryPrice — so the shell can
    *  compute stock return without knowing market specifics. */
-  normalizeLivePrice: (close_pence: number) => number;
+  normalizeLivePrice: (
+    close_pence: number,
+    date?: string,
+    fxRates?: Record<string, number>,
+  ) => number | null;
+  /** Whether the shared market shell should preload GBP/USD history so
+   *  normalizeLivePrice can convert GBP-denominated price-cache rows back
+   *  into native USD quotes. */
+  usesGbpPerUsdFx?: boolean;
 
   /** Benchmark ticker passed to /api/prices — `^FTAS`, `^GSPC`, etc. */
   benchmarkTicker: string;
@@ -248,6 +259,13 @@ export interface MarketConfig<W = unknown> {
    *  concept can omit this and fall back to the generic "No filings yet"
    *  copy. The slot is a Component (not a render fn) so it can hold hooks. */
   TodayEmpty?: ComponentType;
+
+  /** Format a raw ticker for human-readable UI. The raw ticker is still passed
+   *  to price/logo fetches; this is just display text. */
+  formatTickerDisplay?: (ticker: string) => string;
+  /** Optional market-specific row muting rule. When omitted, the shared row
+   *  falls back to the historical UK rule: unrated or non-purchase rows fade. */
+  isRowMuted?: (d: MarketDealing<W>) => boolean;
 
   /** Hero-card filter pills. Optional — when present, MarketPage renders a
    *  pill strip above the hero and narrows the hero performance stats to

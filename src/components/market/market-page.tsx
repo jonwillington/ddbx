@@ -94,7 +94,7 @@ export function MarketPage<W>({
   // Performance cell. Persisted in localStorage via the dashboard metric
   // mode hook (also gives us cross-tab sync). Replaces the older
   // per-market `useMetricMode`.
-  const metric = useDashboardMetricMode();
+  const metric = useDashboardMetricMode(config.id);
   const chartMode: ChartMode = useMemo(
     () => ({ axis: metric.comparison, anchor: metric.anchor }),
     [metric.comparison, metric.anchor],
@@ -108,8 +108,11 @@ export function MarketPage<W>({
   const useGating = config.useGating;
   const gating = useGating ? useGating() : undefined;
 
-  /** Live stock prices keyed by ticker — close_pence column raw values. */
-  const [prices, setPrices] = useState<Record<string, number>>({});
+  /** Live stock prices keyed by ticker — close_pence column raw values plus
+   *  the price date, because US rows need dated FX conversion. */
+  const [prices, setPrices] = useState<
+    Record<string, { price: number; date?: string }>
+  >({});
   /** Benchmark daily closes keyed by ISO date — raw values from the
    *  prices table (index points). */
   const [benchEntries, setBenchEntries] = useState<Record<string, number>>({});
@@ -121,6 +124,7 @@ export function MarketPage<W>({
    *  asynchronously as the per-ticker fetches resolve; the sparkline
    *  renders a `—` placeholder until its ticker lands. */
   const [stockBars, setStockBars] = useState<Record<string, SparkBar[]>>({});
+  const [fxRates, setFxRates] = useState<Record<string, number>>({});
 
   const [news, setNews] = useState<NewsPayload | null>(
     config.fetchNews ? null : null,
@@ -175,6 +179,19 @@ export function MarketPage<W>({
   const livePricesEnabled = config.enableLivePrices !== false;
   const logosEnabled = config.enableLogos !== false;
 
+  useEffect(() => {
+    if (!livePricesEnabled || !config.usesGbpPerUsdFx) return;
+    api
+      .gbpPerUsdHistory(730)
+      .then((rates) => {
+        const map: Record<string, number> = {};
+
+        for (const r of rates) map[r.date] = r.gbp_per_usd;
+        setFxRates(map);
+      })
+      .catch(() => setFxRates({}));
+  }, [config.usesGbpPerUsdFx, livePricesEnabled]);
+
   // Effective TodayEmpty slot — explicit `config.TodayEmpty` wins (bespoke
   // copy), otherwise the shared MarketTodayEmpty kicks in for any market
   // that declared a session + holiday source. Markets with neither fall
@@ -201,9 +218,9 @@ export function MarketPage<W>({
     api
       .latestPrices([...tickers, config.benchmarkTicker])
       .then((list) => {
-        const map: Record<string, number> = {};
+        const map: Record<string, { price: number; date?: string }> = {};
 
-        for (const p of list) map[p.ticker] = p.price_pence;
+        for (const p of list) map[p.ticker] = { price: p.price_pence, date: p.date };
         setPrices(map);
       })
       .catch(() => {});
@@ -214,21 +231,26 @@ export function MarketPage<W>({
   // sorted bar array the sparkline walks with a pointer.
   useEffect(() => {
     if (!livePricesEnabled) return;
+    if (config.usesGbpPerUsdFx && Object.keys(fxRates).length === 0) return;
     api
       .priceHistory(config.benchmarkTicker, 365)
       .then((bars) => {
         const map: Record<string, number> = {};
         const sparkBars: SparkBar[] = bars.map((b) => ({
           date: b.date,
-          close: b.close_pence,
+          close: config.normalizeLivePrice(b.close_pence, b.date, fxRates) ?? b.close_pence,
         }));
 
-        for (const b of bars) map[b.date] = b.close_pence;
+        for (const b of bars) {
+          map[b.date] =
+            config.normalizeLivePrice(b.close_pence, b.date, fxRates) ??
+            b.close_pence;
+        }
         setBenchEntries(map);
         setBenchmarkBars(sparkBars);
       })
       .catch(() => {});
-  }, [config.benchmarkTicker, livePricesEnabled]);
+  }, [config, fxRates, livePricesEnabled]);
 
   // Per-ticker daily-close history for the sparkline column. Fired in
   // parallel against /api/prices/history (worker checks D1 cache first,
@@ -239,6 +261,7 @@ export function MarketPage<W>({
 
   useEffect(() => {
     if (!livePricesEnabled) return;
+    if (config.usesGbpPerUsdFx && Object.keys(fxRates).length === 0) return;
     if (dealings.length === 0) return;
     const tickers = Array.from(
       new Set(dealings.map((d) => d.ticker).filter(Boolean)),
@@ -252,7 +275,9 @@ export function MarketPage<W>({
         .then((bars) => {
           const sparkBars: SparkBar[] = bars.map((b) => ({
             date: b.date,
-            close: b.close_pence,
+            close:
+              config.normalizeLivePrice(b.close_pence, b.date, fxRates) ??
+              b.close_pence,
           }));
 
           setStockBars((prev) => ({ ...prev, [ticker]: sparkBars }));
@@ -263,7 +288,7 @@ export function MarketPage<W>({
           setStockBars((prev) => ({ ...prev, [ticker]: [] }));
         });
     }
-  }, [dealings, livePricesEnabled]);
+  }, [dealings, livePricesEnabled, config, fxRates]);
 
   // News — optional. Refresh on the same cadence as the main poll so the
   // strip stays live.
@@ -320,7 +345,10 @@ export function MarketPage<W>({
     );
   }, [dealings, search, heroPredicate]);
 
-  const todayIso = useMemo(() => todayKeyIso(), []);
+  const todayIso = useMemo(
+    () => todayKeyIso(config.session?.timeZone),
+    [config.session?.timeZone],
+  );
 
   const todayDealings = useMemo(
     () =>
@@ -331,9 +359,10 @@ export function MarketPage<W>({
   const monthBuckets = useMemo(
     () =>
       bucketByMonth(filteredDealings, todayIso, {
+        locale: config.locale,
         isSkipped: config.isSkipped,
       }),
-    [filteredDealings, todayIso, config.isSkipped],
+    [filteredDealings, todayIso, config.locale, config.isSkipped],
   );
 
   // Daily summaries — UK-only today. The hook collects the unique ISO
@@ -365,10 +394,15 @@ export function MarketPage<W>({
       const raw = prices[ticker];
 
       if (raw == null) return undefined;
+      const normalized = config.normalizeLivePrice(
+        raw.price,
+        raw.date,
+        fxRates,
+      );
 
-      return config.normalizeLivePrice(raw);
+      return normalized ?? undefined;
     },
-    [prices, config],
+    [prices, config, fxRates],
   );
 
   // When the user picks the disclosure anchor we look up the benchmark
@@ -389,7 +423,14 @@ export function MarketPage<W>({
     [benchEntries, anchorsOnDisclosure],
   );
 
-  const benchmarkCurrent = prices[config.benchmarkTicker];
+  const benchmarkCurrentRaw = prices[config.benchmarkTicker];
+  const benchmarkCurrent = benchmarkCurrentRaw
+    ? (config.normalizeLivePrice(
+        benchmarkCurrentRaw.price,
+        benchmarkCurrentRaw.date,
+        fxRates,
+      ) ?? undefined)
+    : undefined;
 
   const byGain = useMemo(() => {
     return filteredDealings
@@ -607,7 +648,10 @@ export function MarketPage<W>({
                   benchmarkLabel={config.benchmarkLabel}
                   chartMode={chartMode}
                   dealing={d}
+                  formatTickerDisplay={config.formatTickerDisplay}
                   fmt={config.priceFormat}
+                  isMuted={config.isRowMuted}
+                  locale={config.locale}
                   selected={selectedKey === d.key}
                   showLogo={logosEnabled}
                   stockBars={stockBars[d.ticker]}
@@ -681,7 +725,10 @@ export function MarketPage<W>({
                   benchmarkLabel={config.benchmarkLabel}
                   chartMode={chartMode}
                   dealing={d}
+                  formatTickerDisplay={config.formatTickerDisplay}
                   fmt={config.priceFormat}
+                  isMuted={config.isRowMuted}
+                  locale={config.locale}
                   selected={selectedKey === d.key}
                   showLogo={logosEnabled}
                   stockBars={stockBars[d.ticker]}
@@ -745,6 +792,7 @@ export function MarketPage<W>({
                                   day={day.day}
                                   isToday={day.key === todayIso}
                                   isoDate={day.key}
+                                  locale={config.locale}
                                   skippedCount={day.skipped.length}
                                   suggestedCount={day.suggested.length}
                                   summary={dailySummaries.get(day.key) ?? undefined}
@@ -765,7 +813,10 @@ export function MarketPage<W>({
                                   benchmarkLabel={config.benchmarkLabel}
                                   chartMode={chartMode}
                                   dealing={d}
+                                  formatTickerDisplay={config.formatTickerDisplay}
                                   fmt={config.priceFormat}
+                                  isMuted={config.isRowMuted}
+                                  locale={config.locale}
                                   selected={selectedKey === d.key}
                                   showLogo={logosEnabled}
                                   stockBars={stockBars[d.ticker]}
@@ -784,7 +835,10 @@ export function MarketPage<W>({
                                   benchmarkLabel={config.benchmarkLabel}
                                   chartMode={chartMode}
                                   dealing={d}
+                                  formatTickerDisplay={config.formatTickerDisplay}
                                   fmt={config.priceFormat}
+                                  isMuted={config.isRowMuted}
+                                  locale={config.locale}
                                   selected={selectedKey === d.key}
                                   showLogo={logosEnabled}
                                   stockBars={stockBars[d.ticker]}
@@ -830,7 +884,9 @@ export function MarketPage<W>({
 
       <MarketTodayDrawer
         TodayEmpty={TodayEmptyComponent}
+        formatTickerDisplay={config.formatTickerDisplay}
         fmt={config.priceFormat}
+        isRowMuted={config.isRowMuted}
         loading={loading && dealings.length === 0}
         news={hasNewsSource ? news : undefined}
         newsFooterNote={config.newsFooterNote}
@@ -846,6 +902,7 @@ export function MarketPage<W>({
         DetailPosition={config.DetailPosition}
         DummyDetailBody={config.DummyDetailBody}
         dealing={selectedDealing}
+        formatTickerDisplay={config.formatTickerDisplay}
         fmt={config.priceFormat}
         gating={gating}
         showLogo={logosEnabled}

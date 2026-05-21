@@ -59,6 +59,7 @@ export function MarketDayHeader({
   weekday,
   day,
   isoDate,
+  locale = "en-US",
   suggestedCount,
   skippedCount,
   summary,
@@ -68,6 +69,7 @@ export function MarketDayHeader({
   weekday: string;
   day: string;
   isoDate: string;
+  locale?: string;
   suggestedCount: number;
   skippedCount: number;
   summary?: { headline: string };
@@ -76,7 +78,7 @@ export function MarketDayHeader({
 }) {
   const dateObj = new Date(isoDate);
   const monthLabel = !Number.isNaN(dateObj.getTime())
-    ? dateObj.toLocaleString("en-US", { month: "short" })
+    ? dateObj.toLocaleString(locale, { month: "short" })
     : "";
 
   return (
@@ -239,6 +241,9 @@ interface MarketRowProps<W> {
   benchmarkLabel: string;
   RowActionCell: ComponentType<{ dealing: MarketDealing<W> }>;
   hideDate?: boolean;
+  isMuted?: (dealing: MarketDealing<W>) => boolean;
+  formatTickerDisplay?: (ticker: string) => string;
+  locale?: string;
   /** When false, the CompanyLogo bubble is suppressed entirely. Default true.
    *  Set from MarketConfig.enableLogos by the shell — used by Sweden where
    *  logo.dev coverage is too thin to bother. */
@@ -265,14 +270,16 @@ export function MarketRow<W>({
   benchmarkLabel,
   RowActionCell,
   hideDate,
+  isMuted,
+  formatTickerDisplay,
+  locale,
   showLogo = true,
   chartMode,
 }: MarketRowProps<W>) {
   const showAlpha = chartMode.axis === "market";
-  // Loud when the row has earned an analysis rating, quiet otherwise. Mirrors
-  // the UK row's `muted = !analysis` convention so the unread pool fades and
-  // the analysed rows stand out at a glance.
-  const muted = !dealing.rating || !dealing.isPurchase;
+  const muted = isMuted
+    ? isMuted(dealing)
+    : !dealing.rating || !dealing.isPurchase;
   const tradeDay = dealing.tradeDate.slice(0, 10);
   const disclosedDay = dealing.disclosedDate.slice(0, 10);
   const tradeDiffers = tradeDay !== disclosedDay;
@@ -284,12 +291,8 @@ export function MarketRow<W>({
     benchmarkCurrent,
   });
 
-  // UK LSE tickers carry a ".L" suffix on the wire (used by /api/prices
-  // AND by Logo.dev to disambiguate from same-letter US listings). It's
-  // noise in the UI text, but the raw form has to reach CompanyLogo —
-  // hence the two variables.
   const rawTicker = dealing.ticker || "—";
-  const ticker = rawTicker.replace(/\.L$/, "");
+  const ticker = formatTickerDisplay ? formatTickerDisplay(rawTicker) : rawTicker;
   const company = dealing.company || "—";
   const insiderLine = dealing.insiderRole
     ? `${dealing.insiderName} (${dealing.insiderRole})`
@@ -309,10 +312,10 @@ export function MarketRow<W>({
       <div className="md:hidden px-3 py-2.5">
         <div className="mb-1.5 flex items-baseline justify-between gap-2">
           <span className="text-[11px] text-foreground/50 font-medium">
-            {shortDate(dealing.disclosedDate)}
+            {shortDate(dealing.disclosedDate, locale)}
             {tradeDiffers && (
               <span className="text-[10px] text-muted/70 ml-1.5">
-                · trade {shortDate(dealing.tradeDate)}
+                · trade {shortDate(dealing.tradeDate, locale)}
               </span>
             )}
           </span>
@@ -374,11 +377,11 @@ export function MarketRow<W>({
         {!hideDate && (
           <div className="w-28 shrink-0 px-3 py-2.5 flex flex-col justify-center border-r border-black/[0.06] dark:border-white/[0.06]">
             <div className="text-xs text-foreground/90 font-medium leading-tight">
-              {shortDate(dealing.disclosedDate)}
+              {shortDate(dealing.disclosedDate, locale)}
             </div>
             {tradeDiffers && (
               <div className="text-[10px] text-muted/75 mt-0.5">
-                trade {shortDate(dealing.tradeDate)}
+                trade {shortDate(dealing.tradeDate, locale)}
               </div>
             )}
           </div>

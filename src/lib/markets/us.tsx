@@ -343,6 +343,14 @@ function UsRowActionCell({ dealing }: { dealing: MarketDealing<UsRowGroup> }) {
   if (row.is_amendment) suffix.push({ label: "Amendment", tone: "neutral" });
   if (row.is_late) suffix.push({ label: "Late filing", tone: "neutral" });
 
+  if (!group.analysis && suffix.length === 0) {
+    return (
+      <span className="inline-flex items-center justify-center rounded-md border border-[#d8d0c6]/55 bg-transparent px-2 py-0.5 text-[11px] text-[#a89e8c] dark:text-foreground/40">
+        Skipped
+      </span>
+    );
+  }
+
   return (
     <>
       {group.analysis && <RatingBadge rating={group.analysis.rating} />}
@@ -430,7 +438,11 @@ function UsDetailPosition({ dealing }: { dealing: MarketDealing<UsRowGroup> }) {
     return group.primary.price ?? undefined;
   }, [group]);
 
-  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<{
+    price: number;
+    date: string;
+  } | null>(null);
+  const [fxRates, setFxRates] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!ticker) return;
@@ -444,7 +456,9 @@ function UsDetailPosition({ dealing }: { dealing: MarketDealing<UsRowGroup> }) {
           (r) => r.ticker.toUpperCase() === ticker.toUpperCase(),
         );
 
-        setCurrentPrice(match?.price_pence ?? null);
+        setCurrentPrice(
+          match ? { price: match.price_pence, date: match.date } : null,
+        );
       })
       .catch(() => {
         if (!cancelled) setCurrentPrice(null);
@@ -455,13 +469,34 @@ function UsDetailPosition({ dealing }: { dealing: MarketDealing<UsRowGroup> }) {
     };
   }, [ticker]);
 
+  useEffect(() => {
+    api
+      .gbpPerUsdHistory(730)
+      .then((rates) => {
+        const map: Record<string, number> = {};
+
+        for (const r of rates) map[r.date] = r.gbp_per_usd;
+        setFxRates(map);
+      })
+      .catch(() => setFxRates({}));
+  }, []);
+
   if (entryPrice == null) return null;
+  const normalizeUsdClose = (closePence: number, date: string) => {
+    const fx = fxRates[date];
+
+    return fx && fx > 0 ? closePence / (fx * 100) : null;
+  };
+  const currentUsd =
+    currentPrice != null
+      ? normalizeUsdClose(currentPrice.price, currentPrice.date)
+      : null;
 
   return (
     <div className="mb-4 space-y-4">
-      {currentPrice != null && group.total_value != null && (
+      {currentUsd != null && group.total_value != null && (
         <PositionCard
-          current={currentPrice / 100}
+          current={currentUsd}
           entry={entryPrice}
           fmt={USD_FORMAT}
           originalValue={group.total_value}
@@ -472,7 +507,7 @@ function UsDetailPosition({ dealing }: { dealing: MarketDealing<UsRowGroup> }) {
         <MiniPriceChart
           entryPrice={entryPrice}
           fmt={USD_FORMAT}
-          normalizeClose={(n) => n / 100}
+          normalizeClose={normalizeUsdClose}
           tickerForApi={ticker}
           tickerForDisplay={ticker}
           tradeDate={tradeDate}
@@ -684,14 +719,22 @@ export const UsMarket: MarketConfig<UsRowGroup> = {
     </>
   ),
   marketLabel: "US",
+  locale: "en-US",
   topNotice: "The US is in BETA currently.",
   priceFormat: USD_FORMAT,
-  // Yahoo USD bars are observed stored as USD-cents in close_pence (e.g.
-  // AAPL at $222 stored as 22251). /100 brings them into the major unit
-  // that matches Form 4's `price` field.
-  normalizeLivePrice: (close_pence) => close_pence / 100,
+  // The shared prices table stores USD equities as GBP-equivalent pence
+  // (USD close * GBP/USD * 100). Convert back to native USD before comparing
+  // against Form 4 entry prices, which are disclosed in dollars.
+  usesGbpPerUsdFx: true,
+  normalizeLivePrice: (close_pence, date, fxRates) => {
+    const fx = date ? fxRates?.[date] : undefined;
+
+    return fx && fx > 0 ? close_pence / (fx * 100) : null;
+  },
   benchmarkTicker: SPY_TICKER,
   benchmarkLabel: SPY_LABEL,
+  formatTickerDisplay: (ticker) => ticker,
+  isRowMuted: (d) => !d.isPurchase,
   views: [
     { id: "signal", label: "Signal" },
     { id: "interesting", label: "Interesting" },
