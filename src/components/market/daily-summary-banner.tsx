@@ -4,36 +4,6 @@ import { CompanyLogo } from "@/components/company-logo";
 import { api, type DailySummaryResponse } from "@/lib/api";
 import type { DailySummary, Dealing } from "@/types/ddbx";
 
-interface BannerProps {
-  summary: DailySummary;
-  isToday: boolean;
-  onOpen: () => void;
-}
-
-/** Inline banner that sits inside the sticky day header for UK days the
- *  ddbx team has written a synthesis for. Mirrors `DailySummaryRow` in the
- *  iOS app — sparkles + accent label + 3-line headline clamp. */
-export function DailySummaryBanner({ summary, isToday, onOpen }: BannerProps) {
-  return (
-    <button
-      className="w-full flex items-start gap-3 px-4 md:px-5 py-2.5 text-left bg-[#6b5038]/[0.06] hover:bg-[#6b5038]/[0.10] dark:bg-[#c4a882]/[0.08] dark:hover:bg-[#c4a882]/[0.12] border-t border-[#6b5038]/15 dark:border-[#c4a882]/15 transition-colors"
-      type="button"
-      onClick={onOpen}
-    >
-      <SparklesIcon />
-      <div className="flex-1 min-w-0">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#6b5038] dark:text-[#c4a882]">
-          {isToday ? "Today's summary" : "Day in review"}
-        </div>
-        <div className="text-[13px] font-medium text-foreground/85 mt-0.5 leading-snug line-clamp-3">
-          {summary.headline}
-        </div>
-      </div>
-      <ChevronIcon />
-    </button>
-  );
-}
-
 interface SheetProps {
   date: string | null;
   onClose: () => void;
@@ -277,22 +247,6 @@ function formatGbp(gbp: number): string {
   if (gbp >= 1_000) return `£${Math.round(gbp / 1_000)}k`;
 
   return `£${gbp}`;
-}
-
-function SparklesIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="w-4 h-4 text-[#6b5038] dark:text-[#c4a882] mt-0.5 shrink-0"
-      fill="none"
-      viewBox="0 0 16 16"
-    >
-      <path
-        d="M8 1.5l1.2 3.3L12.5 6l-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2L8 1.5zM13 10l.6 1.7 1.7.6-1.7.6L13 14.6l-.6-1.7L10.7 12.3l1.7-.6L13 10z"
-        fill="currentColor"
-      />
-    </svg>
-  );
 }
 
 function ChevronIcon() {

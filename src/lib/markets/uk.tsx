@@ -432,7 +432,7 @@ export const UkMarket: MarketConfig<Dealing> = {
     },
     { id: "any", label: "All", predicate: ratingPredicate("any") },
   ],
-  defaultHeroFilter: "significant",
+  defaultHeroFilter: "any",
   pollIntervalMs: 30_000,
   fetchNews: () => api.ukNews(),
   newsHeading: "UK market news",

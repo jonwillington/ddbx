@@ -21,10 +21,7 @@ import {
   useState,
 } from "react";
 
-import {
-  DailySummaryBanner,
-  DailySummarySheet,
-} from "./daily-summary-banner";
+import { DailySummarySheet } from "./daily-summary-banner";
 import { MarketChartModeToggle } from "./market-chart-mode-toggle";
 import { MarketDetailDrawer } from "./market-detail-drawer";
 import { MarketFilterBar, type MarketViewMode } from "./market-filter-bar";
@@ -36,7 +33,6 @@ import {
   MarketRowSkeleton,
 } from "./market-row";
 import { type SparkBar } from "./market-row-spark";
-import { MarketSkippedCluster } from "./market-skipped-cluster";
 import { MarketTodayDrawer } from "./market-today-drawer";
 import { MarketTodayEmpty } from "./market-today-empty";
 import { bucketByMonth, todayKeyIso } from "./market-utils";
@@ -91,12 +87,8 @@ export function MarketPage<W>({
   const [heroFilterId, setHeroFilterId] = useState<string | null>(
     config.defaultHeroFilter ?? config.heroFilters?.[0]?.id ?? null,
   );
-  const [openSkipped, setOpenSkipped] = useState<Set<string>>(new Set());
   /** When non-null, the daily-summary sheet is open for this date. */
   const [openSummaryDate, setOpenSummaryDate] = useState<string | null>(null);
-  const [skippedVisible, setSkippedVisible] = useState<Record<string, number>>(
-    {},
-  );
 
   // Global chart mode — drives the inline sparkline AND the right-most
   // Performance cell. Persisted in localStorage via the dashboard metric
@@ -461,24 +453,6 @@ export function MarketPage<W>({
     });
   };
 
-  const toggleSkipped = (clusterKey: string) => {
-    setOpenSkipped((prev) => {
-      const next = new Set(prev);
-
-      if (next.has(clusterKey)) next.delete(clusterKey);
-      else next.add(clusterKey);
-
-      return next;
-    });
-  };
-
-  const showMoreSkipped = (clusterKey: string) => {
-    setSkippedVisible((prev) => ({
-      ...prev,
-      [clusterKey]: (prev[clusterKey] ?? 5) + 5,
-    }));
-  };
-
   /* ───────── Render ──────────────────────────────────────────────────── */
 
   const emptyState = filteredDealings.length === 0 && !loading && (
@@ -505,25 +479,17 @@ export function MarketPage<W>({
   return (
     <DefaultLayout drawerRight>
       <section className="pb-8 space-y-6">
-        {config.topNotice && (
-          <div className="-mx-4 md:-mx-6 px-4 md:px-6 py-2.5 text-center text-sm border-b border-amber-300/40 bg-amber-100/60 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-800/50">
-            <span className="inline-flex items-center gap-2">
-              <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-200">
-                Beta
-              </span>
-              {config.topNotice}
-            </span>
-          </div>
-        )}
-
         {/* Shared hero — first content under the navbar. Perf moved to
             /performance; the old title + description block is dropped
-            because the hero IS the page heading. */}
-        <MarketHero marketLabel={config.marketLabel} />
+            because the hero IS the page heading. Per-market beta notice
+            is rendered as an animated overlay inside the hero so the
+            geometry doesn't shift between markets. */}
+        <MarketHero
+          marketLabel={config.marketLabel}
+          topNotice={config.topNotice}
+        />
 
-        {(config.views.length > 1 ||
-          config.ingest ||
-          stats?.latestDisclosedLabel) && (
+        {(config.views.length > 1 || config.ingest) && (
           <div className="flex flex-wrap items-center gap-3">
             {config.views.length > 1 && (
               <div
@@ -552,13 +518,8 @@ export function MarketPage<W>({
                 ))}
               </div>
             )}
-            <div className="ml-auto flex items-center gap-3 text-xs">
-              {stats?.latestDisclosedLabel && (
-                <span className="text-muted hidden sm:inline">
-                  {stats.latestDisclosedLabel}
-                </span>
-              )}
-              {config.ingest && (
+            {config.ingest && (
+              <div className="ml-auto flex items-center gap-3 text-xs">
                 <button
                   className="rounded-full border border-separator bg-[#6b5038]/10 hover:bg-[#6b5038]/15 text-[#4a3520] dark:text-[#c4a882] px-3 py-1.5 font-medium disabled:opacity-50 transition-colors"
                   disabled={ingesting}
@@ -566,8 +527,8 @@ export function MarketPage<W>({
                 >
                   {ingesting ? "Fetching…" : config.ingest.label}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -686,9 +647,12 @@ export function MarketPage<W>({
 
         {emptyState}
 
-        {/* By-gain view */}
-        {filteredDealings.length > 0 && viewMode === "by-gain" && (
-          <div className="bg-[#faf7f2] dark:bg-surface rounded-xl animate-content-in">
+        {/* Sticky filter bar — single instance shared by both view bodies.
+            Sits right beneath the navbar with rounded top + opaque bg so
+            it doubles as the table's curved top edge AND masks anything
+            scrolling beneath it. */}
+        {filteredDealings.length > 0 && (
+          <div className="sticky top-[64px] z-20 bg-[#faf7f2] dark:bg-surface rounded-t-xl border-b border-[#e8e0d5]/50 dark:border-separator/30 shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
             <MarketFilterBar
               search={search}
               trailing={chartModeToggle}
@@ -696,6 +660,12 @@ export function MarketPage<W>({
               onSearch={setSearch}
               onViewMode={setViewMode}
             />
+          </div>
+        )}
+
+        {/* By-gain view */}
+        {filteredDealings.length > 0 && viewMode === "by-gain" && (
+          <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl animate-content-in -mt-6">
             <MarketRowHeader
               benchmarkLabel={config.benchmarkLabel}
               chartMode={chartMode}
@@ -725,25 +695,14 @@ export function MarketPage<W>({
 
         {/* Chronological / month + day buckets */}
         {filteredDealings.length > 0 && viewMode === "chronological" && (
-          <div className="space-y-6 animate-content-in">
+          <div className="space-y-6 animate-content-in -mt-6">
             {monthBuckets.map((month, monthIdx) => {
               const monthOpen = openMonths?.has(month.key) ?? false;
 
               return (
                 <div key={month.key}>
-                  {monthIdx === 0 && (
-                    <div className="bg-[#faf7f2] dark:bg-surface rounded-t-xl border-b border-[#e8e0d5]/50 dark:border-separator/30">
-                      <MarketFilterBar
-                        search={search}
-                        trailing={chartModeToggle}
-                        viewMode={viewMode}
-                        onSearch={setSearch}
-                        onViewMode={setViewMode}
-                      />
-                    </div>
-                  )}
                   <div
-                    className={`sticky top-[102px] z-10 ${monthIdx === 0 ? "" : "pt-3"} bg-[#f5f0e8] dark:bg-background`}
+                    className={`sticky top-[112px] z-10 ${monthIdx === 0 ? "" : "pt-3"} bg-[#f5f0e8] dark:bg-background`}
                   >
                     <button
                       className={`w-full flex items-center justify-between px-6 py-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors bg-[#faf7f2] dark:bg-surface ${monthIdx === 0 ? "" : "rounded-t-xl"} ${monthOpen ? "" : "rounded-b-xl"}`}
@@ -770,12 +729,12 @@ export function MarketPage<W>({
                   {monthOpen && (
                     <div className="bg-[#faf7f2] dark:bg-surface rounded-b-xl">
                       <MarketRowHeader
+                        hideDate
                         benchmarkLabel={config.benchmarkLabel}
                         chartMode={chartMode}
                       />
                       <div className="divide-y divide-black/[0.06] dark:divide-separator">
                         {month.days.map((day) => {
-                          const clusterKey = `${month.key}-${day.key}`;
                           const hasContent =
                             day.suggested.length > 0 || day.skipped.length > 0;
 
@@ -783,31 +742,22 @@ export function MarketPage<W>({
                             <Fragment key={day.key}>
                               {hasContent && (
                                 <MarketDayHeader
-                                  banner={(() => {
-                                    const s = dailySummaries.get(day.key);
-
-                                    if (!s) return undefined;
-
-                                    return (
-                                      <DailySummaryBanner
-                                        isToday={day.key === todayIso}
-                                        summary={s}
-                                        onOpen={() =>
-                                          setOpenSummaryDate(day.key)
-                                        }
-                                      />
-                                    );
-                                  })()}
                                   day={day.day}
+                                  isToday={day.key === todayIso}
                                   isoDate={day.key}
                                   skippedCount={day.skipped.length}
                                   suggestedCount={day.suggested.length}
+                                  summary={dailySummaries.get(day.key) ?? undefined}
                                   weekday={day.weekday}
+                                  onOpenSummary={() =>
+                                    setOpenSummaryDate(day.key)
+                                  }
                                 />
                               )}
                               {day.suggested.map((d) => (
                                 <MarketRow
                                   key={d.key}
+                                  hideDate
                                   RowActionCell={config.RowActionCell}
                                   benchmarkBars={benchmarkBars}
                                   benchmarkCurrent={benchmarkCurrent}
@@ -823,27 +773,25 @@ export function MarketPage<W>({
                                   onSelect={() => setSelectedKey(d.key)}
                                 />
                               ))}
-                              {day.skipped.length > 0 && (
-                                <MarketSkippedCluster
+                              {day.skipped.map((d) => (
+                                <MarketRow
+                                  key={d.key}
+                                  hideDate
                                   RowActionCell={config.RowActionCell}
                                   benchmarkBars={benchmarkBars}
                                   benchmarkCurrent={benchmarkCurrent}
-                                  benchmarkEntry={benchmarkEntry}
+                                  benchmarkEntry={benchmarkEntry(d)}
                                   benchmarkLabel={config.benchmarkLabel}
                                   chartMode={chartMode}
-                                  dealings={day.skipped}
+                                  dealing={d}
                                   fmt={config.priceFormat}
-                                  open={openSkipped.has(clusterKey)}
-                                  selectedKey={selectedKey}
+                                  selected={selectedKey === d.key}
                                   showLogo={logosEnabled}
-                                  stockBars={stockBars}
-                                  stockCurrent={stockCurrent}
-                                  visibleCount={skippedVisible[clusterKey] ?? 5}
-                                  onSelect={(d) => setSelectedKey(d.key)}
-                                  onShowMore={() => showMoreSkipped(clusterKey)}
-                                  onToggle={() => toggleSkipped(clusterKey)}
+                                  stockBars={stockBars[d.ticker]}
+                                  stockCurrentMajor={stockCurrent(d.ticker)}
+                                  onSelect={() => setSelectedKey(d.key)}
                                 />
-                              )}
+                              ))}
                             </Fragment>
                           );
                         })}

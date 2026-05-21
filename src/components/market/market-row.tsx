@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 import type { PriceFormat } from "@/components/position-card";
 import type { ChartMode, MarketDealing } from "@/lib/markets/types";
 
@@ -52,22 +52,27 @@ export function MarketRowHeader({
 /** Sticky day separator rendered between each day inside an open month.
  *  Mirrors the month header's overhang treatment — same surface colour,
  *  sticky at the height of the month bar so consecutive day headers
- *  swap places as the user scrolls without ever stacking. Optional
- *  `banner` slot is where the UK daily-summary card slots in. */
+ *  swap places as the user scrolls without ever stacking. When a daily
+ *  summary is available, the headline collapses inline with a sparkles
+ *  affordance — tap opens the full sheet. */
 export function MarketDayHeader({
   weekday,
   day,
   isoDate,
   suggestedCount,
   skippedCount,
-  banner,
+  summary,
+  isToday,
+  onOpenSummary,
 }: {
   weekday: string;
   day: string;
   isoDate: string;
   suggestedCount: number;
   skippedCount: number;
-  banner?: ReactNode;
+  summary?: { headline: string };
+  isToday?: boolean;
+  onOpenSummary?: () => void;
 }) {
   const dateObj = new Date(isoDate);
   const monthLabel = !Number.isNaN(dateObj.getTime())
@@ -75,15 +80,40 @@ export function MarketDayHeader({
     : "";
 
   return (
-    <div className="sticky top-[170px] z-[5] bg-[#faf7f2] dark:bg-surface border-y border-black/[0.06] dark:border-white/[0.06]">
+    <div className="sticky top-[180px] z-[5] bg-[#faf7f2] dark:bg-surface border-y border-black/[0.06] dark:border-white/[0.06]">
       <div className="flex items-center gap-3 px-4 md:px-5 py-1.5 bg-black/[0.025] dark:bg-white/[0.03]">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 shrink-0">
           {weekday}
         </span>
-        <span className="text-xs font-semibold text-foreground/80 tabular-nums">
+        <span className="text-xs font-semibold text-foreground/80 tabular-nums shrink-0">
           {day} {monthLabel}
         </span>
-        <span className="ml-auto text-[10px] text-muted/80 tabular-nums">
+        {summary && onOpenSummary && (
+          <button
+            className="flex-1 min-w-0 flex items-center gap-1.5 text-left text-[#6b5038] dark:text-[#c4a882] hover:text-[#4a3520] dark:hover:text-[#e6cba0] transition-colors"
+            type="button"
+            onClick={onOpenSummary}
+          >
+            <svg
+              aria-hidden="true"
+              className="w-3 h-3 shrink-0"
+              fill="none"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M8 1.5l1.2 3.3L12.5 6l-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2L8 1.5zM13 10l.6 1.7 1.7.6-1.7.6L13 14.6l-.6-1.7L10.7 12.3l1.7-.6L13 10z"
+                fill="currentColor"
+              />
+            </svg>
+            <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">
+              {isToday ? "Today's summary" : "Day in review"}
+            </span>
+            <span className="text-xs font-medium text-foreground/75 truncate">
+              {summary.headline}
+            </span>
+          </button>
+        )}
+        <span className="ml-auto text-[10px] text-muted/80 tabular-nums shrink-0">
           {suggestedCount}
           {skippedCount > 0 && (
             <span className="text-muted/50">
@@ -93,7 +123,6 @@ export function MarketDayHeader({
           )}
         </span>
       </div>
-      {banner}
     </div>
   );
 }
@@ -272,6 +301,7 @@ export function MarketRow<W>({
     <button
       className={`w-full text-left transition-colors
         ${muted ? "opacity-65" : ""}
+        ${muted && !selected ? "bg-black/[0.025] dark:bg-white/[0.025]" : ""}
         ${selected ? "bg-[#6b5038]/[0.07] dark:bg-[#6b5038]/[0.20]" : "hover:bg-black/[0.03] dark:hover:bg-white/5"}`}
       onClick={onSelect}
     >

@@ -1,13 +1,138 @@
-/** Shared hero section. One templated headline + ambient orb / trend-line
- *  animation ported from the retired dashboard hero. Orbs are confined to
- *  side panels so they sit beside the headline, not behind it. Animations
- *  are CSS-only and respect prefers-reduced-motion. */
-export function MarketHero({ marketLabel }: { marketLabel: string }) {
+/** Shared hero section. One templated headline above a layered atmospheric
+ *  backdrop: bright warm spotlight at the headline, cool silver fall-off
+ *  at the corners, slow-breathing pulse so the light reads as alive, and
+ *  ambient orbs drifting around the sides. The bottom dissolves into the page
+ *  colour without a hard rectangular band. All CSS-only; respects
+ *  prefers-reduced-motion.
+ *
+ *  Layout: page is wrapped in `container max-w-7xl`, so the hero uses the
+ *  `w-screen left-1/2 -translate-x-1/2` break-out trick to span the full
+ *  viewport edge-to-edge. Fixed `min-h` keeps the hero the same height on
+ *  every market — the optional beta notice is rendered absolutely at the
+ *  top so it doesn't push the headline around, and slides in instead of
+ *  popping when the user navigates to a beta market. */
+import type { ReactNode } from "react";
+
+export function MarketHero({
+  marketLabel,
+  topNotice,
+}: {
+  marketLabel: string;
+  topNotice?: ReactNode;
+}) {
   return (
-    <header className="relative -mx-4 md:-mx-6 overflow-hidden animate-content-in">
-      {/* Top/bottom fades dissolve the orbs into the surrounding page */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 z-[5] bg-gradient-to-b from-[#f5f0e8] dark:from-background to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 z-[5] bg-gradient-to-t from-[#f5f0e8] dark:from-background to-transparent" />
+    <header className="relative w-screen left-1/2 -translate-x-1/2 -mt-4 md:-mt-6 min-h-[300px] md:min-h-[380px] flex flex-col overflow-hidden animate-content-in">
+      <style>{`
+        @keyframes hero-notice-in {
+          from { opacity: 0; transform: translate3d(-50%, -120%, 0); }
+          to   { opacity: 1; transform: translate3d(-50%, 0, 0); }
+        }
+        .hero-notice {
+          animation: hero-notice-in 480ms cubic-bezier(0.16, 0.84, 0.34, 1) both;
+          will-change: opacity, transform;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hero-notice { animation: none !important; transform: translate(-50%, 0) !important; opacity: 1 !important; }
+        }
+        @keyframes hero-spotlight-breathe {
+          0%, 100% { opacity: 0.85; transform: scale(1); }
+          50%      { opacity: 1;    transform: scale(1.04); }
+        }
+        @keyframes hero-shimmer-drift {
+          0%   { transform: translate3d(-6%, -3%, 0); }
+          50%  { transform: translate3d( 6%,  3%, 0); }
+          100% { transform: translate3d(-6%, -3%, 0); }
+        }
+        .hero-spotlight {
+          position: absolute; inset: 0;
+          background:
+            radial-gradient(ellipse 55% 65% at 50% 32%,
+              rgba(255, 248, 232, 0.85) 0%,
+              rgba(255, 248, 232, 0.45) 25%,
+              rgba(255, 248, 232, 0.12) 50%,
+              transparent 70%);
+          will-change: opacity, transform;
+          animation: hero-spotlight-breathe 9s ease-in-out infinite;
+        }
+        .hero-shimmer {
+          position: absolute; inset: -20% -10%;
+          background:
+            radial-gradient(ellipse 50% 50% at 18% 24%, rgba(206, 214, 228, 0.40) 0%, transparent 55%),
+            radial-gradient(ellipse 45% 50% at 82% 18%, rgba(196, 206, 222, 0.32) 0%, transparent 55%),
+            radial-gradient(ellipse 55% 40% at 35% 78%, rgba(214, 218, 226, 0.22) 0%, transparent 60%);
+          will-change: transform;
+          animation: hero-shimmer-drift 22s ease-in-out infinite;
+        }
+        .hero-warm-floor {
+          position: absolute; inset: 0;
+          background:
+            radial-gradient(ellipse 110% 70% at 50% 60%,
+              rgba(196, 168, 130, 0.10) 0%,
+              transparent 65%);
+        }
+        .hero-vignette {
+          position: absolute; inset: 0;
+          background:
+            radial-gradient(ellipse 90% 95% at 50% 40%,
+              transparent 50%,
+              rgba(120, 100, 80, 0.05) 80%,
+              rgba(80, 65, 50, 0.10) 100%);
+        }
+        :is(.dark) .hero-spotlight {
+          background:
+            radial-gradient(ellipse 55% 65% at 50% 32%,
+              rgba(196, 168, 130, 0.20) 0%,
+              rgba(196, 168, 130, 0.10) 25%,
+              rgba(196, 168, 130, 0.04) 50%,
+              transparent 70%);
+        }
+        :is(.dark) .hero-shimmer {
+          background:
+            radial-gradient(ellipse 50% 50% at 18% 24%, rgba(130, 140, 160, 0.18) 0%, transparent 55%),
+            radial-gradient(ellipse 45% 50% at 82% 18%, rgba(120, 130, 150, 0.14) 0%, transparent 55%),
+            radial-gradient(ellipse 55% 40% at 35% 78%, rgba(140, 145, 160, 0.10) 0%, transparent 60%);
+        }
+        :is(.dark) .hero-warm-floor { display: none; }
+        :is(.dark) .hero-vignette {
+          background:
+            radial-gradient(ellipse 90% 95% at 50% 40%,
+              transparent 50%,
+              rgba(0, 0, 0, 0.20) 80%,
+              rgba(0, 0, 0, 0.35) 100%);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hero-spotlight, .hero-shimmer { animation: none !important; }
+        }
+      `}</style>
+
+      {/* Atmospheric backdrop — order matters. Warm floor sits behind so
+          the shimmer + spotlight feel like they're cast on a surface; the
+          vignette goes last so light falls off toward the corners. */}
+      <div aria-hidden className="hero-warm-floor z-0" />
+      <div aria-hidden className="hero-shimmer z-0" />
+      <div aria-hidden className="hero-spotlight z-0" />
+      <div aria-hidden className="hero-vignette z-[1] pointer-events-none" />
+
+      {/* Top fade dissolves into the navbar; bottom fade passes through a
+          slightly darker tone before resolving to the page colour so the
+          table beneath reads as sitting *under* the lit stage. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 z-[6] bg-gradient-to-b from-[#f5f0e8] dark:from-background to-transparent" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-56 z-[6] dark:hidden"
+        style={{
+          background:
+            "linear-gradient(to top, #f5f0e8 0%, rgba(245,240,232,0.94) 20%, rgba(245,240,232,0.58) 48%, rgba(245,240,232,0) 82%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-56 z-[6] hidden dark:block"
+        style={{
+          background:
+            "linear-gradient(to top, var(--color-background, #15110d) 0%, rgba(21,17,13,0.85) 32%, rgba(21,17,13,0.4) 60%, transparent 100%)",
+        }}
+      />
 
       <style>{`
         .hero-orb { position: absolute; border-radius: 50%; will-change: opacity, transform; pointer-events: none; }
@@ -25,40 +150,40 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
         .hero-glow-b { animation: ho-glow 8s ease-out infinite; animation-delay: 1.6s; }
         .hero-glow-c { animation: ho-glow 8s ease-out infinite; animation-delay: 3.65s; }
         @keyframes ho-a {
-          0%   { opacity: 0.03; transform: scale(0.8) translate(-5%,2%); }
-          20%  { opacity: 0.22; transform: scale(1.15) translate(-2%,1%); }
-          38%  { opacity: 0.16; transform: scale(1.05) translate(-1%,0.5%); }
-          55%  { opacity: 0.03; transform: scale(0.85); }
-          100% { opacity: 0.03; transform: scale(0.8) translate(-5%,2%); }
+          0%   { opacity: 0.08; transform: scale(0.8) translate(-5%,2%); }
+          20%  { opacity: 0.55; transform: scale(1.15) translate(-2%,1%); }
+          38%  { opacity: 0.38; transform: scale(1.05) translate(-1%,0.5%); }
+          55%  { opacity: 0.08; transform: scale(0.85); }
+          100% { opacity: 0.08; transform: scale(0.8) translate(-5%,2%); }
         }
         @keyframes ho-b {
-          0%   { opacity: 0.02; transform: scale(0.85); }
-          25%  { opacity: 0.18; transform: scale(1.2) translate(3%,-2%); }
-          45%  { opacity: 0.12; transform: scale(1.08) translate(2%,-1%); }
-          62%  { opacity: 0.02; transform: scale(0.88); }
-          100% { opacity: 0.02; transform: scale(0.85); }
+          0%   { opacity: 0.06; transform: scale(0.85); }
+          25%  { opacity: 0.48; transform: scale(1.2) translate(3%,-2%); }
+          45%  { opacity: 0.32; transform: scale(1.08) translate(2%,-1%); }
+          62%  { opacity: 0.06; transform: scale(0.88); }
+          100% { opacity: 0.06; transform: scale(0.85); }
         }
         @keyframes ho-c {
-          0%   { opacity: 0.02; transform: scale(0.9); }
-          15%  { opacity: 0.16; transform: scale(1.15) translate(1%,4%); }
-          32%  { opacity: 0.10; transform: scale(1.05) translate(0.5%,2%); }
-          48%  { opacity: 0.02; transform: scale(0.88); }
-          68%  { opacity: 0.08; transform: scale(1.04) translate(1%,1%); }
-          82%  { opacity: 0.02; transform: scale(0.9); }
-          100% { opacity: 0.02; transform: scale(0.9); }
+          0%   { opacity: 0.06; transform: scale(0.9); }
+          15%  { opacity: 0.42; transform: scale(1.15) translate(1%,4%); }
+          32%  { opacity: 0.28; transform: scale(1.05) translate(0.5%,2%); }
+          48%  { opacity: 0.06; transform: scale(0.88); }
+          68%  { opacity: 0.22; transform: scale(1.04) translate(1%,1%); }
+          82%  { opacity: 0.06; transform: scale(0.9); }
+          100% { opacity: 0.06; transform: scale(0.9); }
         }
         @keyframes ho-d {
-          0%   { opacity: 0.01; transform: scale(0.82); }
-          28%  { opacity: 0.12; transform: scale(1.1) translate(-1%,-3%); }
-          44%  { opacity: 0.02; transform: scale(0.86); }
-          100% { opacity: 0.01; transform: scale(0.82); }
+          0%   { opacity: 0.04; transform: scale(0.82); }
+          28%  { opacity: 0.32; transform: scale(1.1) translate(-1%,-3%); }
+          44%  { opacity: 0.06; transform: scale(0.86); }
+          100% { opacity: 0.04; transform: scale(0.82); }
         }
         @keyframes ho-e {
-          0%   { opacity: 0.02; transform: scale(0.75); }
-          22%  { opacity: 0.14; transform: scale(1.15) translate(2%,-3%); }
-          40%  { opacity: 0.08; transform: scale(1.06) translate(1%,-2%); }
-          58%  { opacity: 0.02; transform: scale(0.78); }
-          100% { opacity: 0.02; transform: scale(0.75); }
+          0%   { opacity: 0.05; transform: scale(0.75); }
+          22%  { opacity: 0.38; transform: scale(1.15) translate(2%,-3%); }
+          40%  { opacity: 0.22; transform: scale(1.06) translate(1%,-2%); }
+          58%  { opacity: 0.05; transform: scale(0.78); }
+          100% { opacity: 0.05; transform: scale(0.75); }
         }
         @keyframes ho-dot {
           0%   { opacity: 0;    transform: scale(0); }
@@ -86,20 +211,21 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
         }
         @media (prefers-reduced-motion: reduce) {
           .hero-orb, .hero-dot, .hero-glow, .hero-line { animation: none !important; }
-          .hero-orb-a { opacity: 0.12; }
-          .hero-orb-b { opacity: 0.08; }
-          .hero-orb-c { opacity: 0.06; }
-          .hero-orb-d { opacity: 0.04; }
-          .hero-orb-e { opacity: 0.04; }
+          .hero-orb-a { opacity: 0.32; }
+          .hero-orb-b { opacity: 0.24; }
+          .hero-orb-c { opacity: 0.20; }
+          .hero-orb-d { opacity: 0.16; }
+          .hero-orb-e { opacity: 0.16; }
           .hero-line { opacity: 0; }
         }
       `}</style>
 
       {/* Left side panel — orbs anchored at the right edge so they drift
-          out toward the gutter rather than into the headline. */}
+          out toward the gutter rather than into the headline. Overflow stays
+          visible so gradients never reveal a clipped rectangular panel. */}
       <div
         aria-hidden
-        className="hidden md:block absolute inset-y-0 left-0 w-[28%] overflow-hidden z-0 pointer-events-none"
+        className="hidden md:block absolute inset-y-0 left-0 w-[38%] overflow-visible z-0 pointer-events-none"
       >
         <svg
           aria-hidden
@@ -183,7 +309,7 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
       {/* Right side panel — mirror, anchored at the left edge. */}
       <div
         aria-hidden
-        className="hidden md:block absolute inset-y-0 right-0 w-[28%] overflow-hidden z-0 pointer-events-none"
+        className="hidden md:block absolute inset-y-0 right-0 w-[38%] overflow-visible z-0 pointer-events-none"
       >
         <svg
           aria-hidden
@@ -276,7 +402,23 @@ export function MarketHero({ marketLabel }: { marketLabel: string }) {
         />
       </div>
 
-      <div className="relative z-10 py-10 md:py-16 px-4 text-center">
+      {/* Optional beta / advisory notice — absolutely positioned so it
+          floats on top of the hero without changing its height. Slides
+          down on mount so navigating into a beta market reads as a
+          smooth banner drop rather than a layout flash. */}
+      {topNotice && (
+        <div
+          key="topNotice"
+          className="hero-notice absolute left-1/2 top-4 md:top-6 z-[7] inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-100/85 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800/60 backdrop-blur-sm px-3.5 py-1 text-sm shadow-sm"
+        >
+          <span className="rounded-full bg-amber-500/25 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+            Beta
+          </span>
+          {topNotice}
+        </div>
+      )}
+
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-10 md:py-16 text-center">
         <h2
           className="mx-auto text-balance text-3xl font-semibold tracking-tight leading-[1.05] md:text-[52px]"
           style={{ maxWidth: 550 }}
